@@ -1,0 +1,53 @@
+# ==========================================================================
+# ProPhysics - NMAKE Build Automation
+# File: Makefile
+# Architecture: MSVC x64 Architecture Optimization
+# ==========================================================================
+
+CC = cl.exe
+LINKER = link.exe
+
+# Compiler Flags: Max Speed Optimization (/O2), Multi-Processor Compilation (/MP), 
+# Warnings as Errors (/W4), Standard C99 conforming mode (/std:c11 oder fallback)
+CFLAGS = /nologo /O2 /W4 /MP /Isrc
+
+# DLL-spezifisches Export-Macro injecten
+DLL_FLAGS = /DPROPHYSICS_EXPORTS
+
+# Verzeichnisse
+SRC_DIR = src
+OUT_DIR = bin
+
+# Targets
+DLL_TARGET = $(OUT_DIR)\ProPhysics.dll
+EXE_TARGET = $(OUT_DIR)\ProPhysics_Console.exe
+
+# Object Files
+OBJ_KERNEL = $(OUT_DIR)\ProPhysics.obj
+OBJ_MAIN   = $(OUT_DIR)\main.obj
+
+all: setup $(DLL_TARGET) $(EXE_TARGET)
+
+setup:
+	@if not exist $(OUT_DIR) mkdir $(OUT_DIR)
+
+# 1. Kernel Objektdatei kompilieren
+$(OBJ_KERNEL): $(SRC_DIR)\ProPhysics.c $(SRC_DIR)\ProPhysics.h $(SRC_DIR)\ProPhysics_Config.h $(SRC_DIR)\ProPhysics_Types.h
+	$(CC) $(CFLAGS) $(DLL_FLAGS) /c $(SRC_DIR)\ProPhysics.c /Fo$(OBJ_KERNEL)
+
+# 2. Main Objektdatei kompilieren
+$(OBJ_MAIN): main.c $(SRC_DIR)\ProPhysics.h
+	$(CC) $(CFLAGS) /c main.c /Fo$(OBJ_MAIN)
+
+# 3. DLL und zugehörige Import-Lib (.lib) erzeugen
+$(DLL_TARGET): $(OBJ_KERNEL)
+	$(LINKER) /nologo /DLL /OUT:$(DLL_TARGET) $(OBJ_KERNEL)
+
+# 4. Standalone Konsole bauen (wird direkt mit dem Kernel-Objekt gelinkt)
+$(EXE_TARGET): $(OBJ_MAIN) $(OBJ_KERNEL)
+	$(LINKER) /nologo /OUT:$(EXE_TARGET) $(OBJ_MAIN) $(OBJ_KERNEL)
+
+clean:
+	@if exist $(OUT_DIR) del /Q $(OUT_DIR)\*
+	@if exist $(OUT_DIR) rmdir $(OUT_DIR)
+	@echo [CLEAN]: Build-Verzeichnis bereinigt.
