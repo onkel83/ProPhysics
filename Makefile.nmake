@@ -1,53 +1,36 @@
 # ==========================================================================
-# ProPhysics - NMAKE Build Automation
-# File: Makefile
-# Architecture: MSVC x64 Architecture Optimization
+# ProPhysics - Master Orchestrator Build Script
+# File: Makefile.nmake (Root-Verzeichnis)
+# Architecture: Sequential Product-Line Compilation & Macro Overriding
 # ==========================================================================
 
-CC = cl.exe
-LINKER = link.exe
+MAKE = nmake.exe
 
-# Compiler Flags: Max Speed Optimization (/O2), Multi-Processor Compilation (/MP), 
-# Warnings as Errors (/W4), Standard C99 conforming mode (/std:c11 oder fallback)
-CFLAGS = /nologo /O2 /W4 /MP /Isrc
+# Das Standard-Target koordiniert die gesamte Build-Reihenfolge
+all: build_all
 
-# DLL-spezifisches Export-Macro injecten
-DLL_FLAGS = /DPROPHYSICS_EXPORTS
+build_all:
+	@echo ==========================================================================
+	@echo [MASTER]: Starte industrielle Master-Kompilierung der Pro-Familie...
+	@echo ==========================================================================
+	@echo [MASTER]: Step 1 -> Baue Standalone UI-Framework (ProDiBatch)...
+	@cd ProDiBatch && $(MAKE) /NOLOGO /f Makefile.nmake
+	@echo.
+	@echo [MASTER]: Step 2 -> Baue Core-Simulation-Engine (ProPhysics)...
+	@cd ProPhysics && $(MAKE) /NOLOGO /f Makefile.nmake OUT_DIR=..\bin\ProPhysics PRODIBATCH_BIN=..\bin\ProDiBatch
+	@echo.
+	@echo [MASTER]: Step 3 -> Baue Haupt-Bootstrapper / Applikation (Observer)...
+	@cd Observer && $(MAKE) /NOLOGO /f Makefile.nmake
+	@echo ==========================================================================
+	@echo [MASTER]: Master-Kompilierung erfolgreich abgeschlossen!
+	@echo [MASTER]: Alle Endprodukte steril einsatzbereit unter .\bin\
+	@echo ==========================================================================
 
-# Verzeichnisse
-SRC_DIR = src
-OUT_DIR = bin
-
-# Targets
-DLL_TARGET = $(OUT_DIR)\ProPhysics.dll
-EXE_TARGET = $(OUT_DIR)\ProPhysics_Console.exe
-
-# Object Files
-OBJ_KERNEL = $(OUT_DIR)\ProPhysics.obj
-OBJ_MAIN   = $(OUT_DIR)\main.obj
-
-all: setup $(DLL_TARGET) $(EXE_TARGET)
-
-setup:
-	@if not exist $(OUT_DIR) mkdir $(OUT_DIR)
-
-# 1. Kernel Objektdatei kompilieren
-$(OBJ_KERNEL): $(SRC_DIR)\ProPhysics.c $(SRC_DIR)\ProPhysics.h $(SRC_DIR)\ProPhysics_Config.h $(SRC_DIR)\ProPhysics_Types.h
-	$(CC) $(CFLAGS) $(DLL_FLAGS) /c $(SRC_DIR)\ProPhysics.c /Fo$(OBJ_KERNEL)
-
-# 2. Main Objektdatei kompilieren
-$(OBJ_MAIN): main.c $(SRC_DIR)\ProPhysics.h
-	$(CC) $(CFLAGS) /c main.c /Fo$(OBJ_MAIN)
-
-# 3. DLL und zugehörige Import-Lib (.lib) erzeugen
-$(DLL_TARGET): $(OBJ_KERNEL)
-	$(LINKER) /nologo /DLL /OUT:$(DLL_TARGET) $(OBJ_KERNEL)
-
-# 4. Standalone Konsole bauen (wird direkt mit dem Kernel-Objekt gelinkt)
-$(EXE_TARGET): $(OBJ_MAIN) $(OBJ_KERNEL)
-	$(LINKER) /nologo /OUT:$(EXE_TARGET) $(OBJ_MAIN) $(OBJ_KERNEL)
-
+# Porentiefe Kaskaden-Säuberung: Ruft die Unter-Skripte auf und rasiert den bin-Zweig
 clean:
-	@if exist $(OUT_DIR) del /Q $(OUT_DIR)\*
-	@if exist $(OUT_DIR) rmdir $(OUT_DIR)
-	@echo [CLEAN]: Build-Verzeichnis bereinigt.
+	@echo [MASTER]: Starte kaskadierende Saeuberung des gesamten Projektbaums...
+	@if exist ProDiBatch\Makefile.nmake (cd ProDiBatch && $(MAKE) /NOLOGO /f Makefile.nmake clean)
+	@if exist ProPhysics\Makefile.nmake (cd ProPhysics && $(MAKE) /NOLOGO /f Makefile.nmake clean)
+	@if exist Observer\Makefile.nmake (cd Observer && $(MAKE) /NOLOGO /f Makefile.nmake clean)
+	@if exist bin rmdir /S /Q bin
+	@echo [MASTER CLEAN]: Projektbaum zu 100% steril bereinigt.
