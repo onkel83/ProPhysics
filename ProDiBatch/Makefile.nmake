@@ -1,0 +1,62 @@
+# ==========================================================================
+# ProDiBatch - NMAKE Build Automation
+# File: ProDiBatch/Makefile.nmake
+# Architecture: MSVC x64 Architecture Optimization (Standalone UI Tier)
+# ==========================================================================
+
+CC = cl.exe
+LINKER = link.exe
+
+# Compiler-Flags: Max Speed, Multi-Processor, Warnings as Errors, Portability-Suppression
+CFLAGS = /nologo /O2 /W4 /MP /I. /D_CRT_SECURE_NO_WARNINGS
+
+# Aktiviert das DLL-Export-Gating aus ProDiBatch_Exports.h
+DLL_FLAGS = /DPRODIBATCH_DLL_EXPORTS
+
+# Ziel-Verzeichnis (Absolut sauber ausgelagert in den globalen bin-Zweig)
+OUT_DIR = ..\bin\ProDiBatch
+
+# Endprodukte
+DLL_TARGET = $(OUT_DIR)\ProDiBatch.dll
+LIB_TARGET = $(OUT_DIR)\ProDiBatch.lib
+
+# Temporäre Zwischenstufen des MSVC-Compilers
+OBJ_FILE = ProDiBatch.obj
+EXP_FILE = ProDiBatch.exp
+
+# Die Schnittstellen-Header, die für den B2B-Verbund exportiert werden müssen
+HEADERS = ProDiBatch.h ProDiBatch_Config.h ProDiBatch_Exports.h ProDiBatch_Version.h
+
+# Standard-Target: Verzeichnis bauen, DLL linken, Header kopieren und aufräumen
+all: setup $(DLL_TARGET) copy_headers clean_tmp
+
+setup:
+	@if not exist $(OUT_DIR) mkdir $(OUT_DIR)
+
+# Kompilierung und Linker-Vorgang der Dynamic Link Library
+$(DLL_TARGET): ProDiBatch.c $(HEADERS)
+	@echo [COMPILING]: Generiere transienten Objekt-Code für ProDiBatch...
+	$(CC) $(CFLAGS) $(DLL_FLAGS) /c ProDiBatch.c /Fo$(OBJ_FILE)
+	@echo [LINKING]: Erzeuge Dynamic Link Library und Import-Bibliothek...
+	$(LINKER) /nologo /DLL /OUT:$(DLL_TARGET) $(OBJ_FILE)
+
+# Exportiert die Header direkt in den binären Zielordner
+copy_headers:
+	@echo [EXPORT]: Kopiere Produkt-Schnittstellen (Header) nach $(OUT_DIR)...
+	@copy /Y ProDiBatch.h $(OUT_DIR)\ >nul
+	@copy /Y ProDiBatch_Config.h $(OUT_DIR)\ >nul
+	@copy /Y ProDiBatch_Exports.h $(OUT_DIR)\ >nul
+	@copy /Y ProDiBatch_Version.h $(OUT_DIR)\ >nul
+
+# Automatisches, geräuschloses Post-Build-Aufräumen (Löscht .obj und .exp)
+clean_tmp:
+	@if exist $(OBJ_FILE) del /Q $(OBJ_FILE)
+	@if exist $(OUT_DIR)\ProDiBatch.exp del /Q $(OUT_DIR)\ProDiBatch.exp
+	@echo [CLEANUP]: Temporäre Compiler-Dateien (.obj, .exp) erfolgreich entfernt.
+
+# Radikal-Säuberung des gesamten Zielordners für saubere Re-Builds
+clean:
+	@if exist $(OBJ_FILE) del /Q $(OBJ_FILE)
+	@if exist $(OUT_DIR) del /Q $(OUT_DIR)\*
+	@if exist $(OUT_DIR) rmdir $(OUT_DIR)
+	@echo [DEEP CLEAN]: ProDiBatch-Build-Verzeichnis vollständig vernichtet.
