@@ -2,6 +2,7 @@
  * ProPhysics - Engine Kernel Execution (Pure "It from Bit" LGA Core)
  * Architektur: Lock-Free Gather (Pull) Engine, Pure Array Chunking
  * Optimierung: Zero-Branching Torus & SoA Cache-Density (Flat Flux Array)
+ * Instrumentierung: Forensisches Phasen- & Thread-Debugging
  * ========================================================================== */
 
 #include <stdlib.h>
@@ -16,9 +17,12 @@
 #define MAX_SPARSE_TRACKING_NODES 5000000 
 #endif
 
- // ==========================================================================
- // BITSHIFT OPTIMIERUNG FÜR 1024x512x512 GITTER
- // ==========================================================================
+ // --- VORWÄRTSDEKLARATIONEN (Verhindert C4013 & C2371) ---
+void ProPhysics_Update_Quantum_Flux(ProUniverse* universe, uint32_t node_idx);
+
+// ==========================================================================
+// BITSHIFT OPTIMIERUNG FÜR 1024x512x512 GITTER
+// ==========================================================================
 #define X_MASK  0x3FF   // 1023 (10 Bits)
 #define Y_MASK  0x1FF   // 511  (9 Bits)
 #define Z_MASK  0x1FF   // 511  (9 Bits)
@@ -30,11 +34,9 @@ static const int32_t DY[12] = { 1, -1, -1,  1,  0,  0,  0,  0,  1, -1,  1, -1 };
 static const int32_t DZ[12] = { 0,  0,  0,  0,  1, -1, -1,  1,  1, -1, -1,  1 };
 
 static inline uint32_t ProPhysics_Get_Neighbor_Inline(int32_t x, int32_t y, int32_t z, int i) {
-    // BRANCHLESS TORUS
     uint32_t nx = (x + DX[i]) & X_MASK;
     uint32_t ny = (y + DY[i]) & Y_MASK;
     uint32_t nz = (z + DZ[i]) & Z_MASK;
-
     return nx | (ny << Y_SHIFT) | (nz << Z_SHIFT);
 }
 
@@ -55,17 +57,16 @@ static bool threads_initialized = false;
 
 DWORD WINAPI PhysicsWorker(LPVOID lpParam) {
     int t_id = (int)(uintptr_t)lpParam;
-
     SetThreadAffinityMask(GetCurrentThread(), (DWORD_PTR)1 << (t_id + 2));
     long my_tick = 1;
 
-    // L3-CACHE OPTIMIERUNG: Wir nutzen active_nodes_kinetic als flaches, reines uint32_t Array!
-    // Dadurch schaufelt die CPU nicht mehr die riesigen 64-Byte FCCNode-Strukturen durch den Bus.
+    printf("[WORKER %d] Online und an Core gebunden. Engine-Status: %d\n", t_id, engine_running);
+
     uint32_t* fast_flux = global_pu->active_nodes_kinetic;
 
     while (engine_running) {
         // ====================================================================
-        // PHASE 1: KOLLISION & POSTAUSGANG (SCATTER PREP)
+        // PHASE 1: KOLLISION & POSTAUSGANG (SCATTER PREP) + QUANTUM FLUX
         // ====================================================================
         while (current_tick_phase != (my_tick * 10 + 1)) {
             if (!engine_running) return 0;
@@ -81,13 +82,19 @@ DWORD WINAPI PhysicsWorker(LPVOID lpParam) {
 
         for (uint64_t a = start; a < end; a++) {
             uint32_t idx = global_pu->active_nodes_current[a];
-            uint32_t flux = fast_flux[idx]; // <- Ultraschneller Flat-Array Zugriff
+
+            // --- Synchronisation & Paralleler Quanten-Ablenkungs-Kernel ---
+            global_pu->grid[idx].active_flux = fast_flux[idx];
+            ProPhysics_Update_Quantum_Flux(global_pu, idx);
+            fast_flux[idx] = global_pu->grid[idx].active_flux;
+
+            uint32_t flux = fast_flux[idx];
             uint32_t move = flux & 0x0FFF;
             uint32_t mass = flux & 0x1000;
 
             if (move == 0 && mass == 0) {
                 fast_flux[idx] = 0;
-                global_pu->grid[idx].active_flux = 0; // Legacy-Sync für Observer
+                global_pu->grid[idx].active_flux = 0;
                 continue;
             }
 
@@ -99,8 +106,21 @@ DWORD WINAPI PhysicsWorker(LPVOID lpParam) {
             }
 
             if (move) {
-                if (__builtin_popcountll(move) == 3 && mass == 0) {
+                // --- Polaritätsabhängiges Fusions-Gating (Korrektur: uint32_t) ---
+                uint32_t island_idx = global_pu->grid[idx].state_island_idx;
+
+                uint64_t local_charge = (island_idx != 0) ?
+                    (global_pu->data_pool[island_idx].charge_spin & QUANTUM_MASK_POLARITY) : QUANTUM_POL_NEUTRAL;
+
+                // Axiom: Fusion ist nur in einem aktiv polarisierten Feld erlaubt
+                uint32_t fusion_allowed = (local_charge == QUANTUM_POL_PLUS) | (local_charge == QUANTUM_POL_MINUS);
+
+                if (__builtin_popcountll(move) == 3 && mass == 0 && fusion_allowed) {
                     fast_flux[idx] = 0x1000;
+
+                    // Neue Masse erbt den Feld-Katalysator
+                    global_pu->grid[idx].state_island_idx = island_idx;
+
                     if (!(tls_bitset[t_id][idx >> 3] & (1 << (idx & 7)))) {
                         tls_bitset[t_id][idx >> 3] |= (1 << (idx & 7));
                         tls_active_nodes[t_id][tls_active_count[t_id]++] = idx;
@@ -108,6 +128,9 @@ DWORD WINAPI PhysicsWorker(LPVOID lpParam) {
                     continue;
                 }
 
+                // ============================================================
+                // PAAR-STREUUNG (LEGACY LGA)
+                // ============================================================
                 bool pair01 = (move & 0x0003) == 0x0003;
                 bool pair23 = (move & 0x000C) == 0x000C;
                 bool pair45 = (move & 0x0030) == 0x0030;
@@ -148,7 +171,7 @@ DWORD WINAPI PhysicsWorker(LPVOID lpParam) {
         _InterlockedIncrement(&workers_done);
 
         // ====================================================================
-        // PHASE 2: GATHER (Mit 16-fach verbesserter Cache-Dichte!)
+        // PHASE 2: GATHER
         // ====================================================================
         while (current_tick_phase != (my_tick * 10 + 2)) {
             if (!engine_running) return 0;
@@ -171,7 +194,6 @@ DWORD WINAPI PhysicsWorker(LPVOID lpParam) {
 
             for (int i = 0; i < 12; i++) {
                 uint32_t neighbor = ProPhysics_Get_Neighbor_Inline(x, y, z, i ^ 1);
-                // Durch den Zugriff auf das Flat-Array sinkt die L3-Miss Rate dramatisch ab
                 if (fast_flux[neighbor] & (1U << (i + 13))) {
                     incoming |= (1U << i);
                 }
@@ -192,7 +214,7 @@ DWORD WINAPI PhysicsWorker(LPVOID lpParam) {
         for (uint64_t a = start; a < end; a++) {
             uint32_t idx = global_pu->active_nodes_current[a];
             fast_flux[idx] &= 0x00001FFF;
-            global_pu->grid[idx].active_flux = fast_flux[idx]; // Wir schreiben es für das Teleskop in main.c zurück!
+            global_pu->grid[idx].active_flux = fast_flux[idx];
         }
 
         _InterlockedIncrement(&workers_done);
@@ -203,6 +225,7 @@ DWORD WINAPI PhysicsWorker(LPVOID lpParam) {
 
 void ProPhysics_Init_Threads(ProUniverse* pu) {
     if (threads_initialized) return;
+    printf("[INIT] Starte Thread-Infrastruktur für %d Worker...\n", NUM_WORKERS);
     global_pu = pu;
     engine_running = true;
     current_tick_phase = 0;
@@ -214,13 +237,18 @@ void ProPhysics_Init_Threads(ProUniverse* pu) {
         tls_bitset[i] = (uint8_t*)malloc(bitset_bytes);
         memset(tls_bitset[i], 0, bitset_bytes);
         worker_threads[i] = CreateThread(NULL, 0, PhysicsWorker, (LPVOID)(uintptr_t)i, 0, NULL);
+        if (worker_threads[i] == NULL) {
+            printf("[CRITICAL] Fehler beim Spawnen von Worker %d!\n", i);
+        }
     }
     SetThreadAffinityMask(GetCurrentThread(), (DWORD_PTR)1 << 1);
     threads_initialized = true;
+    printf("[INIT] Alle Worker erfolgreich initialisiert und im Standby.\n");
 }
 
 void ProPhysics_Initialize(ProUniverse* pu) {
     if (!pu) return;
+    printf("[INITIALIZE] Allokiere Gitterstrukturen...\n");
     uint64_t total_nodes = (uint64_t)PROPHYSICS_X_MAX * PROPHYSICS_Y_MAX * PROPHYSICS_Z_MAX;
     uint64_t topo_bytes = total_nodes * sizeof(FCCNode);
     uint64_t bitset_bytes = (total_nodes + 7) / 8;
@@ -241,6 +269,7 @@ void ProPhysics_Initialize(ProUniverse* pu) {
 }
 
 void ProPhysics_Inject_Elements(ProUniverse* pu) {
+    printf("[INJECTOR] Flute das Vakuum mit Quantenrauschen...\n");
     uint64_t total_nodes = (uint64_t)PROPHYSICS_X_MAX * PROPHYSICS_Y_MAX * PROPHYSICS_Z_MAX;
     uint32_t* fast_flux = pu->active_nodes_kinetic;
     srand(1337);
@@ -260,6 +289,7 @@ void ProPhysics_Inject_Elements(ProUniverse* pu) {
     int cx_A = 256, cx_B = 768;
     int cy = 256, cz = 256;
 
+    printf("[INJECTOR] Stanze Planet A und Planet B in den RAM...\n");
     for (int x = -radius; x <= radius; x++) {
         for (int y = -radius; y <= radius; y++) {
             for (int z = -radius; z <= radius; z++) {
@@ -298,9 +328,24 @@ void ProPhysics_Execute_Tick(ProUniverse* pu) {
 
     _InterlockedExchange(&workers_done, 0);
     _InterlockedExchange(&current_tick_phase, expected_tick * 10 + 1);
-    while (workers_done < NUM_WORKERS) _mm_pause();
+
+    long last_seen_done = -1;
+    uint64_t watchdog = 0;
+    while (workers_done < NUM_WORKERS) {
+        long current_done = workers_done;
+        if (current_done != last_seen_done) {
+            last_seen_done = current_done;
+        }
+        _mm_pause();
+        if (++watchdog > 500000000ULL) {
+            printf("[CRITICAL DEADLOCK] Hauptthread hängt in Phase 1! workers_done ist blockiert bei %ld.\n", workers_done);
+            watchdog = 0;
+            Sleep(1000);
+        }
+    }
     QueryPerformanceCounter(&t_p1);
 
+    // --- CONSOLIDATION STEP (MAIN THREAD) ---
     uint64_t total_nodes = (uint64_t)PROPHYSICS_X_MAX * PROPHYSICS_Y_MAX * PROPHYSICS_Z_MAX;
     memset(pu->node_active_bitset, 0, (total_nodes + 7) / 8);
     pu->active_count_next = 0;
@@ -321,12 +366,16 @@ void ProPhysics_Execute_Tick(ProUniverse* pu) {
 
     _InterlockedExchange(&workers_done, 0);
     _InterlockedExchange(&current_tick_phase, expected_tick * 10 + 2);
-    while (workers_done < NUM_WORKERS) _mm_pause();
+    while (workers_done < NUM_WORKERS) {
+        _mm_pause();
+    }
     QueryPerformanceCounter(&t_p2);
 
     _InterlockedExchange(&workers_done, 0);
     _InterlockedExchange(&current_tick_phase, expected_tick * 10 + 3);
-    while (workers_done < NUM_WORKERS) _mm_pause();
+    while (workers_done < NUM_WORKERS) {
+        _mm_pause();
+    }
     QueryPerformanceCounter(&t_p3);
 
     uint32_t* temp = pu->active_nodes_current;
@@ -334,13 +383,13 @@ void ProPhysics_Execute_Tick(ProUniverse* pu) {
     pu->active_nodes_next = temp;
     pu->active_count_current = pu->active_count_next;
 
-    if (expected_tick == 1 || expected_tick == 20) {
-        printf("\n[DEBUG TICK %ld] Ph1: %.2fms | Cons: %.2fms | Ph2: %.2fms | Ph3: %.2fms\n",
+    /*if (expected_tick == 1 || expected_tick % 20 == 0 || expected_tick == 500) {
+        printf("[DEBUG TICK %ld] Ph1: %.2fms | Cons: %.2fms | Ph2: %.2fms | Ph3: %.2fms\n",
             expected_tick, (double)(t_p1.QuadPart - t_start.QuadPart) * 1000.0 / freq.QuadPart,
             (double)(t_cons.QuadPart - t_p1.QuadPart) * 1000.0 / freq.QuadPart,
             (double)(t_p2.QuadPart - t_cons.QuadPart) * 1000.0 / freq.QuadPart,
             (double)(t_p3.QuadPart - t_p2.QuadPart) * 1000.0 / freq.QuadPart);
-    }
+    }*/
 }
 
 void ProPhysics_Update_Observer(ProUniverse* pu, uint64_t expected_initial_bits) {
@@ -419,3 +468,101 @@ void ProPhysics_Reset(ProUniverse* pu, uint64_t* initial_bit_tracker) {
 }
 
 double ProPhysics_Query_Anisotropy(const ProUniverse* pu, int32_t x, int32_t y, int32_t z) { (void)pu; (void)x; (void)y; (void)z; return 0.0; }
+
+void ProPhysics_Update_Quantum_Flux(ProUniverse* universe, uint32_t node_idx) {
+    FCCNode* node = &universe->grid[node_idx];
+    uint32_t island_idx = node->state_island_idx;
+
+    uint64_t polarity = QUANTUM_POL_NEUTRAL;
+    QuantumStateIsland* island = NULL;
+
+    if (island_idx != 0) {
+        island = &universe->data_pool[island_idx];
+        polarity = island->charge_spin & QUANTUM_MASK_POLARITY;
+    }
+
+    uint32_t mass_bit = node->active_flux & 0x1000;
+    uint32_t flux = node->active_flux & 0xFFF;
+    uint32_t updated_flux = 0;
+
+    int32_t x = node_idx & X_MASK;
+    int32_t y = (node_idx >> Y_SHIFT) & Y_MASK;
+    int32_t z = node_idx >> Z_SHIFT;
+
+    // Wir verarbeiten die 12 Kanäle paarweise als 6 Raumachsen (Bijectivity-Gating)
+    for (int p = 0; p < 6; p++) {
+        int i = p * 2;
+        int j = i + 1; // Der physikalische Gegenkanal (i ^ 1)
+
+        uint32_t bit_i = (flux >> i) & 1U;
+        uint32_t bit_j = (flux >> j) & 1U;
+
+        uint32_t repel_i = 0;
+        uint32_t repel_j = 0;
+
+        // Achsen-Fluss I evaluieren
+        if (bit_i) {
+            uint32_t n_idx = ProPhysics_Get_Neighbor_Inline(x, y, z, i);
+            uint32_t n_island = universe->grid[n_idx].state_island_idx;
+            uint64_t n_pol = (n_island != 0) ? (universe->data_pool[n_island].charge_spin & QUANTUM_MASK_POLARITY) : QUANTUM_POL_NEUTRAL;
+
+            repel_i = (polarity == n_pol) & (polarity != QUANTUM_POL_NEUTRAL);
+
+            if ((polarity != n_pol) & ((polarity != QUANTUM_POL_NEUTRAL) | (n_pol != QUANTUM_POL_NEUTRAL))) {
+                uint64_t next_charge = (polarity + n_pol) * ((polarity + n_pol) != 3);
+                if (island_idx == 0 && n_island != 0) {
+                    node->state_island_idx = n_island;
+                    island_idx = n_island;
+                    island = &universe->data_pool[island_idx];
+                }
+                if (island_idx != 0) {
+                    island->charge_spin = (island->charge_spin & ~QUANTUM_MASK_POLARITY) | next_charge;
+                    polarity = next_charge;
+                }
+            }
+        }
+
+        // Achsen-Fluss J evaluieren
+        if (bit_j) {
+            uint32_t n_idx = ProPhysics_Get_Neighbor_Inline(x, y, z, j);
+            uint32_t n_island = universe->grid[n_idx].state_island_idx;
+            uint64_t n_pol = (n_island != 0) ? (universe->data_pool[n_island].charge_spin & QUANTUM_MASK_POLARITY) : QUANTUM_POL_NEUTRAL;
+
+            repel_j = (polarity == n_pol) & (polarity != QUANTUM_POL_NEUTRAL);
+
+            if ((polarity != n_pol) & ((polarity != QUANTUM_POL_NEUTRAL) | (n_pol != QUANTUM_POL_NEUTRAL))) {
+                uint64_t next_charge = (polarity + n_pol) * ((polarity + n_pol) != 3);
+                if (island_idx == 0 && n_island != 0) {
+                    node->state_island_idx = n_island;
+                    island_idx = n_island;
+                    island = &universe->data_pool[island_idx];
+                }
+                if (island_idx != 0) {
+                    island->charge_spin = (island->charge_spin & ~QUANTUM_MASK_POLARITY) | next_charge;
+                    polarity = next_charge;
+                }
+            }
+        }
+
+        // BIJEKTIVER TAUSCH: Löst das Bit-Clobbering-Problem vollständig
+        // Wenn mindestens ein Kanal der Achse blockiert ist, zwingt er beide Kanäle zur Reflexion
+        uint32_t do_swap = repel_i | repel_j;
+
+        updated_flux |= (do_swap) ? ((bit_i << j) | (bit_j << i)) : ((bit_i << i) | (bit_j << j));
+    }
+
+    // --- SPIN-CHIRALITÄT ---
+    if (island_idx != 0) {
+        uint32_t spin_chiral = (uint32_t)((island->charge_spin & QUANTUM_MASK_SPIN_CHIRAL) >> 2);
+        uint32_t is_spinning = (spin_chiral != QUANTUM_SPIN_NONE);
+        uint32_t shift = is_spinning * ((spin_chiral == QUANTUM_SPIN_CW) ? 1 : 11);
+
+        updated_flux = ((updated_flux << shift) | (updated_flux >> (12 - shift))) & 0xFFF;
+
+        island->vx += (int64_t)((updated_flux & 0x1) - ((updated_flux >> 1) & 0x1));
+        island->vy += (int64_t)(((updated_flux >> 2) & 0x1) - ((updated_flux >> 3) & 0x1));
+        island->vz += (int64_t)(((updated_flux >> 4) & 0x1) - ((updated_flux >> 5) & 0x1));
+    }
+
+    node->active_flux = updated_flux | mass_bit;
+}
