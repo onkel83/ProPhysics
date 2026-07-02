@@ -5,7 +5,7 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
-  workflow_dispatch: # Ermöglicht den manuellen Start per "Klick" im GitHub-Frontend
+  workflow_dispatch: # Ermöglicht den manuellen Start per Klick im GitHub-Frontend
 
 jobs:
   build:
@@ -16,9 +16,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup MSVC Developer Command Prompt
-        uses: ilamaco/setup-msvc@v1
+        uses: ilammy/msvc-dev-cmd@v1
         with:
-          toolset: '14.3' # Entspricht Visual Studio 2022 compiler tools
+          arch: x64
 
       - name: Execute Master NMAKE Build
         shell: cmd
