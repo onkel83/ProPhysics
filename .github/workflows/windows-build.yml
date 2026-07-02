@@ -1,0 +1,36 @@
+name: ProPhysics Windows CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch: # Ermöglicht den manuellen Start per "Klick" im GitHub-Frontend
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC Developer Command Prompt
+        uses: ilamaco/setup-msvc@v1
+        with:
+          toolset: '14.3' # Entspricht Visual Studio 2022 compiler tools
+
+      - name: Execute Master NMAKE Build
+        shell: cmd
+        run: |
+          nmake /f Makefile.nmake
+
+      - name: Upload Binaries (Artifacts)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ProPhysics-Windows-Build
+          path: |
+            **/Observer.exe
+            **/ProPhysics.dll
+            **/ProDiBatch.dll
+          if-no-files-found: error
