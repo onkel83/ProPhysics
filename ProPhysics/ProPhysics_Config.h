@@ -43,4 +43,8 @@
 typedef double Real;
 typedef uint64_t Index;
 
+#ifndef MAX_SPARSE_TRACKING_NODES
+#define MAX_SPARSE_TRACKING_NODES 64000000ULL
+#endif
+
 #endif // PROPHYSICS_CONFIG_H

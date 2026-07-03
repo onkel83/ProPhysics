@@ -26,5 +26,12 @@ PROPHYSICS_API void   ProPhysics_Execute_Tick(ProUniverse* pu);
 PROPHYSICS_API bool   ProPhysics_Verify_Invariance(const ProUniverse* pu, uint64_t expected_initial_bits);
 PROPHYSICS_API void   ProPhysics_Reset(ProUniverse* pu, uint64_t* initial_bit_tracker);
 PROPHYSICS_API void   ProPhysics_Update_Observer(ProUniverse* pu, uint64_t expected_initial_bits);
+// --- In deiner src/ProPhysics.h ergänzen/prüfen ---
 
+// Funktionale On-the-fly Druckmessung
+PROPHYSICS_API double ProPhysics_Query_Local_Pressure(const ProUniverse* pu, int32_t center_x, int32_t center_y, int32_t center_z, int32_t radius);
+
+// Initial-Partitionierung für das 8+2 Core-Boundary-Triebwerk
+PROPHYSICS_API void   ProPhysics_Partition_Initial_Tasks(ProUniverse* pu);
+PROPHYSICS_API void ProPhysics_Init_Threads(ProUniverse* pu);
 #endif // PROPHYSICS_H
