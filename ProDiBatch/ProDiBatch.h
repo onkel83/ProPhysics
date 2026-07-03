@@ -2,6 +2,7 @@
  * ProDiBatch - Public Engine Interface
  * File: ProDiBatch.h
  * Architecture: C99, Callback-Driven Hardware UI Abstraction
+ * Optimierung: Cache-Line-Aligned Telemetry zur Vermeidung von False Sharing
  * ========================================================================== */
 
 #ifndef PRODIBATCH_H
@@ -28,17 +29,24 @@ typedef struct {
     volatile long write_index;
 } ProDiBatch_LogField;
 
-// Zentrales Zustandsregister des UI-Triebwerks
+// Zentrales Zustandsregister des UI-Triebwerks (Cache-Line Aligned)
+#ifdef _MSC_VER
+#define ALIGN_64 __declspec(align(64))
+#else
+#define ALIGN_64 __attribute__((aligned(64)))
+#endif
+
 typedef struct {
     void* user_context;
     ProDiBatch_CellRenderCallback cell_renderer;
 
-    // Generische Telemetrie-Schnittstellen (Echtzeit-Kopplung)
-    volatile uint64_t metric_sim_tick;
-    volatile uint64_t metric_active_nodes;
-    volatile uint64_t metric_target_invariance;
+    // --- TELEMETRIE-METRIKEN MIT CACHE-LINE-ISOLIERUNG (64-BYTE ALIGNED) ---
+    // Verhindert False Sharing zwischen den Physik-Workern und dem UI-Thread vollständig!
+    ALIGN_64 volatile uint64_t metric_sim_tick;
+    ALIGN_64 volatile uint64_t metric_active_nodes;
+    ALIGN_64 volatile uint64_t metric_target_invariance;
 
-    ProDiBatch_LogField log_buffer;
+    ALIGN_64 ProDiBatch_LogField log_buffer;
     volatile bool is_running;
     void* thread_handle; // Maps intern auf Win32 HANDLE
 } ProDiBatch_Engine;
