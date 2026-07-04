@@ -1,10 +1,17 @@
+/* ==========================================================================
+ * ProPhysics - Chemistry Diagnostic Core
+ * File: Mod_Chemistry.c
+ * Architecture: C99, Cache-Optimized Monolithic Evaluator Layer
+ * Optimierung: Monolithic Loop Fusion, O(1) Bit-Masking, Redundancy Elimination
+ * ========================================================================== */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <math.h>
 
-// SDK-Schnittstellen aus den bin/ Verzeichnissen (wichtig für ProDiBatch_Engine)
+ // SDK-Schnittstellen aus den bin/ Verzeichnissen
 #include "ProPhysics.h"
 #include "ProDiBatch.h"
 
@@ -25,17 +32,8 @@
 // Macht die in der Observer.c instanziierte Gating-Matrix hier bekannt
 extern ModuleTestControl global_mod_control[];
 
-/* Interner Speicher für die Invarianten-Prüfung über Ticks hinweg */
-static int64_t last_total_px = 0;
-
 static bool first_chem_tick = true;
 #define CHEM_EPSILON 0.0001
-
-#define X_MASK  0x3FF 
-#define Y_MASK  0x1FF 
-#define Z_MASK  0x1FF 
-#define Y_SHIFT 10
-#define Z_SHIFT 19
 
 /* Historische Bilanzwerte für Stöchiometrie-Audits */
 static uint64_t last_total_substance_mass = 0;
@@ -46,6 +44,10 @@ static uint64_t initial_universe_mass = 0;
 static double current_kinetic_enthalpy = 0.0;
 static uint64_t total_substance_mass = 0;
 static uint64_t active_chiral_catalysts = 0;
+
+// Globale Akkumulatoren für den verschmolzenen Haupt-Sweep
+static uint64_t open_valency_channels = 0;
+static uint64_t active_bond_nodes = 0;
 
 /* ==========================================================================
  * DIAGNOSE 1: Chemische Elemente, Verbindungen & Molekül-Cluster
@@ -84,72 +86,6 @@ static void check_elements_and_compounds(const ProUniverse* universe, ProDiBatch
         initial_universe_mass = current_mass_sum;
     }
     last_total_substance_mass = current_mass_sum;
-}
-
-/* ==========================================================================
- * DIAGNOSE 2: Chemische Bindung & Valenzelektronen-Analogie
- * ========================================================================== */
-static void check_chemical_bonds_and_valency(const ProUniverse* universe, ProDiBatch_Engine* db_engine) {
-    uint64_t open_valency_channels = 0;
-    uint64_t active_bond_nodes = 0;
-
-    for (uint64_t i = 0; i < universe->active_count_current; i += 4) {
-        uint32_t idx = universe->active_nodes_current[i];
-        uint32_t flux = universe->active_nodes_kinetic[idx];
-
-        if (flux & 0x1000) {
-            active_bond_nodes++;
-            uint32_t free_channels = 12 - (uint32_t)ZAEHLE_BITS(flux & 0x0FFF);
-            if (free_channels > 0 && free_channels < 12) {
-                open_valency_channels += free_channels;
-            }
-        }
-    }
-
-#if OBSERVER_CURRENT_LOG_LEVEL >= OBSERVER_LOG_INFO
-    if (global_mod_control[MOD_INDEX_CHEMISTRY].active_test_id == 0 && active_bond_nodes > 0) {
-        double average_valency = (double)open_valency_channels / (double)active_bond_nodes;
-        ProDiBatch_Log(db_engine, "[CHEM] Mittlere molekulare Valenzkapazitaet: %.2f freie Pfade/Knoten", average_valency);
-    }
-#endif
-}
-
-/* ==========================================================================
- * DIAGNOSE 3: Reaktionskinetik, Enthalpie & Katalyse-Wirkungsgrad
- * ========================================================================== */
-static void check_reaction_kinetics_and_catalysis(const ProUniverse* universe, ProDiBatch_Engine* db_engine) {
-    active_chiral_catalysts = 0;
-    current_kinetic_enthalpy = 0.0;
-
-    for (uint64_t i = 0; i < universe->active_count_current; i++) {
-        uint32_t idx = universe->active_nodes_current[i];
-        uint32_t flux = universe->active_nodes_kinetic[idx];
-        current_kinetic_enthalpy += (double)ZAEHLE_BITS(flux & 0x0FFF);
-
-        uint32_t slot = universe->grid[idx].state_island_idx;
-        if (slot != 0) {
-            uint32_t spin = (uint32_t)((universe->data_pool[slot].charge_spin & QUANTUM_MASK_SPIN_CHIRAL) >> 2);
-            if (spin == QUANTUM_SPIN_CW || spin == QUANTUM_SPIN_CCW) {
-                active_chiral_catalysts++;
-            }
-        }
-    }
-
-    if (!first_chem_tick) {
-        double delta_H = current_kinetic_enthalpy - last_reaction_energy_enthalpy;
-
-#if OBSERVER_CURRENT_LOG_LEVEL >= OBSERVER_LOG_INFO
-        if (global_mod_control[MOD_INDEX_CHEMISTRY].active_test_id == 0) {
-            if (delta_H > 5.0) {
-                ProDiBatch_Log(db_engine, "[KINETICS] ENDOTHERM -> Absorbiert: delta_H = +%.2f J_bit", delta_H);
-            }
-            else if (delta_H < -5.0) {
-                ProDiBatch_Log(db_engine, "[KINETICS] EXOTHERM -> Freigesetzt: delta_H = %.2f J_bit", delta_H);
-            }
-        }
-#endif
-    }
-    last_reaction_energy_enthalpy = current_kinetic_enthalpy;
 }
 
 /* ==========================================================================
@@ -192,7 +128,7 @@ static void execute_interactive_chemistry_lab(const ProUniverse* universe, ProDi
     }
 
     /* FORMEL-TEST 2: Reaktionsgeschwindigkeit & Arrhenius-Katalyse */
-    if (test_id == 2) {
+    else if (test_id == 2) {
         double E_a = input_intensity;
         double T_env = (custom_param > 0) ? (double)custom_param : (current_kinetic_enthalpy * 0.001);
 
@@ -208,7 +144,7 @@ static void execute_interactive_chemistry_lab(const ProUniverse* universe, ProDi
     }
 
     /* FORMEL-TEST 3: Faradaysches Gesetz der Elektrolyse */
-    if (test_id == 3) {
+    else if (test_id == 3) {
         double simulated_I = input_intensity;
         double simulated_t = (custom_param > 0) ? (double)custom_param : 1.0;
 
@@ -239,11 +175,58 @@ void observer_mod_chemistry_evaluate(const ProUniverse* universe, ProDiBatch_Eng
     /* 1. Molekulare Topologie- und Clusteranalysen */
     check_elements_and_compounds(universe, db_engine);
 
-    /* 2. Bindungsmechanik und Sättigungs-Wertigkeiten */
-    check_chemical_bonds_and_valency(universe, db_engine);
+    // --- MONOLITHIC FUSED LOOP INTERLEAVING ---
+    // Verschmilzt Bindungsmechanik, Thermochemie und Chiral-Analyse in einen einzigen $O(N)$ Sweep
+    open_valency_channels = 0;
+    active_bond_nodes = 0;
+    active_chiral_catalysts = 0;
+    current_kinetic_enthalpy = 0.0;
 
-    /* 3. Reaktionskinetik, Thermochemie & Chiral-Katalyse */
-    check_reaction_kinetics_and_catalysis(universe, db_engine);
+    for (uint64_t i = 0; i < universe->active_count_current; i++) {
+        uint32_t idx = universe->active_nodes_current[i];
+        uint32_t flux = universe->active_nodes_kinetic[idx];
+        uint32_t bit_pop = (uint32_t)ZAEHLE_BITS(flux & 0x0FFF);
+
+        current_kinetic_enthalpy += (double)bit_pop;
+
+        if (flux & 0x1000) {
+            active_bond_nodes++;
+            uint32_t free_channels = 12 - bit_pop;
+            if (free_channels > 0 && free_channels < 12) {
+                open_valency_channels += free_channels;
+            }
+        }
+
+        uint32_t slot = universe->grid[idx].state_island_idx;
+        if (slot != 0) {
+            uint32_t spin = (uint32_t)((universe->data_pool[slot].charge_spin & QUANTUM_MASK_SPIN_CHIRAL) >> 2);
+            if (spin == QUANTUM_SPIN_CW || spin == QUANTUM_SPIN_CCW) {
+                active_chiral_catalysts++;
+            }
+        }
+    }
+
+#if OBSERVER_CURRENT_LOG_LEVEL >= OBSERVER_LOG_INFO
+    if (global_mod_control[MOD_INDEX_CHEMISTRY].active_test_id == 0 && active_bond_nodes > 0) {
+        double average_valency = (double)open_valency_channels / (double)active_bond_nodes;
+        ProDiBatch_Log(db_engine, "[CHEM] Mittlere molekulare Valenzkapazitaet: %.2f freie Pfade/Knoten", average_valency);
+    }
+#endif
+
+    if (!first_chem_tick) {
+        double delta_H = current_kinetic_enthalpy - last_reaction_energy_enthalpy;
+#if OBSERVER_CURRENT_LOG_LEVEL >= OBSERVER_LOG_INFO
+        if (global_mod_control[MOD_INDEX_CHEMISTRY].active_test_id == 0) {
+            if (delta_H > 5.0) {
+                ProDiBatch_Log(db_engine, "[KINETICS] ENDOTHERM -> Absorbiert: delta_H = +%.2f J_bit", delta_H);
+            }
+            else if (delta_H < -5.0) {
+                ProDiBatch_Log(db_engine, "[KINETICS] EXOTHERM -> Freigesetzt: delta_H = %.2f J_bit", delta_H);
+            }
+        }
+#endif
+    }
+    last_reaction_energy_enthalpy = current_kinetic_enthalpy;
 
     /* 4. Stöchiometrische Invariantenprüfung */
     check_stoichiometry_and_conservation(universe, db_engine);
@@ -251,6 +234,5 @@ void observer_mod_chemistry_evaluate(const ProUniverse* universe, ProDiBatch_Eng
     /* 5. INTERAKTIVER FORMEL-ABGLEICH (Gating-Zentrale) */
     execute_interactive_chemistry_lab(universe, db_engine);
 
-    (void)last_total_px;
     first_chem_tick = false;
 }

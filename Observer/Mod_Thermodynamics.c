@@ -1,10 +1,17 @@
+/* ==========================================================================
+ * ProPhysics - Thermodynamics Diagnostic Core
+ * File: Mod_Thermodynamics.c
+ * Architecture: C99, Cache-Optimized Monolithic Evaluator Layer
+ * Optimierung: Monolithic Loop Fusion, Sparse Spatial Filtering, O(1) Bit-Masking
+ * ========================================================================== */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <math.h>
 
-// SDK-Schnittstellen aus den bin/ Verzeichnissen (wichtig für ProDiBatch_Engine)
+ // SDK-Schnittstellen aus den bin/ Verzeichnissen
 #include "ProPhysics.h"
 #include "ProDiBatch.h"
 
@@ -57,8 +64,6 @@ static bool first_thermal_tick = true;
 #define X_MASK  0x3FF 
 #define Y_MASK  0x1FF 
 #define Z_MASK  0x1FF 
-#define Y_SHIFT 10
-#define Z_SHIFT 19
 
 static const int32_t AXIAL_DX[12] = { 1, -1,  1, -1,  1, -1,  1, -1,  0,  0,  0,  0 };
 static const int32_t AXIAL_DY[12] = { 1, -1, -1,  1,  0,  0,  0,  0,  1, -1,  1, -1 };
@@ -69,6 +74,11 @@ static double current_gas_Z_factor = 1.0;
 static double current_measured_eta = 0.0;
 static double current_measured_carnot = 0.0;
 static double current_mean_free_path = 0.0;
+
+// Synchronisierte Unpacking-Makros für die 16-Byte-Knoten-Dekomprimierung
+#define UNPACK_X(idx) ((int32_t)((idx) & 0x3FF))
+#define UNPACK_Y(idx) ((int32_t)(((idx) >> 10) & 0x1FF))
+#define UNPACK_Z(idx) ((int32_t)((idx) >> 19))
 
 /* ==========================================================================
  * DIAGNOSE 13: Kinetische Wärmetheorie & Maxwell-Boltzmann-Verteilung
@@ -128,7 +138,6 @@ static void check_collisions_and_mean_free_path(const ProUniverse* universe, Pro
         uint32_t bits = (uint32_t)ZAEHLE_BITS(flux & 0x0FFF);
 
         total_active_bits += bits;
-
         if (bits >= 2) {
             actual_collisions += (bits * (bits - 1)) / 2;
         }
@@ -147,32 +156,67 @@ static void check_collisions_and_mean_free_path(const ProUniverse* universe, Pro
 }
 
 /* ==========================================================================
- * DIAGNOSE 11: Der Erste Hauptsatz & Polytrope Zustandsänderungen
+ * DIAGNOSE 3: Dampfsättigung, Luftfeuchtigkeit & Tripelpunkt
  * ========================================================================== */
-static void check_thermodynamic_processes_and_laws(const ProUniverse* universe, ProDiBatch_Engine* db_engine) {
-    int test_x = 256, test_y = 256, test_z = 256; int radius = 4;
-    double p_curr = ProPhysics_Query_Local_Pressure((ProUniverse*)universe, test_x, test_y, test_z, radius);
+static void check_vapor_saturation_and_humidity(const ProUniverse* universe, ProDiBatch_Engine* db_engine, uint64_t bound_nodes, uint64_t free_vapor_nodes) {
+    if (first_thermal_tick) return;
+    (void)bound_nodes;
+    (void)universe;
+    double max_sat = (global_system_temperature_k * global_system_temperature_k) * (double)(PROPHYSICS_X_MAX) * 2.0;
+    if (max_sat > 0.0) {
+        double rel_hum = (double)free_vapor_nodes / max_sat;
+        if (rel_hum > 1.0) rel_hum = 1.0;
+#if OBSERVER_CURRENT_LOG_LEVEL >= OBSERVER_LOG_INFO
+        if (global_mod_control[MOD_INDEX_THERMODYNAMICS].active_test_id == 0) {
+            ProDiBatch_Log(db_engine, "[VAPOR] relative Feuchte: %.1f%%", rel_hum * 100.0);
+        }
+#endif
+    }
+}
 
-    uint64_t n_particles = 0;
-    for (int z = test_z - radius; z <= test_z + radius; z++) {
-        for (int y = test_y - radius; y <= test_y + radius; y++) {
-            for (int x = test_x - radius; x <= test_x + radius; x++) {
-                uint32_t idx = FCC_INDEX((x & X_MASK), (y & Y_MASK), (z & Z_MASK));
-                n_particles += ZAEHLE_BITS(universe->active_nodes_kinetic[idx] & 0x0FFF);
-            }
+/* ==========================================================================
+ * DIAGNOSE 11 & 2: Integrierte Sektordichtemessung für Zustandsänderungen & Realgase
+ * ========================================================================== */
+static void evaluate_localized_gas_chambers(const ProUniverse* universe, ProDiBatch_Engine* db_engine) {
+    int radius = 4;
+    double V_curr = (4.0 / 3.0) * 3.1415926535 * (radius * radius * radius);
+
+    // Ziel-Zentren der beiden unabhängigen Messkammern
+    int t1_x = 256, t1_y = 256, t1_z = 256;
+    int t2_x = 50, t2_y = 50, t2_z = 50;
+
+    uint64_t n_particles_ch1 = 0;
+    uint64_t n_particles_ch2 = 0;
+
+    // --- REVOLUTIONÄR: EIN EINZIGER SWEEP FILTERT BEIDE MESSKAMMERN CACHE-KONFORM ---
+    for (uint64_t i = 0; i < universe->active_count_current; i++) {
+        uint32_t idx = universe->active_nodes_current[i];
+        int32_t x = UNPACK_X(idx);
+        int32_t y = UNPACK_Y(idx);
+        int32_t z = UNPACK_Z(idx);
+
+        uint32_t bits = (uint32_t)ZAEHLE_BITS(universe->active_nodes_kinetic[idx] & 0x0FFF);
+
+        if (abs(x - t1_x) <= radius && abs(y - t1_y) <= radius && abs(z - t1_z) <= radius) {
+            n_particles_ch1 += bits;
+        }
+        if (abs(x - t2_x) <= radius && abs(y - t2_y) <= radius && abs(z - t2_z) <= radius) {
+            n_particles_ch2 += bits;
         }
     }
 
-    double V_curr = (4.0 / 3.0) * 3.1415926535 * (radius * radius * radius);
-    if (p_curr > 1.2) V_curr *= 0.85;
-    if (p_curr < 0.8) V_curr *= 1.15;
+    // 1. Auswertung Kammer 1: Polytrope Prozesse & Hauptsatz
+    double p_curr = ProPhysics_Query_Local_Pressure((ProUniverse*)universe, t1_x, t1_y, t1_z, radius);
+    double V_dynamic = V_curr;
+    if (p_curr > 1.2) V_dynamic *= 0.85;
+    if (p_curr < 0.8) V_dynamic *= 1.15;
 
-    double T_curr = n_particles > 0 ? (double)n_particles / V_curr : THERMO_EPSILON;
-    double U_curr = (double)n_particles * T_curr;
+    double T_curr = n_particles_ch1 > 0 ? (double)n_particles_ch1 / V_dynamic : THERMO_EPSILON;
+    double U_curr = (double)n_particles_ch1 * T_curr;
 
     if (!first_thermal_tick) {
         double dU = U_curr - last_U_control;
-        double dV = V_curr - last_V_control;
+        double dV = V_dynamic - last_V_control;
         double dW = -0.5 * (p_curr + last_p_control) * dV;
         double dQ = dU - dW;
 
@@ -182,14 +226,25 @@ static void check_thermodynamic_processes_and_laws(const ProUniverse* universe, 
             else if (fabs(p_curr - last_p_control) <= 0.002) ProDiBatch_Log(db_engine, "[PROCESS] Typ: ISOBARE Zustandsaenderung | dW: %.4f", dW);
         }
 #endif
-
         cycle_accumulated_work += dW;
         if (dQ > 0.0) cycle_heat_absorbed += dQ;
         if (T_curr > T_max_seen) T_max_seen = T_curr;
         if (T_curr < T_min_seen) T_min_seen = T_curr;
     }
+    last_p_control = p_curr; last_V_control = V_dynamic; last_T_control = T_curr; last_U_control = U_curr;
 
-    last_p_control = p_curr; last_V_control = V_curr; last_T_control = T_curr; last_U_control = U_curr;
+    // 2. Auswertung Kammer 2: Realgas-Kompressibilität (Z-Faktor)
+    double p_pressure = ProPhysics_Query_Local_Pressure((ProUniverse*)universe, t2_x, t2_y, t2_z, radius);
+    double T_local = n_particles_ch2 > 0 ? (double)n_particles_ch2 / V_curr : THERMO_EPSILON;
+
+    if (n_particles_ch2 > 0 && global_system_temperature_k > THERMO_EPSILON) {
+        current_gas_Z_factor = (p_pressure * V_curr) / ((double)n_particles_ch2 * 1.0 * T_local);
+#if OBSERVER_CURRENT_LOG_LEVEL >= OBSERVER_LOG_INFO
+        if (global_mod_control[MOD_INDEX_THERMODYNAMICS].active_test_id == 0) {
+            ProDiBatch_Log(db_engine, "[REAL_GAS] Kompressibilitaet Z: %.4f", current_gas_Z_factor);
+        }
+#endif
+    }
 }
 
 /* ==========================================================================
@@ -218,90 +273,13 @@ static void check_cycle_processes_and_second_law(const ProUniverse* universe, Pr
 }
 
 /* ==========================================================================
- * DIAGNOSE 2: Analogie Realgase (Van-der-Waals & Kompressibilität)
+ * UNIFIED HARVEST LAYER: Fused Transport- & Strahlungssensorik
  * ========================================================================== */
-static void check_real_gas_properties_and_critical_state(const ProUniverse* universe, ProDiBatch_Engine* db_engine) {
-    int test_x = 50, test_y = 50, test_z = 50; int radius = 4;
-    double p_pressure = ProPhysics_Query_Local_Pressure((ProUniverse*)universe, test_x, test_y, test_z, radius);
-    double V_volume = (4.0 / 3.0) * 3.1415926535 * (radius * radius * radius);
-
-    uint64_t n_particles = 0;
-    for (int z = test_z - radius; z <= test_z + radius; z++) {
-        for (int y = test_y - radius; y <= test_y + radius; y++) {
-            for (int x = test_x - radius; x <= test_x + radius; x++) {
-                uint32_t idx = FCC_INDEX((x & X_MASK), (y & Y_MASK), (z & Z_MASK));
-                n_particles += ZAEHLE_BITS(universe->active_nodes_kinetic[idx] & 0x0FFF);
-            }
-        }
-    }
-    double T_local = n_particles > 0 ? (double)n_particles / V_volume : THERMO_EPSILON;
-    if (n_particles > 0 && global_system_temperature_k > THERMO_EPSILON) {
-        current_gas_Z_factor = (p_pressure * V_volume) / ((double)n_particles * 1.0 * T_local);
-#if OBSERVER_CURRENT_LOG_LEVEL >= OBSERVER_LOG_INFO
-        if (global_mod_control[MOD_INDEX_THERMODYNAMICS].active_test_id == 0) {
-            ProDiBatch_Log(db_engine, "[REAL_GAS] Kompressibilitaet Z: %.4f", current_gas_Z_factor);
-        }
-#endif
-    }
-}
-
-/* ==========================================================================
- * DIAGNOSE 3: Dampfsättigung, Luftfeuchtigkeit & Tripelpunkt
- * ========================================================================== */
-static void check_vapor_saturation_and_humidity(const ProUniverse* universe, ProDiBatch_Engine* db_engine, uint64_t bound_nodes, uint64_t free_vapor_nodes) {
-    if (first_thermal_tick) return;
-    (void)bound_nodes;
-    double max_sat = (global_system_temperature_k * global_system_temperature_k) * (double)(PROPHYSICS_X_MAX) * 2.0;
-    if (max_sat > 0.0) {
-        double rel_hum = (double)free_vapor_nodes / max_sat;
-        if (rel_hum > 1.0) rel_hum = 1.0;
-#if OBSERVER_CURRENT_LOG_LEVEL >= OBSERVER_LOG_INFO
-        if (global_mod_control[MOD_INDEX_THERMODYNAMICS].active_test_id == 0) {
-            ProDiBatch_Log(db_engine, "[VAPOR] relative Feuchte: %.1f%%", rel_hum * 100.0);
-        }
-#endif
-    }
-}
-
-/* ==========================================================================
- * DIAGNOSE 4: Aggregatzustände & Phasenübergänge (Schmelzen, Sieden, Dampf)
- * ========================================================================== */
-static void check_phase_transitions_and_vapor(const ProUniverse* universe, ProDiBatch_Engine* db_engine) {
-    uint64_t bound_solid_liquid_nodes = 0; uint64_t free_vapor_gas_nodes = 0;
-
-    for (uint64_t i = 0; i < universe->active_count_current; i++) {
-        uint32_t idx = universe->active_nodes_current[i]; uint32_t flux = universe->active_nodes_kinetic[idx];
-        if (flux & 0x1000) {
-            uint32_t slot = universe->grid[idx].state_island_idx;
-            if (slot != 0 && universe->data_pool[slot].mass_accumulator > 10) bound_solid_liquid_nodes++;
-            else free_vapor_gas_nodes++;
-        }
-    }
-    check_vapor_saturation_and_humidity(universe, db_engine, bound_solid_liquid_nodes, free_vapor_gas_nodes);
-    last_bound_solid_nodes = bound_solid_liquid_nodes; last_free_vapor_nodes = free_vapor_gas_nodes;
-}
-
-/* ==========================================================================
- * RESTLICHE ENERGETISCHE DIAGNOSEN (Kalorimetrie, Transport, Strahlung)
- * ========================================================================== */
-static void check_calorimetry_and_capacities(const ProUniverse* universe, ProDiBatch_Engine* db_engine) {
-    uint64_t q_vac = 0; uint64_t q_mat = 0; uint64_t vac_n = 0; uint64_t mat_n = 0;
-    for (uint64_t i = 0; i < universe->active_count_current; i++) {
-        uint32_t idx = universe->active_nodes_current[i]; uint32_t flux = universe->active_nodes_kinetic[idx]; uint32_t bits = (uint32_t)ZAEHLE_BITS(flux & 0x0FFF);
-        if (flux & 0x1000) { q_mat += bits; mat_n++; }
-        else { q_vac += bits; vac_n++; }
-    }
-    (void)db_engine; (void)vac_n; (void)mat_n;
-    last_total_heat_energy = q_vac + q_mat;
-}
-
-static void check_thermal_mixing_law(const ProUniverse* universe, ProDiBatch_Engine* db_engine) { (void)universe; (void)db_engine; }
-static void check_heat_sources_and_conversion(const ProUniverse* universe, ProDiBatch_Engine* db_engine) { (void)universe; (void)db_engine; }
-
 static void check_heat_propagation_conduction_convection(const ProUniverse* universe, ProDiBatch_Engine* db_engine) {
+    (void)db_engine;
     double cond = 0.0, conv = 0.0; uint64_t boundary_transfers = 0;
     int cx = PROPHYSICS_X_MAX / 2; int cy = PROPHYSICS_Y_MAX / 2; int cz = PROPHYSICS_Z_MAX / 2;
-    (void)db_engine;
+
     for (int z = cz - 2; z <= cz + 2; z++) {
         for (int y = cy - 2; y <= cy + 2; y++) {
             for (int x = cx - 2; x <= cx + 2; x++) {
@@ -310,7 +288,11 @@ static void check_heat_propagation_conduction_convection(const ProUniverse* univ
                     uint32_t n_idx = FCC_INDEX(((x + 1) & X_MASK), y, z);
                     cond += fabs((double)bits - ProPhysics_Query_Local_Pressure((ProUniverse*)universe, x + 1, y, z, 0));
                     double n_vx = 0.0, n_vy = 0.0;
-                    for (int ch = 0; ch < 12; ch++) { if (flux & (1U << ch)) { n_vx += AXIAL_DX[ch]; n_vy += AXIAL_DY[ch]; } }
+                    for (int ch = 0; ch < 12; ch++) {
+                        uint32_t bit_active = (flux >> ch) & 1U;
+                        n_vx += bit_active * AXIAL_DX[ch];
+                        n_vy += bit_active * AXIAL_DY[ch];
+                    }
                     conv += sqrt(n_vx * n_vx + n_vy * n_vy);
                     if ((flux & 0x1000) && !(universe->active_nodes_kinetic[n_idx] & 0x1000)) boundary_transfers += bits;
                 }
@@ -320,20 +302,8 @@ static void check_heat_propagation_conduction_convection(const ProUniverse* univ
     (void)cond; (void)conv; (void)boundary_transfers;
 }
 
-static void check_thermal_radiation_laws(const ProUniverse* universe, ProDiBatch_Engine* db_engine) {
-    uint64_t emitted = 0; double max_t = 0.0;
-    (void)db_engine;
-    for (uint64_t i = 0; i < universe->active_count_current; i += 10) {
-        uint32_t idx = universe->active_nodes_current[i]; uint32_t flux = universe->active_nodes_kinetic[idx];
-        if (flux & 0x1000) {
-            int32_t x = (int32_t)(idx & 0x3FF); int32_t y = (int32_t)((idx >> 10) & 0x1FF); int32_t z = (int32_t)(idx >> 19);
-            double local_t = (double)ZAEHLE_BITS(flux & 0x0FFF); if (local_t > max_t) max_t = local_t;
-            uint32_t n_idx = FCC_INDEX(((x + 1) & X_MASK), y, z); uint32_t n_flux = universe->active_nodes_kinetic[n_idx];
-            if (!(n_flux & 0x1000)) emitted += ZAEHLE_BITS((n_flux & 0x0FFF) & 0x0555);
-        }
-    }
-    (void)emitted;
-}
+static void check_thermal_mixing_law(const ProUniverse* universe, ProDiBatch_Engine* db_engine) { (void)universe; (void)db_engine; }
+static void check_heat_sources_and_conversion(const ProUniverse* universe, ProDiBatch_Engine* db_engine) { (void)universe; (void)db_engine; }
 
 /* ==========================================================================
  * NEW: RUNTIME THERMODYNAMICS FORMULA VALIDATOR LAB
@@ -347,7 +317,6 @@ static void execute_interactive_thermodynamics_lab(const ProUniverse* universe, 
 
     ProDiBatch_Log(db_engine, "[LAB-THERMO] === THERMODYNAMIK VALIDATOR IM LIVE-BETRIEB (TEST %u) ===", test_id);
 
-    /* FORMEL-TEST 1: Realgas-Zustandsgleichung & Kompressibilitätsfaktor (Z = PV / nRT) */
     if (test_id == 1) {
         double expected_Z = expected_input;
         double gas_error = current_gas_Z_factor - expected_Z;
@@ -357,9 +326,7 @@ static void execute_interactive_thermodynamics_lab(const ProUniverse* universe, 
         ProDiBatch_Log(db_engine, "[THERMO_CHECK] Reale Abweichungsrate: %.5f (%s)",
             gas_error, (fabs(gas_error) < 0.05) ? "IDEAL_GAS APPROXIMATION" : "REAKTIONSDRIFT");
     }
-
-    /* FORMEL-TEST 2: Carnot-Wirkungsgrad & Thomsonscher Kreisprozess-Abgleich */
-    if (test_id == 2) {
+    else if (test_id == 2) {
         double expected_efficiency = expected_input;
         double T_hot = last_T_control;
         double T_cold = (custom_param > 0) ? (double)custom_param : 1.0;
@@ -372,9 +339,7 @@ static void execute_interactive_thermodynamics_lab(const ProUniverse* universe, 
         ProDiBatch_Log(db_engine, "[THERMO_CHECK] Gitter-Effizienz eta: %.4f | Soll-Vorgabe: %.4f", current_measured_eta, expected_efficiency);
         ProDiBatch_Log(db_engine, "[THERMO_CHECK] Thermischer Abweichungsfehler: %.5f (Theorie-Limit: %.4f)", efficiency_error, theoretical_efficiency);
     }
-
-    /* FORMEL-TEST 3: Mittlere freie Weglaenge & Lambert-Beer-Stoßgesetz */
-    if (test_id == 3) {
+    else if (test_id == 3) {
         double expected_lambda = expected_input;
         double particle_density_rho = (double)universe->active_count_current / (double)(PROPHYSICS_X_MAX * PROPHYSICS_Y_MAX * PROPHYSICS_Z_MAX);
         double micro_error = current_mean_free_path - expected_lambda;
@@ -402,17 +367,56 @@ void observer_mod_thermodynamics_evaluate(const ProUniverse* universe, ProDiBatc
     }
 #endif
 
-    check_real_gas_properties_and_critical_state(universe, db_engine);
-    check_calorimetry_and_capacities(universe, db_engine);
+    // 1. Konsolidierte Lokalisations-Messkammern (Prozesse, Hauptsatz & Realgas Z-Faktor)
+    evaluate_localized_gas_chambers(universe, db_engine);
+
+    // 2. MONOLITHIC FUSED LOOP INTERLEAVING
+    // Verschmilzt Phasenübergänge, Kalorimetrie und Strahlungsverluste in einen einzigen $O(N)$ Sweep
+    uint64_t q_vac = 0; uint64_t q_mat = 0;
+    uint64_t bound_solid_liquid_nodes = 0; uint64_t free_vapor_gas_nodes = 0;
+    uint64_t emitted = 0; double max_t = 0.0;
+
+    for (uint64_t i = 0; i < universe->active_count_current; i++) {
+        uint32_t idx = universe->active_nodes_current[i];
+        uint32_t flux = universe->active_nodes_kinetic[idx];
+        uint32_t bits = (uint32_t)ZAEHLE_BITS(flux & 0x0FFF);
+
+        // Kalorimetrie
+        if (flux & 0x1000) { q_mat += bits; }
+        else { q_vac += bits; }
+
+        // Phasen-Tracking
+        if (flux & 0x1000) {
+            uint32_t slot = universe->grid[idx].state_island_idx;
+            if (slot != 0 && universe->data_pool[slot].mass_accumulator > 10) bound_solid_liquid_nodes++;
+            else free_vapor_gas_nodes++;
+        }
+
+        // Wärmestrahlung (Kopplung im Haupt-Sweep über Sektor-Intervall)
+        if (i % 10 == 0 && (flux & 0x1000)) {
+            int32_t x = UNPACK_X(idx); int32_t y = UNPACK_Y(idx); int32_t z = UNPACK_Z(idx);
+            double local_t = (double)bits; if (local_t > max_t) max_t = local_t;
+            uint32_t n_idx = FCC_INDEX(((x + 1) & 0x3FF), y, z);
+            if (!(universe->active_nodes_kinetic[n_idx] & 0x1000)) {
+                emitted += ZAEHLE_BITS((universe->active_nodes_kinetic[n_idx] & 0x0FFF) & 0x0555);
+            }
+        }
+    }
+
+    check_vapor_saturation_and_humidity(universe, db_engine, bound_solid_liquid_nodes, free_vapor_gas_nodes);
+
+    last_total_heat_energy = q_vac + q_mat;
+    last_bound_solid_nodes = bound_solid_liquid_nodes;
+    last_free_vapor_nodes = free_vapor_gas_nodes;
+    (void)emitted;
+
+    // 3. Modulare Transport- und Wellenprüfer
     check_thermal_mixing_law(universe, db_engine);
     check_heat_sources_and_conversion(universe, db_engine);
-    check_phase_transitions_and_vapor(universe, db_engine);
     check_heat_propagation_conduction_convection(universe, db_engine);
-    check_thermal_radiation_laws(universe, db_engine);
-    check_thermodynamic_processes_and_laws(universe, db_engine);
     check_cycle_processes_and_second_law(universe, db_engine);
 
-    /* --- Kinetische Waermetheorie, Stoßzahlen & Maxwell-Boltzmann --- */
+    /* --- Kinetische Wärmetheorie, Stoßzahlen & Maxwell-Boltzmann --- */
     check_kinetic_theory_and_maxwell_distribution(universe, db_engine);
     check_collisions_and_mean_free_path(universe, db_engine);
 

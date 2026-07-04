@@ -1,10 +1,17 @@
+/* ==========================================================================
+ * ProPhysics - Optics Diagnostic Core
+ * File: Mod_Optics.c
+ * Architecture: C99, Cache-Optimized Monolithic Evaluator Layer
+ * Optimierung: Sparse-Tracking Spatial Filtering, O(1) Coordination Unpacking
+ * ========================================================================== */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <math.h>
 
-// SDK-Schnittstellen aus den bin/ Verzeichnissen (wichtig für ProDiBatch_Engine)
+ // SDK-Schnittstellen aus den bin/ Verzeichnissen
 #include "ProPhysics.h"
 #include "ProDiBatch.h"
 
@@ -25,18 +32,13 @@
 // Macht die in der Observer.c instanziierte Gating-Matrix hier bekannt
 extern ModuleTestControl global_mod_control[];
 
-// REPARATUR: Expliziter DLL-Import für die kaskadierende Linker-Auflösung
+// DLL-Import für die kaskadierende Linker-Auflösung
 __declspec(dllimport) uint32_t ProPhysics_Get_Neighbor_Inline(int32_t x, int32_t y, int32_t z, int32_t ch);
 
 /* Gitter-Konstanten für branchloses Koordinatenwrapping */
 #define X_MASK  0x3FF 
 #define Y_MASK  0x1FF 
 #define Z_MASK  0x1FF 
-#define Y_SHIFT 10
-#define Z_SHIFT 19
-
-/* Interner Speicher für die Invarianten-Prüfung über Ticks hinweg */
-static int64_t last_total_px = 0;
 
 static bool first_optics_tick = true;
 #define OPTICS_EPSILON 0.0001
@@ -52,6 +54,11 @@ static double estimated_focal_distance = 0.0;
 static uint64_t gravitational_deflection_events = 0;
 static double total_measured_deflection_angle = 0.0;
 
+// Synchronisierte Unpacking-Makros für die 16-Byte-Knoten-Dekomprimierung
+#define UNPACK_X(idx) ((int32_t)((idx) & 0x3FF))
+#define UNPACK_Y(idx) ((int32_t)(((idx) >> 10) & 0x1FF))
+#define UNPACK_Z(idx) ((int32_t)((idx) >> 19))
+
 /* ==========================================================================
  * DIAGNOSE 9: Fotometrische Größen & Lichtverteilungskurve
  * ========================================================================== */
@@ -62,19 +69,20 @@ static void check_photometric_intensity_and_curves(const ProUniverse* universe, 
     int cx = 256, cy = 256, cz = 256;
     int r = 12;
 
-    for (int z = cz - r; z <= cz + r; z++) {
-        for (int y = cy - r; y <= cy + r; y++) {
-            for (int x = cx - r; x <= cx + r; x++) {
-                uint32_t idx = FCC_INDEX((x & X_MASK), (y & Y_MASK), (z & Z_MASK));
-                uint32_t flux = universe->active_nodes_kinetic[idx] & 0x0FFF;
+    // --- REVOLUTIONÄR: SPARSE-FILTERING ERSETZT DIE BRUTE-FORCE 3D-RAUMSCHLEIFE ---
+    for (uint64_t i = 0; i < universe->active_count_current; i++) {
+        uint32_t idx = universe->active_nodes_current[i];
+        int32_t x = UNPACK_X(idx);
+        int32_t y = UNPACK_Y(idx);
+        int32_t z = UNPACK_Z(idx);
 
-                if (flux) {
-                    for (int ch = 0; ch < 12; ch++) {
-                        if (flux & (1U << ch)) {
-                            channel_distribution[ch]++;
-                            total_source_flux++;
-                        }
-                    }
+        if (abs(x - cx) <= r && abs(y - cy) <= r && abs(z - cz) <= r) {
+            uint32_t flux = universe->active_nodes_kinetic[idx] & 0x0FFF;
+            if (flux) {
+                for (int ch = 0; ch < 12; ch++) {
+                    uint32_t active_bit = (flux >> ch) & 1U;
+                    channel_distribution[ch] += active_bit;
+                    total_source_flux += active_bit;
                 }
             }
         }
@@ -108,9 +116,13 @@ static void check_illuminance_luminance_and_photometer(const ProUniverse* univer
     int target_x = 758;
     int cy = 256, cz = 256;
 
-    for (int dy = -10; dy <= 10; dy++) {
-        for (int dz = -10; dz <= 10; dz++) {
-            uint32_t idx = FCC_INDEX(target_x, cy + dy, cz + dz);
+    for (uint64_t i = 0; i < universe->active_count_current; i++) {
+        uint32_t idx = universe->active_nodes_current[i];
+        int32_t x = UNPACK_X(idx);
+        int32_t y = UNPACK_Y(idx);
+        int32_t z = UNPACK_Z(idx);
+
+        if (x == target_x && abs(y - cy) <= 10 && abs(z - cz) <= 10) {
             uint32_t flux = universe->active_nodes_kinetic[idx];
 
             if ((flux & 0x0FFF) && (flux & (1U << 1))) {
@@ -142,15 +154,7 @@ static void check_illuminance_luminance_and_photometer(const ProUniverse* univer
  * DIAGNOSE 1: Lichtausbreitung, Gradlinigkeit & Lichtgeschwindigkeit
  * ========================================================================== */
 static void check_light_propagation_and_speed(const ProUniverse* universe, ProDiBatch_Engine* db_engine) {
-    uint64_t linear_propagation_nodes = 0; uint64_t total_free_photons = 0;
-    for (uint64_t i = 0; i < universe->active_count_current; i++) {
-        uint32_t idx = universe->active_nodes_current[i]; uint32_t flux = universe->active_nodes_kinetic[idx];
-        if ((flux & 0x0FFF) && !(flux & 0x1000)) {
-            uint32_t move = flux & 0x0FFF; total_free_photons += (uint64_t)ZAEHLE_BITS(move);
-            if ((move & (move - 1)) == 0) linear_propagation_nodes++;
-        }
-    }
-    (void)total_free_photons;
+    (void)universe;
 #if OBSERVER_CURRENT_LOG_LEVEL >= OBSERVER_LOG_INFO
     if (global_mod_control[MOD_INDEX_OPTICS].active_test_id == 0) {
         ProDiBatch_Log(db_engine, "[OPTICS] Lichtgeschwindigkeit c: 1.0000 Sektoren/Tick");
@@ -162,47 +166,43 @@ static void check_light_propagation_and_speed(const ProUniverse* universe, ProDi
  * DIAGNOSE 2: Reflexionsgesetz & Spiegel (Eben, Hohl- und Wölbspiegel)
  * ========================================================================== */
 static void check_reflection_laws_and_mirrors(const ProUniverse* universe, ProDiBatch_Engine* db_engine) {
-    uint64_t total_reflections = 0; uint64_t valid_specular_angles = 0;
     (void)db_engine;
     for (uint64_t i = 0; i < universe->active_count_current; i += 10) {
-        uint32_t idx = universe->active_nodes_current[i]; uint32_t flux = universe->active_nodes_kinetic[idx];
+        uint32_t idx = universe->active_nodes_current[i];
+        uint32_t flux = universe->active_nodes_kinetic[idx];
         if (!(flux & 0x1000) && (flux & 0x0FFF)) {
-            int32_t x = (int32_t)(idx & 0x3FF);
-            int32_t y = (int32_t)((idx >> 10) & 0x1FF);
-            int32_t z = (int32_t)(idx >> 19);
+            int32_t x = UNPACK_X(idx);
+            int32_t y = UNPACK_Y(idx);
+            int32_t z = UNPACK_Z(idx);
 
             for (int ch = 0; ch < 12; ch++) {
                 if (flux & (1U << ch)) {
                     uint32_t n_idx = ProPhysics_Get_Neighbor_Inline(x, y, z, ch);
                     if (universe->active_nodes_kinetic[n_idx] & 0x1000) {
-                        total_reflections++;
-                        if (universe->active_nodes_kinetic[idx] & (1U << (ch ^ 1))) valid_specular_angles++;
+                        (void)n_idx;
                     }
                 }
             }
         }
     }
-    (void)total_reflections; (void)valid_specular_angles;
 }
 
 /* ==========================================================================
  * DIAGNOSE 3: Brechungsgesetz & Dispersion (Prisma, Planparallele Platte)
  * ========================================================================== */
 static void check_refraction_and_dispersion(const ProUniverse* universe, ProDiBatch_Engine* db_engine) {
-    uint64_t red_deflections = 0; uint64_t blue_deflections = 0;
     (void)db_engine;
     for (uint64_t i = 0; i < universe->active_count_current; i++) {
-        uint32_t idx = universe->active_nodes_current[i]; uint32_t flux = universe->active_nodes_kinetic[idx];
+        uint32_t idx = universe->active_nodes_current[i];
+        uint32_t flux = universe->active_nodes_kinetic[idx];
         if (flux & 0x0FFF) {
-            int32_t x = (int32_t)(idx & 0x3FF); int32_t y = (int32_t)((idx >> 10) & 0x1FF); int32_t z = (int32_t)(idx >> 19);
+            int32_t x = UNPACK_X(idx);
+            int32_t y = UNPACK_Y(idx);
+            int32_t z = UNPACK_Z(idx);
             uint32_t next_flux = universe->active_nodes_kinetic[ProPhysics_Get_Neighbor_Inline(x, y, z, 0)];
-            if (ZAEHLE_BITS(next_flux & 0x0FFF) >= 3) {
-                if (flux & 0x00F) blue_deflections++;
-                if (flux & 0xF00) red_deflections++;
-            }
+            (void)next_flux;
         }
     }
-    (void)red_deflections; (void)blue_deflections;
 }
 
 /* ==========================================================================
@@ -226,64 +226,44 @@ static void check_lenses_and_focal_lengths(const ProUniverse* universe, ProDiBat
  * DIAGNOSE 5: Wellenoptik (Interferenz & Farben dünner Blättchen)
  * ========================================================================== */
 static void check_wave_interference_and_thin_films(const ProUniverse* universe, ProDiBatch_Engine* db_engine) {
-    uint64_t interference_maxima = 0; uint64_t interference_minima = 0;
-    int test_x = 266; int cy = PROPHYSICS_Y_MAX / 2; int cz = PROPHYSICS_Z_MAX / 2;
-    (void)db_engine;
-    for (int step = 0; step < 16; step++) {
-        double p_layer = ProPhysics_Query_Local_Pressure((ProUniverse*)universe, test_x + step, cy, cz, 0);
-        if (p_layer > 1.4) interference_maxima++; else if (p_layer < 0.6) interference_minima++;
-    }
-    (void)interference_maxima; (void)interference_minima;
+    (void)universe; (void)db_engine;
 }
 
 /* ==========================================================================
  * DIAGNOSE 6: Beugung (Enger Spalt, Beugungsgitter & Spektrum)
  * ========================================================================== */
 static void check_diffraction_and_gratings(const ProUniverse* universe, ProDiBatch_Engine* db_engine) {
-    uint64_t diffracted_lateral_bits = 0; uint64_t central_beam_bits = 0;
-    int slit_x = 120; int cy = PROPHYSICS_Y_MAX / 2; int cz = PROPHYSICS_Z_MAX / 2;
-    (void)db_engine;
-    for (int dy = -4; dy <= 4; dy++) {
-        uint32_t flux = universe->active_nodes_kinetic[FCC_INDEX(slit_x + 5, cy + dy, cz)] & 0x0FFF;
-        if (dy == 0) central_beam_bits += ZAEHLE_BITS(flux); else if (flux) diffracted_lateral_bits += ZAEHLE_BITS(flux);
-    }
-    (void)diffracted_lateral_bits; (void)central_beam_bits;
+    (void)universe; (void)db_engine;
 }
 
 /* ==========================================================================
  * DIAGNOSE 7: Polarisation & Drehung der Polarisationsebene
  * ========================================================================== */
 static void check_polarization_and_chiral_rotation(const ProUniverse* universe, ProDiBatch_Engine* db_engine) {
-    uint64_t horizontal_polarized_bits = 0; uint64_t vertical_polarized_bits = 0; uint64_t optically_active_rotations = 0;
     (void)db_engine;
     for (uint64_t i = 0; i < universe->active_count_current; i += 5) {
-        uint32_t idx = universe->active_nodes_current[i]; uint32_t flux = universe->active_nodes_kinetic[idx];
+        uint32_t idx = universe->active_nodes_current[i];
+        uint32_t flux = universe->active_nodes_kinetic[idx];
         if ((flux & 0x0FFF) && !(flux & 0x1000)) {
-            horizontal_polarized_bits += ZAEHLE_BITS(flux & 0x00F); vertical_polarized_bits += ZAEHLE_BITS(flux & 0x0F0);
             uint32_t slot = universe->grid[idx].state_island_idx;
             if (slot != 0) {
                 uint32_t spin = (uint32_t)((universe->data_pool[slot].charge_spin & QUANTUM_MASK_SPIN_CHIRAL) >> 2);
-                if (spin == QUANTUM_SPIN_CW || spin == QUANTUM_SPIN_CCW) optically_active_rotations++;
+                (void)spin;
             }
         }
     }
-    (void)horizontal_polarized_bits; (void)vertical_polarized_bits; (void)optically_active_rotations;
 }
 
 /* ==========================================================================
  * DIAGNOSE 8: Strahlungsquellen & Spektrenarten (Temperaturstrahler, Lumineszenz)
  * ========================================================================== */
 static void check_light_sources_and_spectra(const ProUniverse* universe, ProDiBatch_Engine* db_engine) {
-    uint64_t thermal_radiator_bits = 0; uint64_t luminescence_bits = 0;
     (void)db_engine;
     for (uint64_t i = 0; i < universe->active_count_current; i += 5) {
-        uint32_t idx = universe->active_nodes_current[i]; uint32_t flux = universe->active_nodes_kinetic[idx];
-        if (flux & 0x0FFF) {
-            if (flux & 0x1000) thermal_radiator_bits += ZAEHLE_BITS(flux & 0x0FFF);
-            else if (ZAEHLE_BITS(flux & 0x0FFF) == 1) luminescence_bits++;
-        }
+        uint32_t idx = universe->active_nodes_current[i];
+        uint32_t flux = universe->active_nodes_kinetic[idx];
+        (void)flux;
     }
-    (void)thermal_radiator_bits; (void)luminescence_bits;
 }
 
 /* ==========================================================================
@@ -298,7 +278,7 @@ static void check_gravitational_lensing_deflection(const ProUniverse* universe) 
 
     for (int dx = -scan_radius; dx <= scan_radius; dx += 2) {
         int target_x = lens_center_x + dx;
-        uint32_t idx = FCC_INDEX((target_x & X_MASK), lens_center_y, lens_center_z);
+        uint32_t idx = FCC_INDEX((target_x & 0x3FF), lens_center_y, lens_center_z);
         uint32_t flux = universe->active_nodes_kinetic[idx];
 
         if ((flux & 0x0FFF) && ProPhysics_Query_Local_Pressure((ProUniverse*)universe, target_x, lens_center_y + 1, lens_center_z, 0) > 1.1) {
@@ -321,7 +301,6 @@ static void execute_interactive_optics_lab(const ProUniverse* universe, ProDiBat
 
     ProDiBatch_Log(db_engine, "[LAB-OPTICS] === OPTIK VALIDATOR IM LIVE-BETRIEB (TEST %u) ===", test_id);
 
-    /* FORMEL-TEST 1: Transmissionsrate & Lambert-Beersches Gesetz für Photonen */
     if (test_id == 1) {
         double mu = expected_input;
         double thickness_x = (custom_param > 0) ? (double)custom_param : 5.0;
@@ -335,9 +314,7 @@ static void execute_interactive_optics_lab(const ProUniverse* universe, ProDiBat
         ProDiBatch_Log(db_engine, "[OPTICS_CHECK] Optischer Dämpfungsfehler: %.5f (%s)",
             optical_error, (fabs(optical_error) < 0.05) ? "TRANSMISSION KONFORM" : "SPEKTRAL-STREUUNG");
     }
-
-    /* FORMEL-TEST 2: REPARATUR: Linsen- & Spiegelabbildungsgleichung (Abweichung von f_ist) */
-    if (test_id == 2) {
+    else if (test_id == 2) {
         double expected_f = expected_input;
         double deviation_f = estimated_focal_distance - expected_f;
 
@@ -345,9 +322,7 @@ static void execute_interactive_optics_lab(const ProUniverse* universe, ProDiBat
         ProDiBatch_Log(db_engine, "[OPTICS_CHECK] Formel-Vorgabe f: %.2f Sektoren | Reale Brennweite f: %.2f Sektoren", expected_f, estimated_focal_distance);
         ProDiBatch_Log(db_engine, "[OPTICS_CHECK] Brennpunktsabweichung: %.4f Sektoren", deviation_f);
     }
-
-    /* FORMEL-TEST 3: Gravitative Lichtablenkung (Einstein-Gravitationslinse) */
-    if (test_id == 3) {
+    else if (test_id == 3) {
         double expected_angle = expected_input;
         double actual_angle = (gravitational_deflection_events > 0) ? (total_measured_deflection_angle / (double)gravitational_deflection_events) : 0.0;
         double lensing_error = actual_angle - expected_angle;
@@ -365,32 +340,19 @@ static void execute_interactive_optics_lab(const ProUniverse* universe, ProDiBat
 void observer_mod_optics_evaluate(const ProUniverse* universe, ProDiBatch_Engine* db_engine) {
     if (!universe || !db_engine) return;
 
-    /* 1. Ausbreitungs- und Geschwindigkeits-Invarianz */
     check_light_propagation_and_speed(universe, db_engine);
-
-    /* 2. Geometrische Optik & Spiegelphänomene */
     check_reflection_laws_and_mirrors(universe, db_engine);
     check_refraction_and_dispersion(universe, db_engine);
     check_lenses_and_focal_lengths(universe, db_engine);
-
-    /* 3. Wellenoptik, Gitter-Beugung & Interferenz-Muster */
     check_wave_interference_and_thin_films(universe, db_engine);
     check_diffraction_and_gratings(universe, db_engine);
-
-    /* 4. Polarisation, Doppelbrechung & Chiralitäts-Drehung */
     check_polarization_and_chiral_rotation(universe, db_engine);
-
-    /* 5. Quanten-Emissionsspektren */
     check_light_sources_and_spectra(universe, db_engine);
 
-    /* 6. Fotometrie, Lichtverteilungskurven & Fotometerabgleich */
     check_photometric_intensity_and_curves(universe, db_engine);
     check_illuminance_luminance_and_photometer(universe, db_engine);
-
-    /* 7. Gravitationslinsen-Ablenkung */
     check_gravitational_lensing_deflection(universe);
 
-    /* 8. INTERAKTIVER FORMEL-ABGLEICH (Gating-Zentrale) */
     execute_interactive_optics_lab(universe, db_engine);
 
     first_optics_tick = false;

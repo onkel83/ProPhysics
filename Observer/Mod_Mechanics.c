@@ -1,10 +1,17 @@
+/* ==========================================================================
+ * ProPhysics - Mechanics Diagnostic Core
+ * File: Mod_Mechanics.c
+ * Architecture: C99, Cache-Optimized Monolithic Evaluator Layer
+ * Optimierung: Redundancy Elimination, O(1) Loop-Merging, Inline Bit-Masking
+ * ========================================================================== */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <math.h>
 
-// SDK-Schnittstellen
+ // SDK-Schnittstellen
 #include "ProPhysics.h"
 #include "ProDiBatch.h"
 
@@ -14,7 +21,6 @@
 #include "../ProPhysics/ProPhysics_Types.h"
 #include "../ProDiBatch/ProDiBatch_Exports.h"
 
-// Gating-Matrix deklarieren
 extern ModuleTestControl global_mod_control[];
 
 /* Interner Speicher für die Invarianten-Prüfung über Ticks hinweg */
@@ -44,10 +50,8 @@ static double last_alpha_x = 0.0;
 static double last_alpha_y = 0.0;
 static double last_alpha_z = 0.0;
 
-/* Historische Kinetik-Werte (Energieerhaltung und Arbeit) */
+/* Historische Kinetik-Werte */
 static uint64_t last_energy_kin = 0;
-
-/* Historische Wellenmetrik (Lokale Druckoszillationen zur Frequenzanalyse) */
 static double last_center_pressure = 0.0;
 
 static bool first_tick = true;
@@ -58,6 +62,11 @@ static bool first_tick = true;
 static double total_work_done = 0.0;
 static double current_launch_angle = 0.0;
 static double current_lever_delta = 0.0;
+
+// Schnellzugriff auf Gitter-Bitmasken aus der Core-Engine
+#define UNPACK_X(idx) ((int32_t)((idx) & 0x3FF))
+#define UNPACK_Y(idx) ((int32_t)(((idx) >> 10) & 0x1FF))
+#define UNPACK_Z(idx) ((int32_t)((idx) >> 19))
 
 /* ==========================================================================
  * DIAGNOSE 1: Kinetik-Profiler (Kraftstoss, Arbeit, Leistung & Energie)
@@ -74,9 +83,9 @@ static void check_kinetics_energy_work_power(const ProUniverse* universe, ProDiB
         if (universe->active_nodes_kinetic[idx] & 0x1000) {
             uint32_t slot = universe->grid[idx].state_island_idx;
             if (slot != 0) {
-                int32_t x = (int32_t)(idx & 0x3FF);
-                int32_t y = (int32_t)((idx >> 10) & 0x1FF);
-                int32_t z = (int32_t)(idx >> 19);
+                int32_t x = UNPACK_X(idx);
+                int32_t y = UNPACK_Y(idx);
+                int32_t z = UNPACK_Z(idx);
 
                 double P_c = ProPhysics_Query_Local_Pressure((ProUniverse*)universe, x, y, z, 1);
                 double F_x = P_c - ProPhysics_Query_Local_Pressure((ProUniverse*)universe, x + 1, y, z, 1);
@@ -90,7 +99,7 @@ static void check_kinetics_energy_work_power(const ProUniverse* universe, ProDiB
                 total_impulse_x += F_x; total_impulse_y += F_y; total_impulse_z += F_z;
                 total_work_done += (F_x * vx + F_y * vy + F_z * vz);
 
-                if (fabs(vx) > 0.0 || fabs(vy) > 0.0 || fabs(vz) > 0.0) dynamic_nodes++;
+                dynamic_nodes += ((fabs(vx) > 0.0) || (fabs(vy) > 0.0) || (fabs(vz) > 0.0));
             }
         }
     }
@@ -188,9 +197,9 @@ static void check_centripetal_mechanics(const ProUniverse* universe, ProDiBatch_
                 double abs_v = sqrt(vx * vx + vy * vy + vz * vz);
 
                 if (abs_v > 0.1) {
-                    int32_t x = (int32_t)(idx & 0x3FF);
-                    int32_t y = (int32_t)((idx >> 10) & 0x1FF);
-                    int32_t z = (int32_t)(idx >> 19);
+                    int32_t x = UNPACK_X(idx);
+                    int32_t y = UNPACK_Y(idx);
+                    int32_t z = UNPACK_Z(idx);
 
                     double P_c = ProPhysics_Query_Local_Pressure((ProUniverse*)universe, x, y, z, 1);
                     double ax = P_c - ProPhysics_Query_Local_Pressure((ProUniverse*)universe, x + 1, y, z, 1);
@@ -220,6 +229,7 @@ static void check_centripetal_mechanics(const ProUniverse* universe, ProDiBatch_
  * ========================================================================== */
 static void check_translational_kinematics(const ProUniverse* universe, ProDiBatch_Engine* db_engine, double current_com_x, double current_com_y, double current_com_z) {
     if (first_tick) return;
+    (void)universe;
 
     double v_eff_x = current_com_x - last_com_x; double v_eff_y = current_com_y - last_com_y; double v_eff_z = current_com_z - last_com_z;
     double a_eff_x = v_eff_x - last_v_x; double a_eff_y = v_eff_y - last_v_y; double a_eff_z = v_eff_z - last_v_z;
@@ -249,9 +259,9 @@ static void check_stability_and_tipping(const ProUniverse* universe, ProDiBatch_
     for (uint64_t i = 0; i < universe->active_count_current; i++) {
         uint32_t idx = universe->active_nodes_current[i];
         if (universe->active_nodes_kinetic[idx] & 0x1000) {
-            int32_t x = (int32_t)(idx & 0x3FF);
-            int32_t y = (int32_t)((idx >> 10) & 0x1FF);
-            int32_t z = (int32_t)(idx >> 19);
+            int32_t x = UNPACK_X(idx);
+            int32_t y = UNPACK_Y(idx);
+            int32_t z = UNPACK_Z(idx);
 
             if (z <= 1) {
                 if (x < min_x) min_x = x; if (x > max_x) max_x = x;
@@ -282,7 +292,7 @@ static void check_lever_and_machinery(const ProUniverse* universe, ProDiBatch_En
     for (uint64_t i = 0; i < universe->active_count_current; i++) {
         uint32_t idx = universe->active_nodes_current[i];
         if (universe->active_nodes_kinetic[idx] & 0x1000) {
-            int32_t x = (int32_t)(idx & 0x3FF);
+            int32_t x = UNPACK_X(idx);
             uint32_t slot = universe->grid[idx].state_island_idx;
             if (slot != 0) {
                 uint64_t mass = universe->data_pool[slot].mass_accumulator;
@@ -344,9 +354,9 @@ static void check_fluid_dynamics_and_drag(const ProUniverse* universe, ProDiBatc
                 double abs_v = sqrt(vx * vx + vy * vy + vz * vz);
 
                 if (abs_v > 0.5) {
-                    int32_t x = (int32_t)(idx & 0x3FF);
-                    int32_t y = (int32_t)((idx >> 10) & 0x1FF);
-                    int32_t z = (int32_t)(idx >> 19);
+                    int32_t x = UNPACK_X(idx);
+                    int32_t y = UNPACK_Y(idx);
+                    int32_t z = UNPACK_Z(idx);
 
                     int32_t front_x = x + (vx > 0 ? 1 : (vx < 0 ? -1 : 0));
                     int32_t front_y = y + (vy > 0 ? 1 : (vy < 0 ? -1 : 0));
@@ -381,9 +391,9 @@ static void check_elastomechanics_and_deformation(const ProUniverse* universe, P
     for (uint64_t i = 0; i < universe->active_count_current; i++) {
         uint32_t idx = universe->active_nodes_current[i];
         if (universe->active_nodes_kinetic[idx] & 0x1000) {
-            int32_t x = (int32_t)(idx & 0x3FF);
-            int32_t y = (int32_t)((idx >> 10) & 0x1FF);
-            int32_t z = (int32_t)(idx >> 19);
+            int32_t x = UNPACK_X(idx);
+            int32_t y = UNPACK_Y(idx);
+            int32_t z = UNPACK_Z(idx);
 
             if (x < min_x) min_x = x; if (x > max_x) max_x = x;
             if (y < min_y) min_y = y; if (y > max_y) max_y = y;
@@ -407,7 +417,7 @@ static void check_inclined_plane_and_wedges(const ProUniverse* universe, ProDiBa
     for (uint64_t i = 0; i < universe->active_count_current; i++) {
         uint32_t idx = universe->active_nodes_current[i];
         if (universe->active_nodes_kinetic[idx] & 0x1000) {
-            int32_t x = (int32_t)(idx & 0x3FF); int32_t y = (int32_t)((idx >> 10) & 0x1FF); int32_t z = (int32_t)(idx >> 19);
+            int32_t x = UNPACK_X(idx); int32_t y = UNPACK_Y(idx); int32_t z = UNPACK_Z(idx);
             double P_c = ProPhysics_Query_Local_Pressure((ProUniverse*)universe, x, y, z, 1);
             double F_x = P_c - ProPhysics_Query_Local_Pressure((ProUniverse*)universe, x + 1, y, z, 1);
             double F_y = P_c - ProPhysics_Query_Local_Pressure((ProUniverse*)universe, x, y + 1, z, 1);
@@ -428,7 +438,7 @@ static void check_pulleys_and_tackles(const ProUniverse* universe, ProDiBatch_En
         if (universe->active_nodes_kinetic[idx] & 0x1000) {
             uint32_t slot = universe->grid[idx].state_island_idx;
             if (slot != 0) {
-                int32_t x = (int32_t)(idx & 0x3FF);
+                int32_t x = UNPACK_X(idx);
                 int64_t pz = (int64_t)universe->data_pool[slot].vz * (int64_t)universe->data_pool[slot].mass_accumulator;
                 if (x < center_x) momentum_in += pz; else momentum_out += pz;
             }
@@ -441,21 +451,9 @@ static void check_pulleys_and_tackles(const ProUniverse* universe, ProDiBatch_En
 #endif
 }
 
-static void check_newton_first_law(const ProUniverse* universe, ProDiBatch_Engine* db_engine) {
+static void check_newton_first_law(const ProUniverse* universe, ProDiBatch_Engine* db_engine, int64_t current_px, int64_t current_py, int64_t current_pz) {
     if (first_tick) return;
-    int64_t current_px = 0; int64_t current_py = 0; int64_t current_pz = 0;
-    for (uint64_t i = 0; i < universe->active_count_current; i++) {
-        uint32_t idx = universe->active_nodes_current[i];
-        if (universe->active_nodes_kinetic[idx] & 0x1000) {
-            uint32_t slot = universe->grid[idx].state_island_idx;
-            if (slot != 0) {
-                uint64_t mass = universe->data_pool[slot].mass_accumulator;
-                current_px += (int64_t)universe->data_pool[slot].vx * (int64_t)mass;
-                current_py += (int64_t)universe->data_pool[slot].vy * (int64_t)mass;
-                current_pz += (int64_t)universe->data_pool[slot].vz * (int64_t)mass;
-            }
-        }
-    }
+
     if (global_mod_control[MOD_INDEX_MECHANICS].active_test_id == 0 &&
         (current_px != last_total_px || current_py != last_total_py || current_pz != last_total_pz)) {
         ProDiBatch_Log(db_engine, "[WARN][INVARIANCE] Impulserhaltung gestoert!");
@@ -463,7 +461,7 @@ static void check_newton_first_law(const ProUniverse* universe, ProDiBatch_Engin
 }
 
 /* ==========================================================================
- * NEW: RUNTIME MECHANICAL FORMULA VALIDATOR LAB
+ * DIAGNOSE 11: RUNTIME MECHANICAL FORMULA VALIDATOR LAB
  * ========================================================================== */
 static void execute_interactive_mechanics_lab(const ProUniverse* universe, ProDiBatch_Engine* db_engine, uint64_t current_energy_kin) {
     uint32_t test_id = global_mod_control[MOD_INDEX_MECHANICS].active_test_id;
@@ -483,8 +481,7 @@ static void execute_interactive_mechanics_lab(const ProUniverse* universe, ProDi
         ProDiBatch_Log(db_engine, "[FORMULA_CHECK] Absoluter Abweichungsfehler: %.5f (%s)",
             calculation_error, (fabs(calculation_error) < 0.1) ? "ENERGIEERHALTUNG OK" : "PHYSIKDRIFT");
     }
-
-    if (test_id == 2) {
+    else if (test_id == 2) {
         double target_angle = expected_input;
         double angle_error = current_launch_angle - target_angle;
 
@@ -492,8 +489,7 @@ static void execute_interactive_mechanics_lab(const ProUniverse* universe, ProDi
         ProDiBatch_Log(db_engine, "[FORMULA_CHECK] Soll-Winkel: %.2f Grad | Gemessener Ist-Flugwinkel: %.2f Grad", target_angle, current_launch_angle);
         ProDiBatch_Log(db_engine, "[FORMULA_CHECK] Winkel-Abweichung: %.4f Grad", angle_error);
     }
-
-    if (test_id == 3) {
+    else if (test_id == 3) {
         double expected_delta = expected_input;
         double error_lever = current_lever_delta - expected_delta;
 
@@ -511,9 +507,12 @@ void observer_mod_mechanics_evaluate(const ProUniverse* universe, ProDiBatch_Eng
 
     uint64_t total_mass = 0;
     int64_t com_x_sum = 0; int64_t com_y_sum = 0; int64_t com_z_sum = 0;
+    int64_t current_px = 0; int64_t current_py = 0; int64_t current_pz = 0;
     double moment_of_inertia = 0.0;
     uint64_t current_energy_kin = 0;
 
+    // --- ONE SWEEP TO RULE THEM ALL ---
+    // Konsolidiert alle globalen Lineartranslationen und Impulserhaltungen in einem Durchlauf
     for (uint64_t i = 0; i < universe->active_count_current; i++) {
         uint32_t idx = universe->active_nodes_current[i];
         if (universe->active_nodes_kinetic[idx] & 0x1000) {
@@ -522,13 +521,17 @@ void observer_mod_mechanics_evaluate(const ProUniverse* universe, ProDiBatch_Eng
                 uint64_t mass = universe->data_pool[slot].mass_accumulator;
                 total_mass += mass;
 
-                com_x_sum += (int64_t)(idx & 0x3FF) * (int64_t)mass;
-                com_y_sum += (int64_t)((idx >> 10) & 0x1FF) * (int64_t)mass;
-                com_z_sum += (int64_t)(idx >> 19) * (int64_t)mass;
+                com_x_sum += (int64_t)UNPACK_X(idx) * (int64_t)mass;
+                com_y_sum += (int64_t)UNPACK_Y(idx) * (int64_t)mass;
+                com_z_sum += (int64_t)UNPACK_Z(idx) * (int64_t)mass;
 
-                double vx = (double)universe->data_pool[slot].vx;
-                double vy = (double)universe->data_pool[slot].vy;
-                double vz = (double)universe->data_pool[slot].vz;
+                int64_t vx = universe->data_pool[slot].vx;
+                int64_t vy = universe->data_pool[slot].vy;
+                int64_t vz = universe->data_pool[slot].vz;
+
+                current_px += vx * (int64_t)mass;
+                current_py += vy * (int64_t)mass;
+                current_pz += vz * (int64_t)mass;
 
                 current_energy_kin += (uint64_t)(vx * vx + vy * vy + vz * vz) * mass;
             }
@@ -548,9 +551,9 @@ void observer_mod_mechanics_evaluate(const ProUniverse* universe, ProDiBatch_Eng
                 uint32_t slot = universe->grid[idx].state_island_idx;
                 if (slot != 0) {
                     uint64_t mass = universe->data_pool[slot].mass_accumulator;
-                    double rx = (double)(idx & 0x3FF) - current_com_x;
-                    double ry = (double)((idx >> 10) & 0x1FF) - current_com_y;
-                    double rz = (double)(idx >> 19) - current_com_z;
+                    double rx = (double)UNPACK_X(idx) - current_com_x;
+                    double ry = (double)UNPACK_Y(idx) - current_com_y;
+                    double rz = (double)UNPACK_Z(idx) - current_com_z;
 
                     moment_of_inertia += (double)mass * (rx * rx + ry * ry + rz * rz);
 
@@ -577,23 +580,18 @@ void observer_mod_mechanics_evaluate(const ProUniverse* universe, ProDiBatch_Eng
     check_elastomechanics_and_deformation(universe, db_engine);
     check_inclined_plane_and_wedges(universe, db_engine);
     check_pulleys_and_tackles(universe, db_engine);
-    check_newton_first_law(universe, db_engine);
+
+    // Übergabe der vorab akkumulierten Impulswerte an Newtons Invarianz-Prüfer
+    check_newton_first_law(universe, db_engine, current_px, current_py, current_pz);
 
     execute_interactive_mechanics_lab(universe, db_engine, current_energy_kin);
 
+    // --- REVOLUTIONÄR: DIE ZWEITE $O(N)$-SCHLEIFE WURDE RESTLOS ELIMINIERT ---
+    // Übergabe erfolgt direkt ohne redundanten Hauptspeicher-Sweep
     last_energy_kin = current_energy_kin;
-    last_total_px = 0; last_total_py = 0; last_total_pz = 0;
-    for (uint64_t i = 0; i < universe->active_count_current; i++) {
-        uint32_t idx = universe->active_nodes_current[i];
-        if (universe->active_nodes_kinetic[idx] & 0x1000) {
-            uint32_t slot = universe->grid[idx].state_island_idx;
-            if (slot != 0) {
-                uint64_t mass = universe->data_pool[slot].mass_accumulator;
-                last_total_px += (int64_t)universe->data_pool[slot].vx * (int64_t)mass;
-                last_total_py += (int64_t)universe->data_pool[slot].vy * (int64_t)mass;
-                last_total_pz += (int64_t)universe->data_pool[slot].vz * (int64_t)mass;
-            }
-        }
-    }
+    last_total_px = current_px;
+    last_total_py = current_py;
+    last_total_pz = current_pz;
+
     first_tick = false;
 }

@@ -1,10 +1,17 @@
+/* ==========================================================================
+ * ProPhysics - Acoustics Diagnostic Core
+ * File: Mod_Acoustics.c
+ * Architecture: C99, Cache-Optimized Monolithic Evaluator Layer
+ * Optimierung: Sparse-Tracking Spatial Filtering, O(1) Bit-Masking
+ * ========================================================================== */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <math.h>
 
-// SDK-Schnittstellen aus den bin/ Verzeichnissen (wichtig für ProDiBatch_Engine)
+ // SDK-Schnittstellen
 #include "ProPhysics.h"
 #include "ProDiBatch.h"
 
@@ -21,7 +28,6 @@
 #define ZAEHLE_BITS(x) __builtin_popcountll(x)
 #endif
 
-// Macht die in der Observer.c instanziierte Gating-Matrix hier bekannt
 extern ModuleTestControl global_mod_control[];
 
 /* Interner Speicher für die Invarianten-Prüfung über Ticks hinweg */
@@ -58,6 +64,11 @@ static const int32_t AXIAL_DZ[12] = { 0,  0,  0,  0,  1, -1, -1,  1,  1, -1, -1,
 
 static const double DIATONIC_RATIOS[8] = { 1.0, 1.125, 1.25, 1.3333, 1.5, 1.6667, 1.875, 2.0 };
 
+// Synchronisierte Unpacking-Makros für die 16-Byte-Knoten-Dekomprimierung
+#define UNPACK_X(idx) ((int32_t)((idx) & 0x3FF))
+#define UNPACK_Y(idx) ((int32_t)(((idx) >> 10) & 0x1FF))
+#define UNPACK_Z(idx) ((int32_t)((idx) >> 19))
+
 /* ==========================================================================
  * DIAGNOSE 1: Schallfeldgrößen (Schallschnelle, Schalldruck, Schallstärke)
  * ========================================================================== */
@@ -70,22 +81,25 @@ static void check_sound_field_quantities(const ProUniverse* universe, ProDiBatch
     double particle_v_x = 0.0, particle_v_y = 0.0, particle_v_z = 0.0;
     uint64_t cell_count = 0;
 
-    for (int z = cz - 2; z <= cz + 2; z++) {
-        for (int y = cy - 2; y <= cy + 2; y++) {
-            for (int x = cx - 2; x <= cx + 2; x++) {
-                uint32_t idx = FCC_INDEX(x, y, z);
-                uint32_t flux = universe->active_nodes_kinetic[idx] & 0x0FFF;
+    // --- REVOLUTIONÄR: SPARSE-FILTERING ERSETZT DIE BRUTE-FORCE 3D-RAUMSCHLEIFE ---
+    // Nutzt das dichte Strom-Array der aktiven Knoten, um Cache-Misses abzuwehren[cite: 1]
+    for (uint64_t i = 0; i < universe->active_count_current; i++) {
+        uint32_t idx = universe->active_nodes_current[i];
+        int32_t x = UNPACK_X(idx);
+        int32_t y = UNPACK_Y(idx);
+        int32_t z = UNPACK_Z(idx);
 
-                if (flux) {
-                    for (int ch = 0; ch < 12; ch++) {
-                        if (flux & (1U << ch)) {
-                            particle_v_x += AXIAL_DX[ch];
-                            particle_v_y += AXIAL_DY[ch];
-                            particle_v_z += AXIAL_DZ[ch];
-                        }
-                    }
-                    cell_count++;
+        // Prüfe branchless, ob der aktive Knoten innerhalb der 5x5x5 Kontrollbox liegt
+        if (abs(x - cx) <= 2 && abs(y - cy) <= 2 && abs(z - cz) <= 2) {
+            uint32_t flux = universe->active_nodes_kinetic[idx] & 0x0FFF;
+            if (flux) {
+                for (int ch = 0; ch < 12; ch++) {
+                    uint32_t bit_active = (flux >> ch) & 1U;
+                    particle_v_x += bit_active * AXIAL_DX[ch];
+                    particle_v_y += bit_active * AXIAL_DY[ch];
+                    particle_v_z += bit_active * AXIAL_DZ[ch];
                 }
+                cell_count++;
             }
         }
     }
@@ -212,10 +226,9 @@ static void check_wave_interference_and_modulation(const ProUniverse* universe, 
         uint32_t idx = universe->active_nodes_current[i];
         uint32_t flux = universe->active_nodes_kinetic[idx];
         if ((flux & 0x0FFF) && !(flux & 0x1000)) {
-            /* BIT-SHIFT REPARATUR: Angepasst an die Torus-Architektur deiner proPhysics.c */
-            int32_t x = idx & 0x3FF;
-            int32_t y = (idx >> 10) & 0x1FF;
-            int32_t z = idx >> 19;
+            int32_t x = UNPACK_X(idx);
+            int32_t y = UNPACK_Y(idx);
+            int32_t z = UNPACK_Z(idx);
 
             double p_local = ProPhysics_Query_Local_Pressure((ProUniverse*)universe, x, y, z, 0);
             if (p_local > 1.8) amplification_nodes++;
@@ -240,10 +253,9 @@ static void check_acoustic_doppler_effect(const ProUniverse* universe, ProDiBatc
         if (slot != 0) {
             int32_t vx = universe->data_pool[slot].vx;
             if (abs(vx) > 5) {
-                /* BIT-SHIFT REPARATUR: Korrekte Extraktion aus dem flachen SoA-Array */
-                int32_t x = idx & 0x3FF;
-                int32_t y = (idx >> 10) & 0x1FF;
-                int32_t z = idx >> 19;
+                int32_t x = UNPACK_X(idx);
+                int32_t y = UNPACK_Y(idx);
+                int32_t z = UNPACK_Z(idx);
 
                 int sign = (vx > 0) ? 1 : -1;
                 double p_front = ProPhysics_Query_Local_Pressure((ProUniverse*)universe, x + (sign * 5), y, z, 1);
@@ -295,6 +307,7 @@ static void check_frequency_and_amplitude(const ProUniverse* universe, ProDiBatc
     if (first_acoustic_tick) {
         last_local_pressure = p_curr; return;
     }
+    (void)universe;
     double p_background = 1.0;
     double amplitude_delta = p_curr - p_background;
     cycle_ticks++;
@@ -311,25 +324,21 @@ static void check_frequency_and_amplitude(const ProUniverse* universe, ProDiBatc
 }
 
 /* ==========================================================================
- * NEW: RUNTIME FORMULA VALIDATOR LAB
- * Vergleicht die emersierte zelluläre Physik im RAM mit exakten theoretischen
- * Formeln. Verhält sich wie ein interaktiver Physik-Rechner.
+ * DIAGNOSE 9: RUNTIME FORMULA VALIDATOR LAB
  * ========================================================================== */
 static void execute_interactive_acoustic_lab(const ProUniverse* universe, ProDiBatch_Engine* db_engine, double p_curr) {
     uint32_t test_id = global_mod_control[MOD_INDEX_ACOUSTICS].active_test_id;
-    double expected_input_c_s = global_mod_control[MOD_INDEX_ACOUSTICS].target_intensity; // Vorgabe theoretische c_s
+    double expected_input_c_s = global_mod_control[MOD_INDEX_ACOUSTICS].target_intensity;
     int32_t distance_param = global_mod_control[MOD_INDEX_ACOUSTICS].custom_param;
 
     if (test_id == 0) return;
+    (void)p_curr;
 
     ProDiBatch_Log(db_engine, "[LAB-ACOUSTICS] === AKUSTIK VALIDATOR IN BETRIEB (TEST %u) ===", test_id);
 
-    /* FORMEL-TEST 1: Validierung der Schallgeschwindigkeit (c = s / t) */
     if (test_id == 1) {
-        if (distance_param <= 0) distance_param = 100; // Fallback
+        if (distance_param <= 0) distance_param = 100;
         double measured_c_s = (double)distance_param / ((double)vacuum_travel_ticks + KINEMATIC_EPSILON);
-
-        /* Abweichungs-Rechner (Delta) */
         double error_delta = measured_c_s - expected_input_c_s;
 
         ProDiBatch_Log(db_engine, "[FORMULA_CHECK] Modell: Vakuumpuls-Ausbreitung über %d Sektoren", distance_param);
@@ -337,21 +346,19 @@ static void execute_interactive_acoustic_lab(const ProUniverse* universe, ProDiB
         ProDiBatch_Log(db_engine, "[FORMULA_CHECK] Absoluter Rechenfehler: %.5f (%s)",
             error_delta, (fabs(error_delta) < 0.05) ? "INVARIANZ ERFUELLT" : "REAKTIONSDRIFT");
     }
-
-    /* FORMEL-TEST 2: Validierung des akustischen Doppler-Effekts */
-    if (test_id == 2) {
+    else if (test_id == 2) {
         if (universe->active_count_current > 0) {
             uint32_t idx = universe->active_nodes_current[0];
             uint32_t slot = universe->grid[idx].state_island_idx;
             if (slot != 0) {
                 double v_source = fabs((double)universe->data_pool[slot].vx);
-                double c_medium = 1.0; // Invariante Licht-/Signalgeschwindigkeit im Vakuum
+                double c_medium = 1.0;
 
-                /* Klassische Doppler-Formel für Staudruckkompression:
-                   p_ratio_theor = (1 + v/c) / (1 - v/c) */
                 double ratio_theoretical = (1.0 + (v_source / c_medium)) / (1.0 - (v_source / c_medium) + KINEMATIC_EPSILON);
 
-                int32_t x = idx & 0x3FF; int32_t y = (idx >> 10) & 0x1FF; int32_t z = idx >> 19;
+                int32_t x = UNPACK_X(idx);
+                int32_t y = UNPACK_Y(idx);
+                int32_t z = UNPACK_Z(idx);
                 double p_front = ProPhysics_Query_Local_Pressure((ProUniverse*)universe, x + 5, y, z, 1);
                 double p_rear = ProPhysics_Query_Local_Pressure((ProUniverse*)universe, x - 5, y, z, 1);
                 double ratio_emergent = p_front / (p_rear > 0.0 ? p_rear : 1.0);
@@ -362,10 +369,8 @@ static void execute_interactive_acoustic_lab(const ProUniverse* universe, ProDiB
             }
         }
     }
-
-    /* FORMEL-TEST 3: Kalibrierung der diatonischen Tonskalen */
-    if (test_id == 3) {
-        double expected_frequency = expected_input_c_s; // Eingabe-Frequenz via Intensität
+    else if (test_id == 3) {
+        double expected_frequency = expected_input_c_s;
         double delta_f = current_measured_frequency - expected_frequency;
 
         ProDiBatch_Log(db_engine, "[FORMULA_CHECK] Modell: Diatonischer Stimmungskomparator");
@@ -383,23 +388,15 @@ void observer_mod_acoustics_evaluate(const ProUniverse* universe, ProDiBatch_Eng
     int cx = PROPHYSICS_X_MAX / 2; int cy = PROPHYSICS_Y_MAX / 2; int cz = PROPHYSICS_Z_MAX / 2;
     double p_curr = ProPhysics_Query_Local_Pressure((ProUniverse*)universe, cx, cy, cz, 3);
 
-    /* 1. Wellen-Feldgrössen & Logarithmische Pegel (dB) */
     check_sound_field_quantities(universe, db_engine, p_curr);
     check_decibels_and_hearing(db_engine);
-
-    /* 2. Dichtemessung und Ausbreitung (Gase, Fluessigkeiten, Feststoffe) */
     check_medium_dependent_speeds(universe, db_engine);
-
-    /* 3. Wellen-Interferenzen (Ueberlagerung, Ausloeschung, Schwebung) */
     check_frequency_and_amplitude(universe, db_engine, p_curr);
     check_wave_interference_and_modulation(universe, db_engine, p_curr);
     check_acoustic_doppler_effect(universe, db_engine);
-
-    /* 4. Tonsysteme & Ultraschall-Eigenschaften */
     check_musical_scales_and_temperament(db_engine);
     check_ultrasound_properties(universe, db_engine);
 
-    /* 5. INTERAKTIVER FORMEL-ABGLEICH (Gating-Zentrale) */
     execute_interactive_acoustic_lab(universe, db_engine, p_curr);
 
     first_acoustic_tick = false;
