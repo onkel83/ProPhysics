@@ -47,10 +47,11 @@ typedef struct {
 } QuantumStateIsland;
 
 typedef struct {
-    /* Topologie-Pool (48 Byte) */
-    uint32_t neighbor_idx[12];
-
-    /* Daten-Pool (16 Byte) */
+    /*
+     * Daten-Pool (16 Byte kompakt)
+     * Die 48 Byte statische Topologie (neighbor_idx) wurden vollständig eliminiert.
+     * Nachbarschafts-Indizes werden on-the-fly berechnet.
+     */
     uint32_t active_flux;
     uint32_t state_island_idx;
     uint32_t local_anisotropy;

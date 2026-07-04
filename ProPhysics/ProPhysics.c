@@ -1,8 +1,9 @@
 /* ==========================================================================
-* ProPhysics - Engine Kernel Execution(Pure "It from Bit" LGA Core)
-* Architektur: Lock - Free Gather(Pull) Engine, Pure Array Chunking
-* Optimierung : Zero - Branching Torus & SoA Cache - Density(Flat Flux Array)
-* ========================================================================== */
+ * ProPhysics - Engine Kernel Execution (Pure "It from Bit" LGA Core)
+ * Architektur: Lock-Free Gather (Pull) Engine, Pure Array Chunking
+ * Optimierung: Zero-Branching Torus & SoA Cache-Density (Flat Flux Array)
+ * Modifikation: 16-Byte Compact Grid Layout (Mathematical Neighborhood Mapping)
+ * ========================================================================== */
 
 #include <stdlib.h>
 #include <string.h>
@@ -12,9 +13,8 @@
 #include <intrin.h>
 #include "ProPhysics.h"
 
-
-// --- VORWÄRTSDEKLARATIONEN (Verhindert C4013 & C2371) ---
-void ProPhysics_Update_Quantum_Flux(ProUniverse * universe, uint32_t node_idx);
+ // --- VORWÄRTSDEKLARATIONEN ---
+void ProPhysics_Update_Quantum_Flux(ProUniverse* universe, uint32_t node_idx);
 void ProPhysics_Partition_Initial_Tasks(ProUniverse* pu);
 
 // ==========================================================================
@@ -42,7 +42,7 @@ __declspec(dllexport) uint32_t ProPhysics_Get_Neighbor_Inline(int32_t x, int32_t
 }
 
 // ==========================================================================
-// MULTITHREADING MAFI-DEFINITIONEN (Zuerst deklariert!)
+// MULTITHREADING DEFINITIONEN
 // ==========================================================================
 #define NUM_WORKERS 10
 
@@ -57,14 +57,12 @@ static uint8_t* tls_bitset[NUM_WORKERS];
 static ProUniverse* global_pu = NULL;
 static bool threads_initialized = false;
 
-// --- CHUNK-DECOMPOSITION INFRASTRUKTUR (Nutzt NUM_WORKERS fehlerfrei) ---
-static uint32_t* staging_buckets[NUM_WORKERS];
-static uint64_t  staging_counts[NUM_WORKERS];
-static uint64_t  worker_task_start[NUM_WORKERS] = { 0 };
-static uint64_t  worker_task_end[NUM_WORKERS] = { 0 };
+// --- CHUNK-DECOMPOSITION INFRASTRUKTUR ---
+static uint64_t worker_task_start[NUM_WORKERS] = { 0 };
+static uint64_t worker_task_end[NUM_WORKERS] = { 0 };
 
 /* ==========================================================================
- * MODIFIED: PhysicsWorker
+ * PhysicsWorker
  * Architektur: Asymmetrischer Inner-Halo Split (Lock-Free Edge Separation)
  * ========================================================================== */
 DWORD WINAPI PhysicsWorker(LPVOID lpParam) {
@@ -79,21 +77,18 @@ DWORD WINAPI PhysicsWorker(LPVOID lpParam) {
         // PHASE 1a (Kerne 0-7) ODER PHASE 1b (Kerne 8-9): COLLISION & SCATTER
         // ====================================================================
         if (t_id < 8) {
-            // Inner-Core Workers schlagen sofort in Phase 1a los
             while (current_tick_phase != (my_tick * 10 + 1)) {
                 if (!engine_running) return 0;
                 _mm_pause();
             }
         }
         else {
-            // Boundary Workers warten geduldig auf die Freigabe der Phase 1b
             while (current_tick_phase != (my_tick * 10 + 4)) {
                 if (!engine_running) return 0;
                 _mm_pause();
             }
         }
 
-        // Nutzt die vom Master-Orchestrator vordefinierten, räumlich reinen Sektor-Grenzen
         uint64_t start = worker_task_start[t_id];
         uint64_t end = worker_task_end[t_id];
         tls_active_count[t_id] = 0;
@@ -140,20 +135,16 @@ DWORD WINAPI PhysicsWorker(LPVOID lpParam) {
                     continue;
                 }
 
-                // --- PAAR-STREUUNG (LEGACY LGA) ---
-                bool pair01 = (move & 0x0003) == 0x0003;
-                bool pair23 = (move & 0x000C) == 0x000C;
-                bool pair45 = (move & 0x0030) == 0x0030;
-                bool pair67 = (move & 0x00C0) == 0x00C0;
-                bool pair89 = (move & 0x0300) == 0x0300;
-                bool pairAB = (move & 0x0C00) == 0x0C00;
+                // --- BRANCHLESS PAAR-STREUUNG (OPTIMIZED LGA) ---
+                uint32_t pair01 = ((move & 0x0003) == 0x0003) && !(move & 0x0030);
+                uint32_t pair45 = ((move & 0x0030) == 0x0030) && !(move & 0x00C0);
+                uint32_t pair67 = ((move & 0x00C0) == 0x00C0) && !(move & 0x0300);
+                uint32_t pair89 = ((move & 0x0300) == 0x0300) && !(move & 0x0C00);
+                uint32_t pairAB = ((move & 0x0C00) == 0x0C00) && !(move & 0x000C);
+                uint32_t pair23 = ((move & 0x000C) == 0x000C) && !(move & 0x0003);
 
-                if (pair01 && !(move & 0x0030))      move ^= 0x0033;
-                else if (pair45 && !(move & 0x00C0)) move ^= 0x00F0;
-                else if (pair67 && !(move & 0x0300)) move ^= 0x03C0;
-                else if (pair89 && !(move & 0x0C00)) move ^= 0x0F00;
-                else if (pairAB && !(move & 0x000C)) move ^= 0x0C0C;
-                else if (pair23 && !(move & 0x0003)) move ^= 0x000F;
+                move ^= (pair01 * 0x0033) | (pair45 * 0x00F0) | (pair67 * 0x03C0) |
+                    (pair89 * 0x0F00) | (pairAB * 0x0C0C) | (pair23 * 0x000F);
 
                 fast_flux[idx] = mass | (move << 13);
 
@@ -181,7 +172,7 @@ DWORD WINAPI PhysicsWorker(LPVOID lpParam) {
         _InterlockedIncrement(&workers_done);
 
         // ====================================================================
-        // PHASE 2: GATHER (Vollkommen Cache-lokal auf vorstrukturierten Chonks)
+        // PHASE 2: GATHER (Cache-lokal auf vorstrukturierten Chunks)
         // ====================================================================
         while (current_tick_phase != (my_tick * 10 + 2)) {
             if (!engine_running) return 0;
@@ -232,8 +223,7 @@ DWORD WINAPI PhysicsWorker(LPVOID lpParam) {
 }
 
 /* ==========================================================================
- * MODIFIED: ProPhysics_Init_Threads
- * Architektur: Memory-Reservation für Staging-Grenz-Buckets
+ * ProPhysics_Init_Threads
  * ========================================================================== */
 PROPHYSICS_API void ProPhysics_Init_Threads(ProUniverse* pu) {
     if (threads_initialized) return;
@@ -246,7 +236,6 @@ PROPHYSICS_API void ProPhysics_Init_Threads(ProUniverse* pu) {
 
     for (int i = 0; i < NUM_WORKERS; i++) {
         tls_active_nodes[i] = (uint32_t*)malloc(MAX_SPARSE_TRACKING_NODES * sizeof(uint32_t));
-        staging_buckets[i] = (uint32_t*)malloc(MAX_SPARSE_TRACKING_NODES * sizeof(uint32_t));
         tls_bitset[i] = (uint8_t*)malloc(bitset_bytes);
         memset(tls_bitset[i], 0, bitset_bytes);
 
@@ -257,12 +246,12 @@ PROPHYSICS_API void ProPhysics_Init_Threads(ProUniverse* pu) {
     }
     SetThreadAffinityMask(GetCurrentThread(), (DWORD_PTR)1 << 1);
     threads_initialized = true;
-    printf("[INIT] Alle Worker erfolgreich initialisiert und im Standby.\n");
+    printf("[INIT] Alle Worker erfolgreich initialisiert.\n");
 }
 
 void ProPhysics_Initialize(ProUniverse* pu) {
     if (!pu) return;
-    printf("[INITIALIZE] Allokiere Gitterstrukturen...\n");
+    printf("[INITIALIZE] Allokiere kompakte Gitterstrukturen (16-Byte Nodes)...\n");
     uint64_t total_nodes = (uint64_t)PROPHYSICS_X_MAX * PROPHYSICS_Y_MAX * PROPHYSICS_Z_MAX;
     uint64_t topo_bytes = total_nodes * sizeof(FCCNode);
     uint64_t bitset_bytes = (total_nodes + 7) / 8;
@@ -332,17 +321,14 @@ void ProPhysics_Inject_Elements(ProUniverse* pu) {
 }
 
 /* ==========================================================================
- * MODIFIED: ProPhysics_Execute_Tick
- * Architektur: Asynchroner 8+2 Core-Boundary Orchestrator & Halo-Merging
+ * ProPhysics_Execute_Tick
  * ========================================================================== */
 void ProPhysics_Execute_Tick(ProUniverse* pu) {
     if (!pu || !pu->grid || pu->active_count_current == 0) return;
     pu->current_cpu_tick++;
 
     long expected_tick = (long)pu->current_cpu_tick;
-    LARGE_INTEGER freq, t_start, t_p1, t_cons, t_p2, t_p3;
-    QueryPerformanceFrequency(&freq);
-    QueryPerformanceCounter(&t_start);
+    uint64_t watchdog = 0;
 
     // ====================================================================
     // SCHRITT 1: PHASE 1a - INNER-CORE WORKERS (THREADS 0-7) STARTEN
@@ -350,18 +336,12 @@ void ProPhysics_Execute_Tick(ProUniverse* pu) {
     _InterlockedExchange(&workers_done, 0);
     _InterlockedExchange(&current_tick_phase, expected_tick * 10 + 1);
 
-    long last_seen_done = -1;
-    uint64_t watchdog = 0;
     while (workers_done < 8) {
-        long current_done = workers_done;
-        if (current_done != last_seen_done) {
-            last_seen_done = current_done;
-        }
         _mm_pause();
         if (++watchdog > 500000000ULL) {
-            printf("[CRITICAL DEADLOCK] Hauptthread haengt in Phase 1a (Core)! workers_done steht bei %ld.\n", workers_done);
+            printf("[CRITICAL DEADLOCK] Phase 1a hang! workers_done: %ld.\n", workers_done);
             watchdog = 0;
-            Sleep(1000);
+            Sleep(1);
         }
     }
 
@@ -373,41 +353,33 @@ void ProPhysics_Execute_Tick(ProUniverse* pu) {
     while (workers_done < 10) {
         _mm_pause();
         if (++watchdog > 500000000ULL) {
-            printf("[CRITICAL DEADLOCK] Hauptthread haengt in Phase 1b (Boundary)! workers_done steht bei %ld.\n", workers_done);
+            printf("[CRITICAL DEADLOCK] Phase 1b hang! workers_done: %ld.\n", workers_done);
             watchdog = 0;
-            Sleep(1000);
+            Sleep(1);
         }
     }
-    QueryPerformanceCounter(&t_p1);
 
     // ====================================================================
-    // SCHRITT 3: PHASE 2 - GLOBAL GATHER (ALLE 10 WORKERS PARALLEL)
+    // SCHRITT 3: PHASE 2 - GLOBAL GATHER
     // ====================================================================
     _InterlockedExchange(&workers_done, 0);
     _InterlockedExchange(&current_tick_phase, expected_tick * 10 + 2);
-    while (workers_done < 10) {
-        _mm_pause();
-    }
-    QueryPerformanceCounter(&t_p2);
+    while (workers_done < 10) { _mm_pause(); }
 
     // ====================================================================
-    // SCHRITT 4: PHASE 3 - CLEANUP & SYNC (ALLE 10 WORKERS PARALLEL)
+    // SCHRITT 4: PHASE 3 - CLEANUP & SYNC
     // ====================================================================
     _InterlockedExchange(&workers_done, 0);
     _InterlockedExchange(&current_tick_phase, expected_tick * 10 + 3);
-    while (workers_done < 10) {
-        _mm_pause();
-    }
-    QueryPerformanceCounter(&t_p3);
+    while (workers_done < 10) { _mm_pause(); }
 
     // ====================================================================
-    // SCHRITT 5: CONSOLIDATION STEP (MAIN THREAD SANCTUARY - ASYMMETRIC HALO MERGING)
+    // SCHRITT 5: CONSOLIDATION STEP (MAIN THREAD HALO MERGING)
     // ====================================================================
     uint64_t total_nodes = (uint64_t)PROPHYSICS_X_MAX * PROPHYSICS_Y_MAX * PROPHYSICS_Z_MAX;
     memset(pu->node_active_bitset, 0, (total_nodes + 7) / 8);
     pu->active_count_next = 0;
 
-    // Sammle kaskadierend die generierten Postausgänge aller 10 Worker ein
     for (int i = 0; i < NUM_WORKERS; i++) {
         for (uint64_t j = 0; j < tls_active_count[i]; j++) {
             uint32_t n = tls_active_nodes[i][j];
@@ -441,17 +413,14 @@ void ProPhysics_Execute_Tick(ProUniverse* pu) {
                         uint32_t target_n = ProPhysics_Get_Neighbor_Inline(x, y, z, move_ch);
 
                         if (!(pu->active_nodes_kinetic[target_n] & 0x1000)) {
-                            // 1. Alten Ursprungsknoten von schwerer Masse evakuieren
                             pu->active_nodes_kinetic[n] &= ~0x1000;
                             pu->grid[n].active_flux &= ~0x1000;
                             pu->grid[n].state_island_idx = 0;
 
-                            // 2. Auf Zielknoten einstanzen
                             pu->active_nodes_kinetic[target_n] |= 0x1000;
                             pu->grid[target_n].active_flux |= 0x1000;
                             pu->grid[target_n].state_island_idx = island_idx;
 
-                            // 3. IMPULSERHALTUNG: Trägheitskosten abziehen
                             island->vx -= DX[move_ch] * threshold;
                             island->vy -= DY[move_ch] * threshold;
                             island->vz -= DZ[move_ch] * threshold;
@@ -462,12 +431,8 @@ void ProPhysics_Execute_Tick(ProUniverse* pu) {
                 }
             }
 
-            // Transienten Bitset-Postausgang des spezifischen Workers sauber zurücksetzen
-            uint64_t orig_byte = original_n >> 3;
-            tls_bitset[i][orig_byte] = 0;
+            tls_bitset[i][original_n >> 3] = 0;
 
-            // --- REAKTIVIERUNG AM RAND UND IM INTERNEN KERN (LECK-SCHUTZ) ---
-            // Reaktiviert den Ursprungsknoten, falls nach einem Sprung noch Photonen-Reste lauern
             if (original_n != n && (pu->active_nodes_kinetic[original_n] & 0x0FFF)) {
                 uint64_t byte_orig = original_n >> 3;
                 uint8_t mask_orig = 1 << (original_n & 7);
@@ -478,7 +443,6 @@ void ProPhysics_Execute_Tick(ProUniverse* pu) {
                 }
             }
 
-            // Zielknoten (bzw. unmigrierter Knoten) im globalen Tracking-Array für die nächste Iteration einbrennen
             uint64_t byte_idx = n >> 3;
             uint8_t mask = 1 << (n & 7);
             if (!(pu->node_active_bitset[byte_idx] & mask)) {
@@ -488,16 +452,12 @@ void ProPhysics_Execute_Tick(ProUniverse* pu) {
             }
         }
     }
-    QueryPerformanceCounter(&t_cons);
 
-    // Swap-Schnittstelle: Überführe die konsolidierte Next-Liste in den aktuellen Verarbeitungs-Zweig
     uint32_t* temp = pu->active_nodes_current;
     pu->active_nodes_current = pu->active_nodes_next;
     pu->active_nodes_next = temp;
     pu->active_count_current = pu->active_count_next;
 
-    // --- CRITICAL: DYNAMISCHE NEU-PARTITIONIERUNG FÜR DEN NÄCHSTEN TAKT ---
-    // Sortiert die frisch konsolidierte Liste cache-linear in die 8+2 Worker-Buckets ein
     ProPhysics_Partition_Initial_Tasks(pu);
 }
 
@@ -526,9 +486,7 @@ void ProPhysics_Update_Observer(ProUniverse* pu, uint64_t expected_initial_bits)
         }
 
         if (flux & 0x1000) {
-            com_x += x * 3;
-            com_y += y * 3;
-            com_z += z * 3;
+            com_x += x * 3; com_y += y * 3; com_z += z * 3;
             total_bits += 3;
         }
     }
@@ -549,7 +507,7 @@ bool ProPhysics_Verify_Invariance(const ProUniverse* pu, uint64_t expected_initi
         uint32_t idx = pu->active_nodes_current[a];
         uint32_t flux = fast_flux[idx];
 
-        current_bit_sum += (uint64_t)__builtin_popcountll(flux & 0x0FFF);
+        current_bit_sum += (uint64_t)POPCOUNT64(flux & 0x0FFF);
         if (flux & 0x1000) current_bit_sum += 3;
     }
 
@@ -569,7 +527,7 @@ void ProPhysics_Reset(ProUniverse* pu, uint64_t* initial_bit_tracker) {
     for (uint64_t i = 0; i < total_nodes; i++) {
         uint32_t flux = fast_flux[i];
         if (flux) {
-            *initial_bit_tracker += (uint64_t)__builtin_popcountll(flux & 0x0FFF);
+            *initial_bit_tracker += (uint64_t)POPCOUNT64(flux & 0x0FFF);
             if (flux & 0x1000) *initial_bit_tracker += 3;
         }
     }
@@ -580,8 +538,7 @@ void ProPhysics_Reset(ProUniverse* pu, uint64_t* initial_bit_tracker) {
 double ProPhysics_Query_Anisotropy(const ProUniverse* pu, int32_t x, int32_t y, int32_t z) { (void)pu; (void)x; (void)y; (void)z; return 0.0; }
 
 /* ==========================================================================
- * MODIFIED: ProPhysics_Update_Quantum_Flux
- * Architektur: Bijektives Druckgradienten-Gating & Chirale Vortex-Auslenkung
+ * ProPhysics_Update_Quantum_Flux
  * ========================================================================== */
 void ProPhysics_Update_Quantum_Flux(ProUniverse* universe, uint32_t node_idx) {
     FCCNode* node = &universe->grid[node_idx];
@@ -605,45 +562,36 @@ void ProPhysics_Update_Quantum_Flux(ProUniverse* universe, uint32_t node_idx) {
     int32_t y = (node_idx >> Y_SHIFT) & Y_MASK;
     int32_t z = node_idx >> Z_SHIFT;
 
-    // Alle 12 Flugkanäle werden als diskrete Quanten-Pfade evaluiert
     for (int i = 0; i < 12; i++) {
         uint32_t bit = (flux >> i) & 1U;
         if (!bit) continue;
 
-        // Vorausschauende Flugbahn-Analyse auf dem Ziel-Nachbarknoten
         uint32_t n_idx = ProPhysics_Get_Neighbor_Inline(x, y, z, i);
         uint32_t n_flux = universe->active_nodes_kinetic[n_idx];
         uint32_t n_island = universe->grid[n_idx].state_island_idx;
         uint64_t n_pol = (n_island != 0) ? (universe->data_pool[n_island].charge_spin & QUANTUM_MASK_POLARITY) : QUANTUM_POL_NEUTRAL;
 
-        // 1. Axiom: Polaritäts-Abstoßung (Gleichpolige Ladungen stoßen sich ab)
         uint32_t repel = (polarity == n_pol) & (polarity != QUANTUM_POL_NEUTRAL);
-
-        // 2. Axiom: Gegenstrom- und Umgebungsdruck (Abstoßungszwang durch Teilchenkompression)
         uint32_t local_pressure = (uint32_t)POPCOUNT64(n_flux & 0x0FFF) + ((n_flux & 0x1000) ? 4 : 0);
-        uint32_t pressure_block = (local_pressure >= 3); // Schranke für dichte Medien
+        uint32_t pressure_block = (local_pressure >= 3);
 
-        // Gesamte Vorwärtsblockade des Kanals
         uint32_t forward_blocked = repel | pressure_block;
-
         uint32_t dest_channel = i;
+
         if (forward_blocked) {
-            // Wenn der Weg blockiert ist, bestimmt der Spin die Ausweich-Trajektorie (Drall)
             if (spin_chiral == QUANTUM_SPIN_NONE) {
-                dest_channel = i ^ 1; // Linearer Rückprall auf Gegenachse
+                dest_channel = i ^ 1;
             }
             else if (spin_chiral == QUANTUM_SPIN_CW) {
-                dest_channel = FCC_LATERAL_CW[i]; // Chiraler Haken nach rechts (+60 Grad)
+                dest_channel = FCC_LATERAL_CW[i];
             }
             else if (spin_chiral == QUANTUM_SPIN_CCW) {
-                dest_channel = FCC_LATERAL_CCW[i]; // Chiraler Haken nach links (-60 Grad)
+                dest_channel = FCC_LATERAL_CCW[i];
             }
         }
 
-        // Einstanzen in das neue Flussregister (Da CW/CCW reine Permutationen sind, bleibt es 100% bijektiv!)
         updated_flux |= (1U << dest_channel);
 
-        // --- GEGENPOLIGE TRANSFORMATION (Katalytische Vererbung & Annihilation) ---
         if (!forward_blocked && (polarity != n_pol) & ((polarity != QUANTUM_POL_NEUTRAL) | (n_pol != QUANTUM_POL_NEUTRAL))) {
             uint64_t next_charge = (polarity + n_pol) * ((polarity + n_pol) != 3);
             if (island_idx == 0 && n_island != 0) {
@@ -658,14 +606,11 @@ void ProPhysics_Update_Quantum_Flux(ProUniverse* universe, uint32_t node_idx) {
         }
     }
 
-    // --- STRÖMUNGS-RÜCKKOPPLUNG AUF TRÄGE MASSE-ISLAND ---
     if (island_idx != 0 && island != NULL) {
-        // Globaler Chiralitäts-Drall der Raumzeit-Matrix anwenden
         uint32_t is_spinning = (spin_chiral != QUANTUM_SPIN_NONE);
         uint32_t shift = is_spinning * ((spin_chiral == QUANTUM_SPIN_CW) ? 1 : 11);
         updated_flux = ((updated_flux << shift) | (updated_flux >> (12 - shift))) & 0xFFF;
 
-        // Impulsübertrag des rotierenden Feldes direkt in das Island-Register füttern
         island->vx += (int64_t)((updated_flux & 0x1) - ((updated_flux >> 1) & 0x1));
         island->vy += (int64_t)(((updated_flux >> 2) & 0x1) - ((updated_flux >> 3) & 0x1));
         island->vz += (int64_t)(((updated_flux >> 4) & 0x1) - ((updated_flux >> 5) & 0x1));
@@ -675,8 +620,7 @@ void ProPhysics_Update_Quantum_Flux(ProUniverse* universe, uint32_t node_idx) {
 }
 
 /* ==========================================================================
- * NEW: ProPhysics_Query_Local_Pressure
- * Architektur: O(N) On-the-fly Dichtemessung im lokalen Torus-Volumen
+ * ProPhysics_Query_Local_Pressure
  * ========================================================================== */
 PROPHYSICS_API double ProPhysics_Query_Local_Pressure(const ProUniverse* pu, int32_t center_x, int32_t center_y, int32_t center_z, int32_t radius) {
     if (!pu || !pu->active_nodes_kinetic) return 0.0;
@@ -688,13 +632,11 @@ PROPHYSICS_API double ProPhysics_Query_Local_Pressure(const ProUniverse* pu, int
     for (int32_t z = center_z - radius; z <= center_z + radius; z++) {
         for (int32_t y = center_y - radius; y <= center_y + radius; y++) {
             for (int32_t x = center_x - radius; x <= center_x + radius; x++) {
-                // Sphärisches Kontrollvolumen absichern
                 int32_t dx = x - center_x;
                 int32_t dy = y - center_y;
                 int32_t dz = z - center_z;
                 if ((dx * dx + dy * dy + dz * dz) > (radius * radius)) continue;
 
-                // Branchless Torus-Topologie-Mapping gegen Out-of-Bounds
                 int32_t px = x < 0 ? PROPHYSICS_X_MAX + x : (x >= PROPHYSICS_X_MAX ? x - PROPHYSICS_X_MAX : x);
                 int32_t py = y < 0 ? PROPHYSICS_Y_MAX + y : (y >= PROPHYSICS_Y_MAX ? y - PROPHYSICS_Y_MAX : y);
                 int32_t pz = z < 0 ? PROPHYSICS_Z_MAX + z : (z >= PROPHYSICS_Z_MAX ? z - PROPHYSICS_Z_MAX : z);
@@ -702,31 +644,26 @@ PROPHYSICS_API double ProPhysics_Query_Local_Pressure(const ProUniverse* pu, int
                 uint32_t idx = FCC_INDEX(px, py, pz);
                 uint32_t flux = fast_flux[idx];
 
-                // Statischer Druck = Freie Kinetische Teilchen + Träge Massegewichtung
                 total_populated_bits += (uint64_t)POPCOUNT64(flux & 0x0FFF);
                 if (flux & 0x1000) {
-                    total_populated_bits += 4; // Schwere Masse erzeugt brutalen lokalen Kompressionsdruck
+                    total_populated_bits += 4;
                 }
                 scanned_nodes++;
             }
         }
     }
 
-    // Liefert den normierten Dichtegradienten zurück (0.0 = Vakuum, >1.0 = Hochdruckfront)
     return scanned_nodes > 0 ? (double)total_populated_bits / (double)scanned_nodes : 0.0;
 }
 
 /* ==========================================================================
- * NEW: ProPhysics_Partition_Initial_Tasks
- * Architektur: Initialisiert die räumlichen Task-Grenz-Offsets im Gitter
+ * ProPhysics_Partition_Initial_Tasks
  * ========================================================================== */
 PROPHYSICS_API void ProPhysics_Partition_Initial_Tasks(ProUniverse* pu) {
     if (!pu || pu->active_count_current == 0) return;
 
-    uint32_t* temp_list = (uint32_t*)malloc(pu->active_count_current * sizeof(uint32_t));
     uint64_t local_counts[NUM_WORKERS] = { 0 };
 
-    // 1. Pass: Zähle die räumliche Dichte pro Sektor
     for (uint64_t i = 0; i < pu->active_count_current; i++) {
         uint32_t n = pu->active_nodes_current[i];
         int32_t z = n >> Z_SHIFT;
@@ -735,7 +672,6 @@ PROPHYSICS_API void ProPhysics_Partition_Initial_Tasks(ProUniverse* pu) {
         local_counts[cat]++;
     }
 
-    // 2. Pass: Berechne die unbiegsamen Partitionsgrenzen
     uint64_t running_offsets[NUM_WORKERS] = { 0 };
     worker_task_start[0] = 0;
     worker_task_end[0] = local_counts[0];
@@ -747,16 +683,17 @@ PROPHYSICS_API void ProPhysics_Partition_Initial_Tasks(ProUniverse* pu) {
         running_offsets[w] = worker_task_start[w];
     }
 
-    // 3. Pass: Sortiere die Netzknoten cache-linear ein
+    uint32_t* staging_buffer = pu->active_nodes_next;
+
     for (uint64_t i = 0; i < pu->active_count_current; i++) {
         uint32_t n = pu->active_nodes_current[i];
         int32_t z = n >> Z_SHIFT;
         int32_t z_local = z & 63;
         int cat = (z_local == 0 || z_local == 63) ? ((z <= 255 || z == 511) ? 8 : 9) : (z >> 6);
-        temp_list[running_offsets[cat]++] = n;
+        staging_buffer[running_offsets[cat]++] = n;
     }
 
-    // Spiegelung zurück in den primären CPU-Verarbeitungszweig
-    memcpy(pu->active_nodes_current, temp_list, pu->active_count_current * sizeof(uint32_t));
-    free(temp_list);
+    memcpy(pu->active_nodes_current, staging_buffer, pu->active_count_current * sizeof(uint32_t));
+
+    pu->active_count_next = 0;
 }

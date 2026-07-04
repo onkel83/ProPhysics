@@ -7,14 +7,20 @@
 CC = cl.exe
 LINKER = link.exe
 
-# Compiler-Flags: Optimierung auf maximale Geschwindigkeit (/O2), Multi-Processor (/MP),
-# Höchstes Warnlevel (/W4) und Unterdrückung von CRT-Warnungen
-CFLAGS = /nologo /O2 /W4 /MP /I. /D_CRT_SECURE_NO_WARNINGS
+# ==========================================================================
+# HIGH-PERFORMANCE COMPILER FLAGS
+# /O2: Maximale Geschwindigkeit
+# /Ob2: Aggressives Inlining (Inlined alles, was sinnvoll ist)
+# /Oi: Erzeugt intrinsische Funktionen (Hardware-nahe Rechenpfade)
+# /GL: Whole Program Optimization (Ermöglicht modulübergreifende Optimierung)
+# /MP: Nutzt alle CPU-Kerne für die parallele Kompilierung
+# ==========================================================================
+CFLAGS = /nologo /O2 /Ob2 /Oi /GL /W4 /MP /I. /D_CRT_SECURE_NO_WARNINGS
 
 # DLL-spezifisches Export-Macro injecten
 DLL_FLAGS = /DPROPHYSICS_EXPORTS
 
-# Verzeichnisse (Werden standardmäßig vom Root-Orchestrator überschrieben)
+# Verzeichnisse
 OUT_DIR = ..\bin\ProPhysics
 
 # Endprodukt-Target
@@ -30,20 +36,23 @@ HEADERS = ProPhysics.h \
           ProPhysics_Exports.h \
           ProPhysics_Version.h
 
-# Master-Target: Erzeugt Verzeichnisse, baut DLL, exportiert SDK-Header, säubert Müll
-all: setup $(DLL_TARGET) copy_headers clean_tmp
+# Master-Target: Erzeugt Verzeichnisse, baut DLL und exportiert SDK-Header
+all: setup $(DLL_TARGET) copy_headers
 
 setup:
 	@if not exist $(OUT_DIR) mkdir $(OUT_DIR)
 
-# 1. Kernel Objektdatei kompilieren
+# 1. Kernel Objektdatei kompilieren (/GL sorgt für optimierten Intermediär-Code)
 $(OBJ_KERNEL): ProPhysics.c $(HEADERS)
 	$(CC) $(CFLAGS) $(DLL_FLAGS) /c ProPhysics.c /Fo$(OBJ_KERNEL)
 
-# 2. DLL und zugehörige Import-Lib (.lib) erzeugen
+# 2. DLL und zugehörige Import-Lib (.lib) erzeugen (/LTCG vollendet das Whole Program Optimization)
 $(DLL_TARGET): $(OBJ_KERNEL)
-	@echo [LINKING] Erzeuge Standalone Engine-Kernel ($(DLL_TARGET))...
-	$(LINKER) /nologo /DLL /OUT:$(DLL_TARGET) $(OBJ_KERNEL)
+	@echo [LINKING] Erzeuge hochoptimierten Engine-Kernel ($(DLL_TARGET))...
+	$(LINKER) /nologo /DLL /LTCG /OUT:$(DLL_TARGET) $(OBJ_KERNEL)
+	@if exist $(OBJ_KERNEL) del /Q $(OBJ_KERNEL)
+	@if exist $(OUT_DIR)\ProPhysics.exp del /Q $(OUT_DIR)\ProPhysics.exp
+	@echo [CLEANUP] Temporäre Compiler-Dateien (.obj, .exp) erfolgreich entfernt.
 
 # Exportiert alle 5 Core-SDK-Header direkt in das neue ProPhysics-Produktverzeichnis
 copy_headers:
@@ -53,12 +62,6 @@ copy_headers:
 	@copy /Y ProPhysics_Types.h $(OUT_DIR)\ >nul
 	@copy /Y ProPhysics_Exports.h $(OUT_DIR)\ >nul
 	@copy /Y ProPhysics_Version.h $(OUT_DIR)\ >nul
-
-# Post-Build-Sanitierung: Löscht alle transienten .obj und .exp Dateien restlos
-clean_tmp:
-	@if exist $(OBJ_KERNEL) del /Q $(OBJ_KERNEL)
-	@if exist $(OUT_DIR)\ProPhysics.exp del /Q $(OUT_DIR)\ProPhysics.exp
-	@echo [CLEANUP] Temporäre Compiler-Dateien (.obj, .exp) erfolgreich entfernt.
 
 # Radikale Bereinigung des lokalen Produktzweigs
 clean:
