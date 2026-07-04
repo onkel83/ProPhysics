@@ -16,17 +16,29 @@ PROPHYSICS_SDK = ..\bin\ProPhysics
 PRODIBATCH_SDK = ..\bin\ProDiBatch
 
 EXE_TARGET = $(BIN_DIR)\Observer.exe
-OBJ_FILE = Observer.obj
+
+# Objekt-Matrix: Bindet alle 7 Physik/Chemie-Labormodule fest ein
+OBJS = Observer.obj \
+       Mod_Mechanics.obj \
+       Mod_Acoustics.obj \
+       Mod_Thermodynamics.obj \
+       Mod_Optics.obj \
+       Mod_Electrotech.obj \
+       Mod_Chemistry.obj \
+       Mod_Nuclear.obj
 
 # Master-Target des lokalen Verbunds
 all: $(EXE_TARGET) copy_runtime_dlls clean_tmp
 
-# Kompilierung und Verlinkung der ausführbaren Datei mit den SDK-Import-Bibliotheken
-$(EXE_TARGET): Observer.c Observer_Version.h Observer_Config.h
-	@echo [COMPILING]: Kompiliere Observer-Schnittstellen...
-	$(CC) $(CFLAGS) /c Observer.c /Fo$(OBJ_FILE)
-	@echo [LINKING]: Erzeuge Standalone-Anwendung (Observer.exe)...
-	$(LINKER) /nologo /OUT:$(EXE_TARGET) $(OBJ_FILE) $(PROPHYSICS_SDK)\ProPhysics.lib $(PRODIBATCH_SDK)\ProDiBatch.lib
+# Inferenzregel für branchlose, parallele Kompilierung von .c zu .obj
+.c.obj:
+	@echo [COMPILING]: $<...
+	$(CC) $(CFLAGS) /c $< /Fo$@
+
+# Verlinkung der ausführbaren Datei mit der vollständigen Objekt-Matrix und den SDK-Libs
+$(EXE_TARGET): $(OBJS) Observer_Version.h Observer_Config.h
+	@echo [LINKING]: Erzeuge Standalone-Anwendung mit integrierten Labormodulen (Observer.exe)...
+	$(LINKER) /nologo /OUT:$(EXE_TARGET) $(OBJS) $(PROPHYSICS_SDK)\ProPhysics.lib $(PRODIBATCH_SDK)\ProDiBatch.lib
 
 # Holt sich die Dynamic Link Libraries für den nativen Support direkt in den ausführbaren bin/-Zweig
 copy_runtime_dlls:
@@ -34,12 +46,12 @@ copy_runtime_dlls:
 	@if exist $(PROPHYSICS_SDK)\ProPhysics.dll copy /Y $(PROPHYSICS_SDK)\ProPhysics.dll $(BIN_DIR)\ >nul
 	@if exist $(PRODIBATCH_SDK)\ProDiBatch.dll copy /Y $(PRODIBATCH_SDK)\ProDiBatch.dll $(BIN_DIR)\ >nul
 
-# Post-Build-Aufräumen des lokalen Ordners
+# Post-Build-Aufräumen des lokalen Ordners von transienten Artefakten
 clean_tmp:
-	@if exist $(OBJ_FILE) del /Q $(OBJ_FILE)
+	@if exist *.obj del /Q *.obj
 	@echo [CLEANUP]: Lokaler transienter Objekt-Müll erfolgreich entfernt.
 
 clean:
-	@if exist $(OBJ_FILE) del /Q $(OBJ_FILE)
+	@if exist *.obj del /Q *.obj
 	@if exist $(EXE_TARGET) del /Q $(EXE_TARGET)
-	@echo [DEEP CLEAN]: Lokale Observer-Artefakte gelöscht.
+	@echo [DEEP CLEAN]: Lokale Observer-Artefakte vollständig gelöscht.
