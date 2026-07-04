@@ -14,7 +14,16 @@
 #include <stdint.h>
 #include <stdbool.h>
 
- // --- Der universelle funktionale Rendering-Vertrag ---
+ // ==========================================================================
+ // CACHE-LINE SPEZIFIZIERER (Zuerst deklariert für fehlerfreies Top-Down-Parsing)
+ // ==========================================================================
+#ifdef _MSC_VER
+#define ALIGN_64 __declspec(align(64))
+#else
+#define ALIGN_64 __attribute__((aligned(64)))
+#endif
+
+// --- Der universelle funktionale Rendering-Vertrag ---
 typedef void (*ProDiBatch_CellRenderCallback)(
     void* user_context, // Anonymisierter Zeiger auf das Triebwerk (z.B. ProUniverse)
     int view_idx,       // Index des aktuellen Viewports (0 bis 3)
@@ -26,16 +35,11 @@ typedef void (*ProDiBatch_CellRenderCallback)(
 // Thread-sicherer Ring-Buffer für die asynchronen Log-Kerne
 typedef struct {
     char lines[PRODIBATCH_LOG_LINES][PRODIBATCH_LOG_LINE_LEN];
+    ALIGN_64 volatile long line_ready[PRODIBATCH_LOG_LINES]; // Jetzt dem Compiler bekannt!
     volatile long write_index;
 } ProDiBatch_LogField;
 
 // Zentrales Zustandsregister des UI-Triebwerks (Cache-Line Aligned)
-#ifdef _MSC_VER
-#define ALIGN_64 __declspec(align(64))
-#else
-#define ALIGN_64 __attribute__((aligned(64)))
-#endif
-
 typedef struct {
     void* user_context;
     ProDiBatch_CellRenderCallback cell_renderer;
@@ -51,7 +55,7 @@ typedef struct {
     void* thread_handle; // Maps intern auf Win32 HANDLE
 } ProDiBatch_Engine;
 
-// --- Öffentliche API-Prototypen ---
+// --- Öffentliche API-Prototypen (Korrigiert auf PRODIBATCH_API Export-Gates) ---
 PRODIBATCH_API bool ProDiBatch_Initialize(ProDiBatch_Engine* engine, void* user_context, ProDiBatch_CellRenderCallback callback);
 PRODIBATCH_API bool ProDiBatch_Start(ProDiBatch_Engine* engine);
 PRODIBATCH_API void ProDiBatch_Stop(ProDiBatch_Engine* engine);

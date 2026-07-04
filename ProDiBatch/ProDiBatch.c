@@ -11,25 +11,23 @@
 #include <string.h>
 #include <windows.h>
 
- // Erhöhte Sicherheits-Geometrie für x64 Terminal-Layouts (Eliminiert Abschneiden)
 #define SCREEN_ROWS 64
 #define SCREEN_COLS 135
 static char back_buffer[SCREEN_ROWS][SCREEN_COLS];
 static char front_buffer[SCREEN_ROWS][SCREEN_COLS];
 
 // Hilfsfunktion: Setzt den Win32-Cursor blitzschnell auf eine punktuelle Position
-static void ProDiBatch_SetCursor(int x, int y) {
+static inline void ProDiBatch_SetCursor(int x, int y) {
     HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
     COORD coord = { (SHORT)x, (SHORT)y };
     SetConsoleCursorPosition(hConsole, coord);
 }
 
-// Der asynchrone UI-Thread-Kernel (Hochleistungs-Variante)
+// Der asynchrone UI-Thread-Kernel
 static DWORD WINAPI ProDiBatch_ThreadProc(LPVOID lpParam) {
     ProDiBatch_Engine* engine = (ProDiBatch_Engine*)lpParam;
     HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
-    // Initialen Bildschirm-Buffer löschen und steril vorbereiten
     memset(back_buffer, ' ', sizeof(back_buffer));
     memset(front_buffer, 0, sizeof(front_buffer));
 
@@ -39,37 +37,46 @@ static DWORD WINAPI ProDiBatch_ThreadProc(LPVOID lpParam) {
     cursorInfo.bVisible = FALSE;
     SetConsoleCursorInfo(hConsole, &cursorInfo);
 
+    // Cache-Array für Zeilenlängen zur Eliminierung von strlen im Hot-Path
+    int back_len[SCREEN_ROWS] = { 0 };
+    int front_len[SCREEN_ROWS] = { 0 };
+
     while (engine->is_running) {
         int current_row = 0;
         char temp_row[256];
 
-        // Sicherheits-Guard gegen vertikale Buffer-Überschreitung
 #define CHECK_ROW_BOUNDS if (current_row >= SCREEN_ROWS) break;
 
-        // 1. HEADER & METRIKEN BATCHEN (Absicherung über snprintf)
-        snprintf(back_buffer[current_row++], SCREEN_COLS, "====================================================================================================================");
-        CHECK_ROW_BOUNDS;
-        snprintf(back_buffer[current_row++], SCREEN_COLS, "                                         PRODIBATCH CONTROL ROOM ENGINE v%d.%d.%d                                      ",
+        // 1. HEADER & METRIKEN BATCHEN (Nutzt snprintf-Rückgabewert für O(1) Längenbestimmung)
+        back_len[current_row] = snprintf(back_buffer[current_row], SCREEN_COLS, "====================================================================================================================");
+        current_row++; CHECK_ROW_BOUNDS;
+
+        back_len[current_row] = snprintf(back_buffer[current_row], SCREEN_COLS, "                                         PRODIBATCH CONTROL ROOM ENGINE v%d.%d.%d                                      ",
             PRODIBATCH_VERSION_MAJOR, PRODIBATCH_VERSION_MINOR, PRODIBATCH_VERSION_PATCH);
-        CHECK_ROW_BOUNDS;
-        snprintf(back_buffer[current_row++], SCREEN_COLS, "====================================================================================================================");
-        CHECK_ROW_BOUNDS;
-        snprintf(back_buffer[current_row++], SCREEN_COLS, "  [RUNTIME] Simulations-Tick: #%-10llu | Aktive Zellen: %-10llu | Invarianz-Soll: %-10llu Bits",
+        current_row++; CHECK_ROW_BOUNDS;
+
+        back_len[current_row] = snprintf(back_buffer[current_row], SCREEN_COLS, "====================================================================================================================");
+        current_row++; CHECK_ROW_BOUNDS;
+
+        back_len[current_row] = snprintf(back_buffer[current_row], SCREEN_COLS, "  [RUNTIME] Simulations-Tick: #%-10llu | Aktive Zellen: %-10llu | Invarianz-Soll: %-10llu Bits",
             (unsigned long long)engine->metric_sim_tick,
             (unsigned long long)engine->metric_active_nodes,
             (unsigned long long)engine->metric_target_invariance);
-        CHECK_ROW_BOUNDS;
-        snprintf(back_buffer[current_row++], SCREEN_COLS, "--------------------------------------------------------------------------------------------------------------------");
-        CHECK_ROW_BOUNDS;
-        snprintf(back_buffer[current_row++], SCREEN_COLS, "   VIEWPORT 0 (XY-CUT)  |   VIEWPORT 1 (XZ-CUT)  |   VIEWPORT 2 (YZ-CUT)  |   VIEWPORT 3 (DIAG-ORBIT)           ");
-        CHECK_ROW_BOUNDS;
-        snprintf(back_buffer[current_row++], SCREEN_COLS, "------------------------+------------------------+------------------------+-----------------------------------------");
-        CHECK_ROW_BOUNDS;
+        current_row++; CHECK_ROW_BOUNDS;
 
-        // 2. LINE-INTERLEAVING: Baut die Zeilen aller 4 Viewports nebeneinander im RAM zusammen
+        back_len[current_row] = snprintf(back_buffer[current_row], SCREEN_COLS, "--------------------------------------------------------------------------------------------------------------------");
+        current_row++; CHECK_ROW_BOUNDS;
+
+        back_len[current_row] = snprintf(back_buffer[current_row], SCREEN_COLS, "   VIEWPORT 0 (XY-CUT)  |   VIEWPORT 1 (XZ-CUT)  |   VIEWPORT 2 (YZ-CUT)  |   VIEWPORT 3 (DIAG-ORBIT)           ");
+        current_row++; CHECK_ROW_BOUNDS;
+
+        back_len[current_row] = snprintf(back_buffer[current_row], SCREEN_COLS, "------------------------+------------------------+------------------------+-----------------------------------------");
+        current_row++; CHECK_ROW_BOUNDS;
+
+        // 2. LINE-INTERLEAVING (Sammelt Zell-Tokens über Callbacks)
         for (int y = PRODIBATCH_VIEWPORT_HEIGHT - 1; y >= 0; y--) {
             int bp = 0;
-            temp_row[bp++] = ' '; temp_row[bp++] = ' '; // Linker Randabstand
+            temp_row[bp++] = ' '; temp_row[bp++] = ' ';
 
             for (int v = 0; v < PRODIBATCH_VIEWPORTS_COUNT; v++) {
                 for (int x = 0; x < PRODIBATCH_VIEWPORT_WIDTH; x++) {
@@ -86,44 +93,47 @@ static DWORD WINAPI ProDiBatch_ThreadProc(LPVOID lpParam) {
                 }
             }
             temp_row[bp] = '\0';
-            snprintf(back_buffer[current_row++], SCREEN_COLS, "%s", temp_row);
+            back_len[current_row] = snprintf(back_buffer[current_row], SCREEN_COLS, "%s", temp_row);
+            current_row++;
             if (current_row >= SCREEN_ROWS) break;
         }
         if (current_row >= SCREEN_ROWS) continue;
 
-        snprintf(back_buffer[current_row++], SCREEN_COLS, "------------------------+------------------------+------------------------+-----------------------------------------");
-        CHECK_ROW_BOUNDS;
-        snprintf(back_buffer[current_row++], SCREEN_COLS, "                                         ASYNCHRONOUS ENGINE LIVE LOG BUFFER                                         ");
-        CHECK_ROW_BOUNDS;
-        snprintf(back_buffer[current_row++], SCREEN_COLS, "--------------------------------------------------------------------------------------------------------------------");
-        CHECK_ROW_BOUNDS;
+        back_len[current_row] = snprintf(back_buffer[current_row], SCREEN_COLS, "------------------------+------------------------+------------------------+-----------------------------------------");
+        current_row++; CHECK_ROW_BOUNDS;
+        back_len[current_row] = snprintf(back_buffer[current_row], SCREEN_COLS, "                                         ASYNCHRONOUS ENGINE LIVE LOG BUFFER                                        ");
+        current_row++; CHECK_ROW_BOUNDS;
+        back_len[current_row] = snprintf(back_buffer[current_row], SCREEN_COLS, "--------------------------------------------------------------------------------------------------------------------");
+        current_row++; CHECK_ROW_BOUNDS;
 
-        // 3. LOG-ZEILEN SCANNTEN
+        // 3. LOG-ZEILEN GEBATSCHT AUSLESEN
         long head = engine->log_buffer.write_index;
         unsigned long safe_idx = (unsigned long)(head >= PRODIBATCH_LOG_LINES ? head : 0);
         int log_start_idx = safe_idx % PRODIBATCH_LOG_LINES;
 
         for (int l = 0; l < PRODIBATCH_LOG_LINES; l++) {
             int actual_idx = (log_start_idx + l) % PRODIBATCH_LOG_LINES;
-            if (engine->log_buffer.lines[actual_idx][0] == '\0') {
-                snprintf(back_buffer[current_row++], SCREEN_COLS, " ");
+
+            if (engine->log_buffer.line_ready[actual_idx] == 1 && engine->log_buffer.lines[actual_idx][0] != '\0') {
+                back_len[current_row] = snprintf(back_buffer[current_row], SCREEN_COLS, " [LOG] %s", engine->log_buffer.lines[actual_idx]);
             }
             else {
-                snprintf(back_buffer[current_row++], SCREEN_COLS, " [LOG] %s", engine->log_buffer.lines[actual_idx]);
+                back_len[current_row] = snprintf(back_buffer[current_row], SCREEN_COLS, " ");
             }
+            current_row++;
             if (current_row >= SCREEN_ROWS) break;
         }
         if (current_row >= SCREEN_ROWS) continue;
 
-        snprintf(back_buffer[current_row++], SCREEN_COLS, "====================================================================================================================");
+        back_len[current_row] = snprintf(back_buffer[current_row], SCREEN_COLS, "====================================================================================================================");
+        current_row++;
 
         // 4. HIGH-PERFORMANCE CLUSTERED INPLACE-UPDATE
         for (int r = 0; r < current_row; r++) {
-            int len = (int)strlen(back_buffer[r]);
+            int len = back_len[r];
             int first_diff = -1;
             int last_diff = -1;
 
-            // Ermittle die Grenzen des veränderten Datenblocks in dieser Zeile
             for (int c = 0; c < len; c++) {
                 if (back_buffer[r][c] != front_buffer[r][c]) {
                     if (first_diff == -1) first_diff = c;
@@ -132,24 +142,21 @@ static DWORD WINAPI ProDiBatch_ThreadProc(LPVOID lpParam) {
                 }
             }
 
-            // Wenn Änderungen existieren, werfe den gesamten Cluster mit EINEM Aufruf raus
             if (first_diff != -1) {
                 ProDiBatch_SetCursor(first_diff, r);
                 fwrite(&front_buffer[r][first_diff], 1, last_diff - first_diff + 1, stdout);
             }
 
-            // Überhang-Säuberung am Zeilenende (ebenfalls gebatcht via fwrite)
-            int front_len = (int)strlen(front_buffer[r]);
-            if (front_len > len) {
+            int f_len = front_len[r];
+            if (f_len > len) {
                 ProDiBatch_SetCursor(len, r);
-                for (int k = len; k < front_len; k++) {
-                    front_buffer[r][k] = ' ';
-                }
-                fwrite(&front_buffer[r][len], 1, front_len - len, stdout);
-
-                // CRITICAL FIX: Setze den Nullterminator im front_buffer hart zurück!
-                // Verhindert, dass geschrumpfte Zeilen (z.B. bei Backspace) dauerhaft Leerzeichen lecken.
+                memset(&front_buffer[r][len], ' ', f_len - len);
+                fwrite(&front_buffer[r][len], 1, f_len - len, stdout);
                 front_buffer[r][len] = '\0';
+                front_len[r] = len;
+            }
+            else {
+                front_len[r] = len;
             }
         }
 
@@ -159,7 +166,7 @@ static DWORD WINAPI ProDiBatch_ThreadProc(LPVOID lpParam) {
     return 0;
 }
 
-// Initialisiert das sterile Zustandsregister von ProDiBatch
+// --- Berichtigtes API-Gating via PRODIBATCH_API ---
 PRODIBATCH_API bool ProDiBatch_Initialize(ProDiBatch_Engine* engine, void* user_context, ProDiBatch_CellRenderCallback callback) {
     if (!engine || !callback) return false;
     memset(engine, 0, sizeof(ProDiBatch_Engine));
@@ -170,7 +177,6 @@ PRODIBATCH_API bool ProDiBatch_Initialize(ProDiBatch_Engine* engine, void* user_
     return true;
 }
 
-// Startet den asynchronen Win32 UI-Thread
 PRODIBATCH_API bool ProDiBatch_Start(ProDiBatch_Engine* engine) {
     if (!engine || engine->is_running) return false;
     engine->is_running = true;
@@ -179,7 +185,6 @@ PRODIBATCH_API bool ProDiBatch_Start(ProDiBatch_Engine* engine) {
     return (engine->thread_handle != NULL);
 }
 
-// Fährt das UI-System geordnet herunter
 PRODIBATCH_API void ProDiBatch_Stop(ProDiBatch_Engine* engine) {
     if (!engine || !engine->is_running) return;
     engine->is_running = false;
@@ -189,13 +194,18 @@ PRODIBATCH_API void ProDiBatch_Stop(ProDiBatch_Engine* engine) {
     system("cls");
 }
 
-// Thread-sicherer Lock-Free Logger (Korrektur gegen negativen Modulo-Umlauf)
+/* ==========================================================================
+ * ProDiBatch_Log
+ * Architektur: Thread-Safe Ticket-Gated Lock-Free Logger
+ * ========================================================================== */
 PRODIBATCH_API void ProDiBatch_Log(ProDiBatch_Engine* engine, const char* format, ...) {
     if (!engine) return;
 
     long current_idx = _InterlockedIncrement(&engine->log_buffer.write_index) - 1;
-    unsigned long safe_idx = (unsigned long)current_idx; // Schützt vor negativem Vorzeichen bei Int-Umlauf
+    unsigned long safe_idx = (unsigned long)current_idx;
     int target_line = safe_idx % PRODIBATCH_LOG_LINES;
+
+    _InterlockedExchange(&engine->log_buffer.line_ready[target_line], 0);
 
     va_list args;
     va_start(args, format);
@@ -203,4 +213,6 @@ PRODIBATCH_API void ProDiBatch_Log(ProDiBatch_Engine* engine, const char* format
     va_end(args);
 
     engine->log_buffer.lines[target_line][PRODIBATCH_LOG_LINE_LEN - 1] = '\0';
+
+    _InterlockedExchange(&engine->log_buffer.line_ready[target_line], 1);
 }
