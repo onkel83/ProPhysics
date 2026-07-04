@@ -34,7 +34,7 @@ static const int32_t DZ[12] = { 0,  0,  0,  0,  1, -1, -1,  1,  1, -1, -1,  1 };
 static const uint32_t FCC_LATERAL_CW[12] = { 4,  5,  8,  9, 10, 11,  0,  1,  6,  7,  2,  3 };
 static const uint32_t FCC_LATERAL_CCW[12] = { 6,  7, 10, 11,  0,  1,  8,  9,  2,  3,  4,  5 };
 
-static inline uint32_t ProPhysics_Get_Neighbor_Inline(int32_t x, int32_t y, int32_t z, int i) {
+__declspec(dllexport) uint32_t ProPhysics_Get_Neighbor_Inline(int32_t x, int32_t y, int32_t z, int i) {
     uint32_t nx = (x + DX[i]) & X_MASK;
     uint32_t ny = (y + DY[i]) & Y_MASK;
     uint32_t nz = (z + DZ[i]) & Z_MASK;
