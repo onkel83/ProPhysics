@@ -3,6 +3,7 @@
  * Architektur: Lock-Free Gather (Pull) Engine, Pure Array Chunking
  * Optimierung: Zero-Branching Torus & SoA Cache-Density (Flat Flux Array)
  * Modifikation: 16-Byte Compact Grid Layout (Mathematical Neighborhood Mapping)
+ * Symmetrie: 10-Way Symmetric Domain Decomposition with 2-Stage Phase 1
  * ========================================================================== */
 
 #include <stdlib.h>
@@ -57,13 +58,14 @@ static uint8_t* tls_bitset[NUM_WORKERS];
 static ProUniverse* global_pu = NULL;
 static bool threads_initialized = false;
 
-// --- CHUNK-DECOMPOSITION INFRASTRUKTUR ---
+// --- CHUNK-DECOMPOSITION INFRASTRUKTUR (ERWEITERT FÜR 2-STAGE SPLIT) ---
 static uint64_t worker_task_start[NUM_WORKERS] = { 0 };
+static uint64_t worker_task_inner_end[NUM_WORKERS] = { 0 };
 static uint64_t worker_task_end[NUM_WORKERS] = { 0 };
 
 /* ==========================================================================
  * PhysicsWorker
- * Architektur: Asymmetrischer Inner-Halo Split (Lock-Free Edge Separation)
+ * Architektur: Symmetrischer 10-Core-Split mit globaler Edge-Separation
  * ========================================================================== */
 DWORD WINAPI PhysicsWorker(LPVOID lpParam) {
     int t_id = (int)(uintptr_t)lpParam;
@@ -74,26 +76,20 @@ DWORD WINAPI PhysicsWorker(LPVOID lpParam) {
 
     while (engine_running) {
         // ====================================================================
-        // PHASE 1a (Kerne 0-7) ODER PHASE 1b (Kerne 8-9): COLLISION & SCATTER
+        // PHASE 1a: CORES 0-9 VERARBEITEN SIMULTAN DIE SICHEREN INNENZONEN
         // ====================================================================
-        if (t_id < 8) {
-            while (current_tick_phase != (my_tick * 10 + 1)) {
-                if (!engine_running) return 0;
-                _mm_pause();
-            }
-        }
-        else {
-            while (current_tick_phase != (my_tick * 10 + 4)) {
-                if (!engine_running) return 0;
-                _mm_pause();
-            }
+        while (current_tick_phase != (my_tick * 10 + 1)) {
+            if (!engine_running) return 0;
+            _mm_pause();
         }
 
         uint64_t start = worker_task_start[t_id];
+        uint64_t inner_end = worker_task_inner_end[t_id];
         uint64_t end = worker_task_end[t_id];
         tls_active_count[t_id] = 0;
 
-        for (uint64_t a = start; a < end; a++) {
+        // Loop 1: Nur unkritische Innen-Knoten modifizieren
+        for (uint64_t a = start; a < inner_end; a++) {
             uint32_t idx = global_pu->active_nodes_current[a];
 
             global_pu->grid[idx].active_flux = fast_flux[idx];
@@ -135,7 +131,6 @@ DWORD WINAPI PhysicsWorker(LPVOID lpParam) {
                     continue;
                 }
 
-                // --- BRANCHLESS PAAR-STREUUNG (OPTIMIZED LGA) ---
                 uint32_t pair01 = ((move & 0x0003) == 0x0003) && !(move & 0x0030);
                 uint32_t pair45 = ((move & 0x0030) == 0x0030) && !(move & 0x00C0);
                 uint32_t pair67 = ((move & 0x00C0) == 0x00C0) && !(move & 0x0300);
@@ -172,18 +167,101 @@ DWORD WINAPI PhysicsWorker(LPVOID lpParam) {
         _InterlockedIncrement(&workers_done);
 
         // ====================================================================
-        // PHASE 2: GATHER (Cache-lokal auf vorstrukturierten Chunks)
+        // PHASE 1b: GLOBAL BARRIER -> ALLE CORES RECHNEN JETZT IHRE GEPUFFERTEN GRENZEN
+        // ====================================================================
+        while (current_tick_phase != (my_tick * 10 + 4)) {
+            if (!engine_running) return 0;
+            _mm_pause();
+        }
+
+        // Loop 2: Jetzt gefahrlos die Kanten-Knoten modifizieren
+        for (uint64_t a = inner_end; a < end; a++) {
+            uint32_t idx = global_pu->active_nodes_current[a];
+
+            global_pu->grid[idx].active_flux = fast_flux[idx];
+            ProPhysics_Update_Quantum_Flux(global_pu, idx);
+            fast_flux[idx] = global_pu->grid[idx].active_flux;
+
+            uint32_t flux = fast_flux[idx];
+            uint32_t move = flux & 0x0FFF;
+            uint32_t mass = flux & 0x1000;
+
+            if (move == 0 && mass == 0) {
+                fast_flux[idx] = 0;
+                global_pu->grid[idx].active_flux = 0;
+                continue;
+            }
+
+            if (mass) {
+                if (!(tls_bitset[t_id][idx >> 3] & (1 << (idx & 7)))) {
+                    tls_bitset[t_id][idx >> 3] |= (1 << (idx & 7));
+                    tls_active_nodes[t_id][tls_active_count[t_id]++] = idx;
+                }
+            }
+
+            if (move) {
+                uint32_t island_idx = global_pu->grid[idx].state_island_idx;
+                uint64_t local_charge = (island_idx != 0) ?
+                    (global_pu->data_pool[island_idx].charge_spin & QUANTUM_MASK_POLARITY) : QUANTUM_POL_NEUTRAL;
+
+                uint32_t fusion_allowed = (local_charge == QUANTUM_POL_PLUS) | (local_charge == QUANTUM_POL_MINUS);
+
+                if (POPCOUNT64(move) == 3 && mass == 0 && fusion_allowed) {
+                    fast_flux[idx] = 0x1000;
+                    global_pu->grid[idx].state_island_idx = island_idx;
+
+                    if (!(tls_bitset[t_id][idx >> 3] & (1 << (idx & 7)))) {
+                        tls_bitset[t_id][idx >> 3] |= (1 << (idx & 7));
+                        tls_active_nodes[t_id][tls_active_count[t_id]++] = idx;
+                    }
+                    continue;
+                }
+
+                uint32_t pair01 = ((move & 0x0003) == 0x0003) && !(move & 0x0030);
+                uint32_t pair45 = ((move & 0x0030) == 0x0030) && !(move & 0x00C0);
+                uint32_t pair67 = ((move & 0x00C0) == 0x00C0) && !(move & 0x0300);
+                uint32_t pair89 = ((move & 0x0300) == 0x0300) && !(move & 0x0C00);
+                uint32_t pairAB = ((move & 0x0C00) == 0x0C00) && !(move & 0x000C);
+                uint32_t pair23 = ((move & 0x000C) == 0x000C) && !(move & 0x0003);
+
+                move ^= (pair01 * 0x0033) | (pair45 * 0x00F0) | (pair67 * 0x03C0) |
+                    (pair89 * 0x0F00) | (pairAB * 0x0C0C) | (pair23 * 0x000F);
+
+                fast_flux[idx] = mass | (move << 13);
+
+                int32_t x = idx & X_MASK;
+                int32_t y = (idx >> Y_SHIFT) & Y_MASK;
+                int32_t z = idx >> Z_SHIFT;
+
+                for (int i = 0; i < 12; i++) {
+                    if (move & (1U << i)) {
+                        uint32_t n = ProPhysics_Get_Neighbor_Inline(x, y, z, i);
+                        if (!(tls_bitset[t_id][n >> 3] & (1 << (n & 7)))) {
+                            tls_bitset[t_id][n >> 3] |= (1 << (n & 7));
+                            if (tls_active_count[t_id] < MAX_SPARSE_TRACKING_NODES) {
+                                tls_active_nodes[t_id][tls_active_count[t_id]++] = n;
+                            }
+                        }
+                    }
+                }
+            }
+            else {
+                fast_flux[idx] = mass;
+            }
+        }
+
+        _InterlockedIncrement(&workers_done);
+
+        // ====================================================================
+        // PHASE 2: GATHER (Cache-lokal auf den akkumulierten Ziel-Nodes)
         // ====================================================================
         while (current_tick_phase != (my_tick * 10 + 2)) {
             if (!engine_running) return 0;
             _mm_pause();
         }
 
-        uint64_t start_next = worker_task_start[t_id];
-        uint64_t end_next = worker_task_end[t_id];
-
-        for (uint64_t a = start_next; a < end_next; a++) {
-            uint32_t n = global_pu->active_nodes_next[a];
+        for (uint64_t a = 0; a < tls_active_count[t_id]; a++) {
+            uint32_t n = tls_active_nodes[t_id][a];
             uint32_t flux_gather = fast_flux[n];
             uint32_t incoming = 0;
 
@@ -227,7 +305,7 @@ DWORD WINAPI PhysicsWorker(LPVOID lpParam) {
  * ========================================================================== */
 PROPHYSICS_API void ProPhysics_Init_Threads(ProUniverse* pu) {
     if (threads_initialized) return;
-    printf("[INIT] Starte Thread-Infrastruktur für %d Worker (8+2 Split)...\n", NUM_WORKERS);
+    printf("[INIT] Starte Thread-Infrastruktur für %d Worker (10-Way Symmetric Split)...\n", NUM_WORKERS);
     global_pu = pu;
     engine_running = true;
     current_tick_phase = 0;
@@ -246,7 +324,7 @@ PROPHYSICS_API void ProPhysics_Init_Threads(ProUniverse* pu) {
     }
     SetThreadAffinityMask(GetCurrentThread(), (DWORD_PTR)1 << 1);
     threads_initialized = true;
-    printf("[INIT] Alle Worker erfolgreich initialisiert.\n");
+    printf("[INIT] Alle 10 Worker erfolgreich partitioniert und initialisiert.\n");
 }
 
 void ProPhysics_Initialize(ProUniverse* pu) {
@@ -331,12 +409,12 @@ void ProPhysics_Execute_Tick(ProUniverse* pu) {
     uint64_t watchdog = 0;
 
     // ====================================================================
-    // SCHRITT 1: PHASE 1a - INNER-CORE WORKERS (THREADS 0-7) STARTEN
+    // SCHRITT 1: PHASE 1a - INNER-CORE WORKERS STARTEN (ALLE 10)
     // ====================================================================
     _InterlockedExchange(&workers_done, 0);
     _InterlockedExchange(&current_tick_phase, expected_tick * 10 + 1);
 
-    while (workers_done < 8) {
+    while (workers_done < 10) {
         _mm_pause();
         if (++watchdog > 500000000ULL) {
             printf("[CRITICAL DEADLOCK] Phase 1a hang! workers_done: %ld.\n", workers_done);
@@ -346,8 +424,9 @@ void ProPhysics_Execute_Tick(ProUniverse* pu) {
     }
 
     // ====================================================================
-    // SCHRITT 2: PHASE 1b - BOUNDARY-WORKERS (THREADS 8-9) FREIGEBEN
+    // SCHRITT 2: PHASE 1b - EDGE-WORKERS REFRESHEN (ALLE 10 GEBEN GRENZEN FREI)
     // ====================================================================
+    _InterlockedExchange(&workers_done, 0);
     _InterlockedExchange(&current_tick_phase, expected_tick * 10 + 4);
 
     while (workers_done < 10) {
@@ -374,7 +453,7 @@ void ProPhysics_Execute_Tick(ProUniverse* pu) {
     while (workers_done < 10) { _mm_pause(); }
 
     // ====================================================================
-    // SCHRITT 5: CONSOLIDATION STEP (MAIN THREAD HALO MERGING)
+    // SCHRITT 5: CONSOLIDATION STEP (MIT BITPERFEKTEM TORUS-WRAPPING)
     // ====================================================================
     uint64_t total_nodes = (uint64_t)PROPHYSICS_X_MAX * PROPHYSICS_Y_MAX * PROPHYSICS_Z_MAX;
     memset(pu->node_active_bitset, 0, (total_nodes + 7) / 8);
@@ -385,8 +464,8 @@ void ProPhysics_Execute_Tick(ProUniverse* pu) {
             uint32_t n = tls_active_nodes[i][j];
             uint32_t original_n = n;
 
-            // --- INERTIAL MASS MIGRATION ENGINE ---
             uint32_t flux = pu->active_nodes_kinetic[n];
+
             if (flux & 0x1000) {
                 uint32_t island_idx = pu->grid[n].state_island_idx;
                 if (island_idx != 0) {
@@ -410,6 +489,7 @@ void ProPhysics_Execute_Tick(ProUniverse* pu) {
                         int32_t x = n & X_MASK;
                         int32_t y = (n >> Y_SHIFT) & Y_MASK;
                         int32_t z = n >> Z_SHIFT;
+
                         uint32_t target_n = ProPhysics_Get_Neighbor_Inline(x, y, z, move_ch);
 
                         if (!(pu->active_nodes_kinetic[target_n] & 0x1000)) {
@@ -662,38 +742,61 @@ PROPHYSICS_API double ProPhysics_Query_Local_Pressure(const ProUniverse* pu, int
 PROPHYSICS_API void ProPhysics_Partition_Initial_Tasks(ProUniverse* pu) {
     if (!pu || pu->active_count_current == 0) return;
 
-    uint64_t local_counts[NUM_WORKERS] = { 0 };
+    // Zwei Sub-Kategorien pro Worker: [0] = Inner-Node, [1] = Edge-Node
+    uint64_t counts[NUM_WORKERS][2] = { 0 };
 
+    // Pass 1: Zählen der Knoten nach exakter Thread-Zugehörigkeit und Kantenlage
     for (uint64_t i = 0; i < pu->active_count_current; i++) {
         uint32_t n = pu->active_nodes_current[i];
-        int32_t z = n >> Z_SHIFT;
-        int32_t z_local = z & 63;
-        int cat = (z_local == 0 || z_local == 63) ? ((z <= 255 || z == 511) ? 8 : 9) : (z >> 6);
-        local_counts[cat]++;
+        uint32_t z = n >> Z_SHIFT;
+
+        int w = (z * 10) / 512;
+        int w_minus = (((z - 1) & 0x1FF) * 10) / 512;
+        int w_plus = (((z + 1) & 0x1FF) * 10) / 512;
+
+        // Liegt ein Nachbar in einer anderen Z-Domäne? -> Edge-Knoten
+        int is_edge = (w != w_minus) || (w != w_plus);
+        counts[w][is_edge]++;
     }
 
-    uint64_t running_offsets[NUM_WORKERS] = { 0 };
-    worker_task_start[0] = 0;
-    worker_task_end[0] = local_counts[0];
-    running_offsets[0] = 0;
+    // Berechnen der globalen Offsets im flachen active_nodes-Array
+    uint64_t current_offset = 0;
+    for (int w = 0; w < NUM_WORKERS; w++) {
+        worker_task_start[w] = current_offset;
+        current_offset += counts[w][0]; // Inner-Nodes Vorsprung
+        worker_task_inner_end[w] = current_offset;
+        current_offset += counts[w][1]; // Edge-Nodes hinten dran
+        worker_task_end[w] = current_offset;
+    }
 
-    for (int w = 1; w < NUM_WORKERS; w++) {
-        worker_task_start[w] = worker_task_end[w - 1];
-        worker_task_end[w] = worker_task_start[w] + local_counts[w];
-        running_offsets[w] = worker_task_start[w];
+    // Lokale Cursor-Tracker für das Einsortieren in den Staging-Buffer
+    uint64_t running_inner[NUM_WORKERS];
+    uint64_t running_edge[NUM_WORKERS];
+    for (int w = 0; w < NUM_WORKERS; w++) {
+        running_inner[w] = worker_task_start[w];
+        running_edge[w] = worker_task_inner_end[w];
     }
 
     uint32_t* staging_buffer = pu->active_nodes_next;
 
+    // Pass 2: Sortiertes Einspeisen in den Staging-Buffer
     for (uint64_t i = 0; i < pu->active_count_current; i++) {
         uint32_t n = pu->active_nodes_current[i];
-        int32_t z = n >> Z_SHIFT;
-        int32_t z_local = z & 63;
-        int cat = (z_local == 0 || z_local == 63) ? ((z <= 255 || z == 511) ? 8 : 9) : (z >> 6);
-        staging_buffer[running_offsets[cat]++] = n;
+        uint32_t z = n >> Z_SHIFT;
+
+        int w = (z * 10) / 512;
+        int w_minus = (((z - 1) & 0x1FF) * 10) / 512;
+        int w_plus = (((z + 1) & 0x1FF) * 10) / 512;
+
+        if ((w != w_minus) || (w != w_plus)) {
+            staging_buffer[running_edge[w]++] = n;
+        }
+        else {
+            staging_buffer[running_inner[w]++] = n;
+        }
     }
 
+    // Zurückkopieren in das aktive Verzeichnis
     memcpy(pu->active_nodes_current, staging_buffer, pu->active_count_current * sizeof(uint32_t));
-
     pu->active_count_next = 0;
 }
