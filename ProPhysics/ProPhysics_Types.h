@@ -1,91 +1,47 @@
 /* ==========================================================================
- * ProPhysics - Centralized Data Structure Register
+ * ProPhysics - Centralized Data Structure Register (Wheeler "It from Bit")
  * File: ProPhysics_Types.h
- * Architecture: C99, Monolithic Cache-Optimized Type Boundary
+ * Architecture: C99, 256-Bit Pointer-Register Layout, Zero-Allocation
  * ========================================================================== */
 
 #ifndef PROPHYSICS_TYPES_H
 #define PROPHYSICS_TYPES_H
 
-#include "ProPhysics_Config.h"
+#include <stdint.h>
+#include <stdbool.h>
 
- // --- NEU: Globaler Hardware-Popcount für MSVC Compiler-Gating ---
-#ifdef _WIN32
-#include <intrin.h>
-#define __builtin_popcountll(x) _mm_popcnt_u64((unsigned __int64)(x))
-#endif
+ // --- DIE 5 URTYPEN & RECHTS/LINKS-SPINS (8-BIT ENCODING) ---
+#define UR_NEUTRAL       0x00U
+#define UR_POSITRON_CW   0x01U
+#define UR_POSITRON_CCW  0x02U
+#define UR_NEGATRON_CW   0x03U
+#define UR_NEGATRON_CCW  0x04U
+
+// 12er-Symmetrie Definition für die Bitmaskierungs-Pfade
+#define SYMMETRY_CHANNELS 12
+
+#pragma pack(push, 1)
+// Ein Knoten im flachen Urtypen-Array (Extrem cache-lokal)
+typedef struct {
+    uint8_t type_state;        // Ladung + Spin-Zustand (Urtypen)
+    uint8_t reserved_gating;   // Ausrichtung / Padding
+} ProUrNode;
+
+// 256-Bit Adress-Register Struktur (Verwaltet 12 Ausgänge + Verschränkung)
+typedef struct {
+    uint64_t channels[4];      // 4 * 64-Bit = 256-Bit virtueller Adressraum pro Kanal
+} ProPointerRegister;
+#pragma pack(pop)
 
 typedef struct {
-    int8_t   dx, dy, dz;
-    uint8_t  atomic_number;
-} RelativeAtom;
+    ProUrNode* __restrict ur_grid;               // Flacher, kleiner Urtypen-Array
+    ProPointerRegister* __restrict reg_source;   // Gelesenes Pointer-Register (4 GB Grenze)
+    ProPointerRegister* __restrict reg_target;   // Geschriebenes Pointer-Register (4 GB Grenze)
 
-typedef struct {
-    int8_t   vx, vy, vz;
-    uint32_t tick_divider;
-    uint32_t tick_counter;
-} KineticVector;
-
-typedef struct {
-    uint64_t hash;
-    RelativeAtom atoms[MAX_MOLECULE_ATOMS];
-    uint32_t     atom_count;
-} StructuralForm;
-
-#pragma pack(push, 4) // Erzwingt striktes 4-Byte-Alignment für die Gitter-Arrays
-
-typedef struct {
-    uint64_t charge_spin;       // Spin- und Ladungskonfiguration
-    uint64_t mass_accumulator;  // Emergente lokale Dichte-Masse
-    uint32_t element_token;     // Axiom-Identifikator
-    uint32_t tick_counter;      // Relativistischer Takt-Teiler
-
-    // Maximale kinetische Tiefe durch 64-Bit-Akkumulatoren
-    int64_t vx;
-    int64_t vy;
-    int64_t vz;
-} QuantumStateIsland;
-
-typedef struct {
-    /*
-     * Daten-Pool (16 Byte kompakt)
-     * Die 48 Byte statische Topologie (neighbor_idx) wurden vollständig eliminiert.
-     * Nachbarschafts-Indizes werden on-the-fly berechnet.
-     */
-    uint32_t active_flux;
-    uint32_t state_island_idx;
-    uint32_t local_anisotropy;
-    uint32_t reserved_gating;
-} FCCNode;
-
-#pragma pack(pop) // Schließt das 4-Byte-Packing hier ab, damit double natürlich fließen kann
-
-typedef struct {
-    FCCNode* __restrict grid;
-    QuantumStateIsland* __restrict data_pool;
-
-    uint32_t* active_nodes_current;
-    uint32_t* active_nodes_next;
-
-    uint32_t* active_nodes_kinetic;
-    uint64_t  active_count_kinetic;
-
-    uint64_t  active_count_current;
-    uint64_t  active_count_next;
-    uint8_t* node_active_bitset;
-
+    uint64_t total_nodes;
     uint64_t current_cpu_tick;
-    uint32_t observer_node_idx;
-    uint32_t active_element_count;
-    bool     is_hardened;
-
-    // --- NEU: Dynamischer Invarianz-Sollwert für den kosmischen Horizont ---
-    uint64_t dynamic_invariance_target;
-
+    uint64_t dynamic_invariance_target;          // Invarianz-Sollwert (Erwähnte Summation)
     double   global_entropy_index;
-    double   observer_field_vx;
-    double   observer_field_vy;
-    double   observer_field_vz;
 } ProUniverse;
 
 #endif // PROPHYSICS_TYPES_H

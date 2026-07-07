@@ -1,37 +1,23 @@
 /* ==========================================================================
  * ProPhysics - Engine Kernel Interface
  * File: ProPhysics.h
- * Architecture: C99, Zero-Allocation, Cache-Line Aligned
+ * Architecture: C99, Pure Sequential Node Evaluation
  * ========================================================================== */
 
 #ifndef PROPHYSICS_H
 #define PROPHYSICS_H
 
-#include "ProPhysics_Config.h"
 #include "ProPhysics_Types.h"
-#include "ProPhysics_Exports.h"
-#include "ProPhysics_Version.h"
 
 #ifdef _MSC_VER
-#include <intrin.h>
-#define POPCOUNT64(x) __popcnt64(x) 
+#define PROPHYSICS_API __declspec(dllexport)
 #else
-#define POPCOUNT64(x) __builtin_popcountll(x)
+#define PROPHYSICS_API __attribute__((visibility("default")))
 #endif
 
-PROPHYSICS_API void   ProPhysics_Initialize(ProUniverse* pu);
-PROPHYSICS_API void   ProPhysics_Inject_Elements(ProUniverse* pu);
-PROPHYSICS_API double ProPhysics_Query_Anisotropy(const ProUniverse* pu, int32_t source_x, int32_t source_y, int32_t source_z);
-PROPHYSICS_API void   ProPhysics_Execute_Tick(ProUniverse* pu);
-PROPHYSICS_API bool   ProPhysics_Verify_Invariance(const ProUniverse* pu, uint64_t expected_initial_bits);
-PROPHYSICS_API void   ProPhysics_Reset(ProUniverse* pu, uint64_t* initial_bit_tracker);
-PROPHYSICS_API void   ProPhysics_Update_Observer(ProUniverse* pu, uint64_t expected_initial_bits);
-// --- In deiner src/ProPhysics.h ergänzen/prüfen ---
+PROPHYSICS_API void ProPhysics_Initialize(ProUniverse* pu, uint64_t node_count);
+PROPHYSICS_API void ProPhysics_Execute_Tick(ProUniverse* pu);
+PROPHYSICS_API bool ProPhysics_Verify_Invariance(const ProUniverse* pu);
+PROPHYSICS_API void ProPhysics_Free(ProUniverse* pu);
 
-// Funktionale On-the-fly Druckmessung
-PROPHYSICS_API double ProPhysics_Query_Local_Pressure(const ProUniverse* pu, int32_t center_x, int32_t center_y, int32_t center_z, int32_t radius);
-
-// Initial-Partitionierung für das 8+2 Core-Boundary-Triebwerk
-PROPHYSICS_API void   ProPhysics_Partition_Initial_Tasks(ProUniverse* pu);
-PROPHYSICS_API void ProPhysics_Init_Threads(ProUniverse* pu);
 #endif // PROPHYSICS_H
