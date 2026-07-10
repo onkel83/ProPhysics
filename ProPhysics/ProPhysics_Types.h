@@ -16,6 +16,7 @@
 #define UR_POSITRON_CCW  0x02U
 #define UR_NEGATRON_CW   0x03U
 #define UR_NEGATRON_CCW  0x04U
+#define UR_PHOTON        0x05U
 
 // 12er-Symmetrie Definition für die Bitmaskierungs-Pfade
 #define SYMMETRY_CHANNELS 12
