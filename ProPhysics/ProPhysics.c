@@ -41,14 +41,10 @@ PROPHYSICS_API void ProPhysics_Execute_Tick(ProUniverse* pu) {
     pu->current_cpu_tick++;
     uint64_t net_momentum = 0;
 
-    // 1. Target-Register vorab im RAM nullen f r das bitweise OR
+    // 1. Target-Register vorab im RAM nullen für das bitweise OR
     memset(pu->reg_target, 0, pu->total_nodes * sizeof(ProPointerRegister));
 
-    // 2. Ein temporaeres flaches Array allokieren oder im Universum vorhalten,
-    // um die Typmutationen des naechsten Ticks (St+1) isoliert aufzunehmen.
-    // Optimaler ist es, pu->ur_grid ebenfalls als Double-Buffer auszulegen.
-    // Fuer diesen Durchlauf simulieren wir die branchless Zustandswandlung:
-
+    // 2. Zustandswandlung und Pointer-Kaskadierung über flaches Feld
     for (uint64_t idx = 0; idx < pu->total_nodes; idx++) {
         uint8_t current_type = pu->ur_grid[idx].type_state;
         if (current_type == UR_NEUTRAL) continue;
@@ -57,13 +53,17 @@ PROPHYSICS_API void ProPhysics_Execute_Tick(ProUniverse* pu) {
         ProPointerRegister next_reg = current_reg;
 
         // --- FORMEL 2: BRANCHLESS BITMANIPULATION DER POINTER ---
+        // spin_direction ist strikt 0 oder 1.
         uint64_t spin_direction = (current_type & 1U);
         uint64_t is_photon = (current_type == UR_PHOTON);
         spin_direction = spin_direction * (!is_photon);
 
+        // Sicheres, branchless Shifting ohne Undefined Behavior (Vermeidung von >> 64)
+        // Wenn spin_direction == 1, wird das MSB von ch+1 um 63 Stellen nach rechts geshiftet (auf Bit 0)
+        // Wenn spin_direction == 0, löscht die Multiplikation den rechten Term komplett aus
         for (int ch = 0; ch < 3; ch++) {
             next_reg.channels[ch] = (current_reg.channels[ch] << spin_direction) |
-                (current_reg.channels[ch + 1] >> (64 - spin_direction));
+                ((current_reg.channels[ch + 1] >> 63) * spin_direction);
         }
 
         // --- FORMEL 4: WECHSELWIRKUNG, ANNIHILATION & STREUUNG (Lokal) ---
@@ -75,38 +75,39 @@ PROPHYSICS_API void ProPhysics_Execute_Tick(ProUniverse* pu) {
             // Kriterium 1: Klassische Annihilation (Positron + Negatron = 5)
             uint64_t is_annihilation = ((current_type + target_type) == 5) && (current_type != target_type);
 
-            // Kriterium 2: Option B - Photonen-Streuung / Impuls-Uebertrag
-            // Ein Photon (0x05U) trifft auf ein geladenes Teilchen (0x01U bis 0x04U)
+            // Kriterium 2: Option B - Photonen-Streuung / Impuls-Übertrag
             uint64_t is_photon_impact = (current_type == UR_PHOTON) && (target_type != UR_NEUTRAL) && (target_type != UR_PHOTON);
 
-            // Branchless Typ-Mutation fuer den aktuellen Knoten (idx)
-            // Bei Annihilation -> Photon. Bei Impact -> Es wird absorbiert und nimmt den Typ des Ziels an.
-            uint8_t next_type = (UR_PHOTON * is_annihilation) |
+            // BEHOBEN: Expliziter Cast auf uint8_t eliminiert C4244
+            uint8_t next_type = (uint8_t)((UR_PHOTON * is_annihilation) |
                 (target_type * is_photon_impact) |
-                (current_type * (!is_annihilation && !is_photon_impact));
+                (current_type * (!is_annihilation && !is_photon_impact)));
             pu->ur_grid[idx].type_state = next_type;
 
-            // Branchless Typ-Mutation fuer den Ziel-Knoten (target_ptr)
-            // Bei Annihilation -> Neutral. Bei Impact -> Wird zum abgelenkten Photon (Energie-Erhaltung!)
-            uint8_t next_target_type = (target_type * (!is_annihilation && !is_photon_impact)) |
+            // BEHOBEN: Expliziter Cast auf uint8_t eliminiert C4244
+            uint8_t next_target_type = (uint8_t)((target_type * (!is_annihilation && !is_photon_impact)) |
                 (UR_NEUTRAL * is_annihilation) |
-                (UR_PHOTON * is_photon_impact);
+                (UR_PHOTON * is_photon_impact));
             pu->ur_grid[target_ptr].type_state = next_target_type;
 
             // --- FORMEL 5: DISKRETE SUMMATION PER OR (Kanal-Verwebung & Ablenkung) ---
-            // Wenn ein Photon einschlaegt, reisst es die parallelen Pointer-Kanale auf
             for (int ch = 0; ch < 4; ch++) {
                 pu->reg_target[target_ptr].channels[ch] |= next_reg.channels[ch];
             }
         }
         else {
-            pu->reg_target[idx] = next_reg;
+            // BEHOBEN: Akkumulation per bitweisem OR statt harter Zuweisung.
+            // Verhindert das Überschreiben von Informationen, die in diesem Tick 
+            // bereits von anderen emittierenden Knoten hierher gestreut wurden.
+            for (int ch = 0; ch < 4; ch++) {
+                pu->reg_target[idx].channels[ch] |= next_reg.channels[ch];
+            }
         }
 
         net_momentum += (current_type == UR_POSITRON_CW) ? 1 : 0;
     }
 
-    // Buffer-Tausch fuer die Adress-Kanale
+    // Buffer-Tausch für die Adress-Kanäle
     ProPointerRegister* temp = pu->reg_source;
     pu->reg_source = pu->reg_target;
     pu->reg_target = temp;
