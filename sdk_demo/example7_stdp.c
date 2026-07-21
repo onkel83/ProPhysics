@@ -1,15 +1,16 @@
 /**
  * @file example7_stdp.c
- * @brief BioAI SDK - Kausales Spike-Timing-Dependent Plasticity (STDP) System.
+ * @brief BioAI SDK - Kausales Spike-Timing-Dependent Plasticity (STDP) System (Interaktiv).
  *
- * Dieses Modul simuliert die zeitabhängige synaptische Plastizität. Die Stärke
- * einer Verbindung (Kanal 3) skaliert basierend auf der prä- und postsynaptischen
- * Millisekunden-Differenz (Kanal 1) vollkommen ohne Verzweigungsbefehle.
+ * Simuliert die zeitabhängige synaptische Plastizität. Die Stärke einer Verbindung
+ * (Kanal 3) skaliert basierend auf der prä- und postsynaptischen Millisekunden-Differenz
+ * (Kanal 1) vollkommen ohne Verzweigungsbefehle.
  */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <string.h>
 #include "ProPhysics.h"
 
@@ -23,12 +24,29 @@
  */
 typedef struct {
     uint64_t learning_window; /**< Maximales zeitliches Delta für Plastizität */
-    uint64_t delta_weight;     /**< Modifikations-Schrittweite (LTP / LTD) */
-    int scenario;              /**< 1 = Kausales Feuern (LTP), 2 = Anti-kausales Feuern (LTD), 3 = Unkorreliert */
+    uint64_t delta_weight;    /**< Modifikations-Schrittweite (LTP / LTD) */
+    int scenario;             /**< 1 = Kausales Feuern (LTP), 2 = Anti-kausales Feuern (LTD), 3 = Unkorreliert */
 } STDPConfig;
 
 /* Globale Konfiguration für das STDP-Lernverhalten */
 static STDPConfig g_STDPConfig = { 5ULL, 4ULL, 1 };
+
+/**
+ * @brief Hilfsfunktion zur Erstellung eines ASCII-Balkendiagramms für das Synapsengewicht [0..100].
+ */
+static void Print_Weight_Balken(uint64_t weight) {
+    const int max_bars = 20;
+    int filled = (int)((weight * max_bars) / 100ULL);
+    if (filled > max_bars) filled = max_bars;
+    if (filled < 0) filled = 0;
+
+    printf("[");
+    for (int i = 0; i < max_bars; i++) {
+        if (i < filled) printf("#");
+        else printf(".");
+    }
+    printf("] %3llu / 100", (unsigned long long)weight);
+}
 
 /**
  * @brief Wissenschaftlicher Callback-Kernel: Branchless STDP Engine.
@@ -57,15 +75,11 @@ void STDPPlasticityRule(
     uint64_t delta = g_STDPConfig.delta_weight;
 
     /* --- TIMING ANALYSEN (BRANCHLESS) --- */
-    /* Prädikat A: Kausales Timing (Pre vor Post) -> Long-Term Potentiation (LTP) */
     uint64_t is_ltp = valid_interaction && (post_tick > pre_tick) && ((post_tick - pre_tick) <= window);
-
-    /* Prädikat B: Anti-Kausales Timing (Post vor Pre) -> Long-Term Depression (LTD) */
     uint64_t is_ltd = valid_interaction && (pre_tick > post_tick) && ((pre_tick - post_tick) <= window);
 
     /* Gewichtsanpassung berechnen unter Beachtung der biologischen Grenzen (Safe-Guards) */
     uint64_t potentiated = weight + delta;
-    /* Obergrenze bei 100 deckeln */
     potentiated = (100ULL * (potentiated > 100ULL)) | (potentiated * (potentiated <= 100ULL));
 
     uint64_t depressed = weight - (delta * (weight >= delta));
@@ -136,73 +150,182 @@ void ProPhysics_SDK_Execute_Custom_Tick(ProUniverse* pu,
     pu->reg_source = pu->reg_target;
     pu->reg_target = t;
 
-    pu->global_entropy_index = (double)active_interactions;
+    /* Sauberer Cast auf uint32_t zur Behebung von Warning C4244 */
+    pu->global_entropy_index = (uint32_t)active_interactions;
+}
+
+/**
+ * @brief Setzt die Testnetz-Topologie auf das gewählte STDP-Szenario zurück.
+ */
+static void Reset_Simulation(ProUniverse* pu) {
+    memset(pu->ur_grid, 0, pu->total_nodes * sizeof(*pu->ur_grid));
+    memset(pu->reg_source, 0, pu->total_nodes * sizeof(*pu->reg_source));
+    memset(pu->reg_target, 0, pu->total_nodes * sizeof(*pu->reg_target));
+
+    pu->current_cpu_tick = 0;
+    pu->global_entropy_index = 0;
+
+    pu->ur_grid[15].type_state = TYPE_NEURON;
+    pu->ur_grid[25].type_state = TYPE_NEURON;
+
+    pu->reg_source[15].channels[0] = 25ULL;
+    pu->reg_source[15].channels[3] = 40ULL; /* Startgewicht der Synapse */
+
+    if (g_STDPConfig.scenario == 1) {
+        pu->reg_source[15].channels[1] = 10ULL; /* Pre-Spike zuerst */
+        pu->reg_source[25].channels[1] = 12ULL; /* Post-Spike folgt (+2) */
+    }
+    else if (g_STDPConfig.scenario == 2) {
+        pu->reg_source[15].channels[1] = 13ULL; /* Pre-Spike verspätet */
+        pu->reg_source[25].channels[1] = 10ULL; /* Post-Spike zuerst (-3) */
+    }
+    else {
+        pu->reg_source[15].channels[1] = 5ULL;  /* Weit außerhalb */
+        pu->reg_source[25].channels[1] = 40ULL;
+    }
+}
+
+/**
+ * @brief Konsolen-Visualisierung des aktuellen STDP-Zustands.
+ */
+static void Print_STDP_State(const ProUniverse* pu) {
+    uint64_t pre_tick = pu->reg_source[15].channels[1];
+    uint64_t post_tick = pu->reg_source[25].channels[1];
+    uint64_t weight = pu->reg_source[15].channels[3];
+
+    printf("\n========================================================================================\n");
+    printf(" BIOAI STDP PLASTICITY CORE | Tick #%-3llu | Window: %llu | Delta: %llu\n",
+        (unsigned long long)pu->current_cpu_tick,
+        (unsigned long long)g_STDPConfig.learning_window,
+        (unsigned long long)g_STDPConfig.delta_weight);
+    printf("========================================================================================\n");
+
+    printf(" KNOTEN #15 [Presynaptisch] : Spike-Tick = %-3llu  | Synapsengewicht (Ch 3): ",
+        (unsigned long long)pre_tick);
+    Print_Weight_Balken(weight);
+    printf("\n");
+
+    printf(" KNOTEN #25 [Postsynaptisch]: Spike-Tick = %-3llu\n",
+        (unsigned long long)post_tick);
+
+    uint64_t window = g_STDPConfig.learning_window;
+    int is_ltp = (post_tick > pre_tick) && ((post_tick - pre_tick) <= window);
+    int is_ltd = (pre_tick > post_tick) && ((pre_tick - post_tick) <= window);
+
+    printf(" PLASTIZITAETS-STATUS      : ");
+    if (is_ltp) {
+        printf("[ LTP AKTIV (Kausale Korrelation / Verstärkung) ]\n");
+    }
+    else if (is_ltd) {
+        printf("[ LTD AKTIV (Anti-kausal / Drosselung) ]\n");
+    }
+    else {
+        printf("[ ASYNCHRON / NEUTRAL (Außerhalb des Lernfensters) ]\n");
+    }
+    printf("========================================================================================\n\n");
 }
 
 int main(void) {
-    printf("==================================================================\n");
-    printf("[SDK Example 7]: Kausales STDP (Spike-Timing) Plastizitaets-System\n");
-    printf("==================================================================\n\n");
-
-    printf("Waehlen Sie das STDP-Lernszenario:\n");
-    printf(" [1] Kausales Feuern      (Pre-Spike bei Tick 10, Post-Spike bei Tick 12 -> LTP)\n");
-    printf(" [2] Anti-kausales Feuern (Post-Spike bei Tick 10, Pre-Spike bei Tick 13 -> LTD)\n");
-    printf(" [3] Asynchrones Rauschen (Zeitdifferenz ausserhalb des Lernfensters)\n");
-    printf("Auswahl (1-3): ");
-
-    int choice = 1;
-    if (scanf("%d", &choice) != 1) choice = 1;
-    g_STDPConfig.scenario = choice;
-
     ProUniverse pu;
     ProPhysics_Initialize(&pu, 100);
 
-    /* Aufbau der prä- zu postsynaptischen Testachse */
-    pu.ur_grid[15].type_state = TYPE_NEURON; // Prä-synaptischer Knoten
-    pu.ur_grid[25].type_state = TYPE_NEURON; // Post-synaptischer Knoten
+    Reset_Simulation(&pu);
 
-    pu.reg_source[15].channels[0] = 25ULL;   // Topologie verknüpfen
+    char choice = 0;
+    while (true) {
+        Print_STDP_State(&pu);
 
-    /* Startgewicht der Synapse definieren */
-    pu.reg_source[15].channels[3] = 40ULL;
+        printf("--- INTERAKTIVE STDP PLASTICITY CONSOLE ---\n");
+        printf(" [1] 1 Kausal-Tick ausfuehren\n");
+        printf(" [2] 3 Ticks in Folge ausfuehren\n");
+        printf(" [3] Preset: Kausales Feuern      (Pre: 10, Post: 12 -> LTP)\n");
+        printf(" [4] Preset: Anti-kausales Feuern (Pre: 13, Post: 10 -> LTD)\n");
+        printf(" [5] Preset: Asynchrones Rauschen   (Außerhalb des Lernfensters)\n");
+        printf(" [6] Manuelle Spike-Zeiten (Ch 1) anpassen\n");
+        printf(" [7] Synapsengewicht manuell setzen\n");
+        printf(" [8] Lernfenster (Learning Window) anpassen\n");
+        printf(" [r] Simulation zuruecksetzen\n");
+        printf(" [q] Beenden\n");
+        printf(" Auswahl > ");
 
-    /* Zeitstempel-Injektion basierend auf Szenariowahl */
-    if (choice == 1) {
-        pu.reg_source[15].channels[1] = 10ULL; // Pre-Spike zuerst
-        pu.reg_source[25].channels[1] = 12ULL; // Post-Spike folgt prompt (+2)
-    }
-    else if (choice == 2) {
-        pu.reg_source[15].channels[1] = 13ULL; // Pre-Spike kommt zu spät
-        pu.reg_source[25].channels[1] = 10ULL; // Post-Spike geschah zuerst (-3)
-    }
-    else {
-        pu.reg_source[15].channels[1] = 5ULL;  // Weit außerhalb des Fensters
-        pu.reg_source[25].channels[1] = 40ULL; // Differenz von 35 Ticks
-    }
+        if (scanf(" %c", &choice) != 1) break;
 
-    printf("\n[START] Synapse [15->25] geladen. Init-Gewicht: %llu\n", pu.reg_source[15].channels[3]);
-    printf(" Prä-Spike (Pre):  Tick #%llu\n", pu.reg_source[15].channels[1]);
-    printf(" Post-Spike (Post): Tick #%llu\n", pu.reg_source[25].channels[1]);
-    printf("--- Starte Zeitreihen-Simulation (3 Evaluierungs-Ticks) ---\n");
+        if (choice == 'q' || choice == 'Q') {
+            printf("\nSimulation beendet.\n");
+            break;
+        }
 
-    for (int t = 1; t <= 3; t++) {
-        ProPhysics_SDK_Execute_Custom_Tick(&pu, STDPPlasticityRule);
+        switch (choice) {
+        case '1':
+            ProPhysics_SDK_Execute_Custom_Tick(&pu, STDPPlasticityRule);
+            printf("\n>> Tick #%llu verarbeitet.\n", (unsigned long long)pu.current_cpu_tick);
+            break;
 
-        uint64_t current_weight = pu.reg_source[15].channels[3];
-        printf("  Tick #%d -> Aktuelles Synapsengewicht: %llu\n", t, current_weight);
-    }
+        case '2':
+            for (int i = 0; i < 3; i++) {
+                ProPhysics_SDK_Execute_Custom_Tick(&pu, STDPPlasticityRule);
+            }
+            printf("\n>> 3 Ticks vollzogen.\n");
+            break;
 
-    /* Endauswertung im Terminal protokollieren */
-    uint64_t final_weight = pu.reg_source[15].channels[3];
-    printf("\n[RESULTAT] ");
-    if (choice == 1) {
-        if (final_weight > 40) printf("LTP erfolgreich: Kausale Korrelation erkannt. Verbindung verstaerkt.\n");
-    }
-    else if (choice == 2) {
-        if (final_weight < 40) printf("LTD erfolgreich: Destruktive Asynchronitaet erkannt. Verbindung gedrosselt.\n");
-    }
-    else {
-        if (final_weight == 40) printf("No-Change erfolgreich: Keine zeitliche Relevanz innerhalb des Fensters.\n");
+        case '3':
+            g_STDPConfig.scenario = 1;
+            Reset_Simulation(&pu);
+            printf("\n[PRESET OK] Kausales Feuern (LTP) geladen.\n");
+            break;
+
+        case '4':
+            g_STDPConfig.scenario = 2;
+            Reset_Simulation(&pu);
+            printf("\n[PRESET OK] Anti-kausales Feuern (LTD) geladen.\n");
+            break;
+
+        case '5':
+            g_STDPConfig.scenario = 3;
+            Reset_Simulation(&pu);
+            printf("\n[PRESET OK] Asynchrones Rauschen geladen.\n");
+            break;
+
+        case '6': {
+            uint64_t pre = 0, post = 0;
+            printf("\nNeuen Spike-Tick fuer Knoten #15 (Pre) eingeben > ");
+            if (scanf("%llu", &pre) == 1) pu.reg_source[15].channels[1] = pre;
+            printf("Neuen Spike-Tick fuer Knoten #25 (Post) eingeben > ");
+            if (scanf("%llu", &post) == 1) pu.reg_source[25].channels[1] = post;
+            printf("[OK] Spike-Zeiten aktualisiert.\n");
+            break;
+        }
+
+        case '7': {
+            uint64_t w = 0;
+            printf("\nNeues Synapsengewicht (0-100) eingeben > ");
+            if (scanf("%llu", &w) == 1) {
+                pu.reg_source[15].channels[3] = (w > 100ULL) ? 100ULL : w;
+                printf("[OK] Gewicht auf %llu gesetzt.\n", (unsigned long long)pu.reg_source[15].channels[3]);
+            }
+            break;
+        }
+
+        case '8': {
+            uint64_t win = 0;
+            printf("\nNeues Lernfenster (Ticks) eingeben > ");
+            if (scanf("%llu", &win) == 1) {
+                g_STDPConfig.learning_window = win;
+                printf("[OK] Lernfenster auf %llu Ticks angepasst.\n", (unsigned long long)win);
+            }
+            break;
+        }
+
+        case 'r':
+        case 'R':
+            Reset_Simulation(&pu);
+            printf("\n[OK] Simulation auf Initialzustand zurueckgesetzt.\n");
+            break;
+
+        default:
+            printf("\n[!] Ungueltige Eingabe.\n");
+            break;
+        }
     }
 
     ProPhysics_Free(&pu);

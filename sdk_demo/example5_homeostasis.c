@@ -1,6 +1,6 @@
 /**
  * @file example5_homeostasis.c
- * @brief BioAI SDK - Intrinsische Homeostase & Exzitabilitäts-Regulierung.
+ * @brief BioAI SDK - Intrinsische Homeostase & Exzitabilitäts-Regulierung (Interaktiv).
  *
  * Dieses Modul simuliert die homeostatische Selbstregulation von Netzknoten.
  * Um ein biologisches System in einem stabilen energetischen Gleichgewicht zu
@@ -11,12 +11,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <string.h>
 #include "ProPhysics.h"
 
- /* --- Systemzustände --- */
-#define STATE_NEUTRAL   0x00U
-#define TYPE_NEURON     0x05U
+ /* --- Systemzustände der Netzwerkknoten --- */
+#define STATE_NEUTRAL   0x00U  /**< Inaktiver Knoten / Ruhezustand */
+#define TYPE_NEURON     0x05U  /**< Aktiver neuronaler Knoten */
 
 /**
  * @struct HomeostasisConfig
@@ -24,12 +25,28 @@
  */
 typedef struct {
     uint64_t target_activity;  /**< Der energetische Soll-Wert (z.B. 2 Aktivierungen) */
-    uint64_t plasticity_rate;   /**< Korrektur-Schrittweite pro Regelkreis-Tick */
-    int scenario;               /**< 1 = Chronische Überreizung, 2 = Sensorische Deprivation, 3 = Fließgleichgewicht */
+    uint64_t plasticity_rate;  /**< Korrektur-Schrittweite pro Regelkreis-Tick */
+    int scenario;                /**< Aktuelles Versuchsszenario */
 } HomeostasisConfig;
 
 /* Globale Konfiguration für die homeostatischen Experimente */
 static HomeostasisConfig g_HomeoConfig = { 2ULL, 5ULL, 1 };
+
+/**
+ * @brief Hilfsfunktion zur Erstellung eines ASCII-Balkendiagramms für Wertebereich [0..250].
+ */
+static void Print_Sensitivitaets_Balken(uint64_t sensitivity) {
+    const int max_bars = 25;
+    int filled = (int)((sensitivity * max_bars) / 250ULL);
+    if (filled > max_bars) filled = max_bars;
+
+    printf("[");
+    for (int i = 0; i < max_bars; i++) {
+        if (i < filled) printf("#");
+        else printf(".");
+    }
+    printf("] %3llu / 250", (unsigned long long)sensitivity);
+}
 
 /**
  * @brief Wissenschaftlicher Callback-Kernel: Branchless Homeostatic Scaler.
@@ -84,7 +101,7 @@ void ProPhysics_SDK_Execute_Custom_Tick(ProUniverse* pu,
     pu->current_cpu_tick++;
     uint64_t active_interactions = 0;
 
-    memset(pu->reg_target, 0, pu->total_nodes * sizeof(ProPointerRegister));
+    memset(pu->reg_target, 0, pu->total_nodes * sizeof(*pu->reg_target));
 
     for (uint64_t idx = 0; idx < pu->total_nodes; idx++) {
         uint8_t cs = pu->ur_grid[idx].type_state;
@@ -130,73 +147,172 @@ void ProPhysics_SDK_Execute_Custom_Tick(ProUniverse* pu,
     pu->reg_source = pu->reg_target;
     pu->reg_target = t;
 
-    pu->global_entropy_index = (double)active_interactions;
+    /* Behebung von Warning C4244: Expliziter Cast auf uint32_t */
+    pu->global_entropy_index = (uint32_t)active_interactions;
+}
+
+/**
+ * @brief Setzt die Testnetz-Topologie auf definierte Startwerte zurück.
+ */
+static void Reset_Simulation(ProUniverse* pu) {
+    memset(pu->ur_grid, 0, pu->total_nodes * sizeof(*pu->ur_grid));
+    memset(pu->reg_source, 0, pu->total_nodes * sizeof(*pu->reg_source));
+    memset(pu->reg_target, 0, pu->total_nodes * sizeof(*pu->reg_target));
+
+    pu->current_cpu_tick = 0;
+    pu->global_entropy_index = 0;
+
+    /* Initialisiere Testknoten 30 als aktives Funktionselement */
+    pu->ur_grid[30].type_state = TYPE_NEURON;
+    pu->ur_grid[40].type_state = TYPE_NEURON;
+
+    /* Routing-Vektor legen: Knoten 30 zielt auf Knoten 40 */
+    pu->reg_source[30].channels[0] = 40ULL;
+
+    /* Start-Aktivität basierend auf gewähltem Szenario */
+    if (g_HomeoConfig.scenario == 1) {
+        pu->reg_source[30].channels[1] = 5ULL;  /* Überreizung */
+    }
+    else if (g_HomeoConfig.scenario == 2) {
+        pu->reg_source[30].channels[1] = 0ULL;  /* Deprivation */
+    }
+    else {
+        pu->reg_source[30].channels[1] = g_HomeoConfig.target_activity; /* Balance */
+    }
+
+    /* Neutraler Start-Sensitivitätswert: 100 */
+    pu->reg_source[30].channels[2] = 100ULL;
+}
+
+/**
+ * @brief Konsolen-Visualisierung des homeostatischen Systemzustands.
+ */
+static void Print_Network_State(const ProUniverse* pu) {
+    uint64_t act = pu->reg_source[30].channels[1];
+    uint64_t sens = pu->reg_source[30].channels[2];
+    uint64_t target = g_HomeoConfig.target_activity;
+
+    printf("\n========================================================================================\n");
+    printf(" BIOAI HOMEOSTASIS CORE | Tick #%-3llu | Step-Rate: %llu\n",
+        (unsigned long long)pu->current_cpu_tick,
+        (unsigned long long)g_HomeoConfig.plasticity_rate);
+    printf("========================================================================================\n");
+
+    printf(" ZELLULÄRER ZUSTAND [Knoten #30]:\n");
+    printf("  Ist-Aktivitaet (Ch 1) : %llu  |  Soll-Wert (Target) : %llu  --> ",
+        (unsigned long long)act, (unsigned long long)target);
+
+    if (act > target) {
+        printf("[ OVER-EXCITED -> DAEMPFUNG ]\n");
+    }
+    else if (act < target) {
+        printf("[ UNDER-EXCITED -> SENSITIVIERUNG ]\n");
+    }
+    else {
+        printf("[ OPTIMAL -> HOMEOSTASE / STABIL ]\n");
+    }
+
+    printf("  Exzitabilitaet (Ch 2) : ");
+    Print_Sensitivitaets_Balken(sens);
+    printf("\n========================================================================================\n\n");
 }
 
 int main(void) {
-    printf("==================================================================\n");
-    printf("[SDK Example 5]: Intrinsisches Homeostatisches Reglersystem\n");
-    printf("==================================================================\n\n");
-
-    printf("Waehlen Sie das homeostatische Testszenario:\n");
-    printf(" [1] Chronische Ueberreizung  (Aktivitaet liegt dauerhaft bei 5 -> Soll: 2)\n");
-    printf(" [2] Sensorische Deprivation (Aktivitaet liegt dauerhaft bei 0 -> Soll: 2)\n");
-    printf(" [3] Stables Fliessgleichgewicht (Aktivitaet trifft exakt den Soll-Wert 2)\n");
-    printf("Auswahl (1-3): ");
-
-    int choice = 1;
-    if (scanf("%d", &choice) != 1) choice = 1;
-    g_HomeoConfig.scenario = choice;
-
     ProUniverse pu;
     ProPhysics_Initialize(&pu, 100);
 
-    /* Initialisiere Testknoten 30 als aktives Funktionselement */
-    pu.ur_grid[30].type_state = TYPE_NEURON;
-    pu.ur_grid[40].type_state = TYPE_NEURON;
+    Reset_Simulation(&pu);
 
-    /* Routing-Vektor legen: 30 zielt auf 40 */
-    pu.reg_source[30].channels[0] = 40ULL;
+    char choice = 0;
+    while (true) {
+        Print_Network_State(&pu);
 
-    /* Injektion der historischen Simulationsdaten basierend auf Szenariowahl */
-    if (choice == 1) {
-        pu.reg_source[30].channels[1] = 5ULL;   /**< Extrem hoher Aktivitätswert */
-    }
-    else if (choice == 2) {
-        pu.reg_source[30].channels[1] = 0ULL;   /**< Nullaktivität (Isoliert) */
-    }
-    else {
-        pu.reg_source[30].channels[1] = 2ULL;   /**< Perfekte Balance */
-    }
+        printf("--- INTERAKTIVE HOMEOSTASIS REGLERKREIS CONSOLE ---\n");
+        printf(" [1] 1 Regelkreis-Tick ausfuehren\n");
+        printf(" [2] 5 Ticks in Folge ausfuehren\n");
+        printf(" [3] Preset: Chronische Ueberreizung  (Aktivitaet: 5, Target: 2)\n");
+        printf(" [4] Preset: Sensorische Deprivation (Aktivitaet: 0, Target: 2)\n");
+        printf(" [5] Preset: Fliessgleichgewicht     (Aktivitaet: 2, Target: 2)\n");
+        printf(" [6] Ist-Aktivitaet manuell setzen\n");
+        printf(" [7] Soll-Wert & Plastizitaetsrate anpassen\n");
+        printf(" [r] Simulation zuruecksetzen\n");
+        printf(" [q] Beenden\n");
+        printf(" Auswahl > ");
 
-    /* Start-Exzitabilität (Sensitivität) auf einen neutralen Basiswert von 100 setzen */
-    pu.reg_source[30].channels[2] = 100ULL;
+        if (scanf(" %c", &choice) != 1) break;
 
-    printf("\n[START] Knoten [30] geladen. Init-Sensitivitaet: %llu | Soll-Aktivitaet: %llu\n",
-        pu.reg_source[30].channels[2], g_HomeoConfig.target_activity);
-    printf("--- Starte Zeitreihen-Simulation (4 feedback-Regelzyklen) ---\n");
+        if (choice == 'q' || choice == 'Q') {
+            printf("\nSimulation beendet.\n");
+            break;
+        }
 
-    for (int t = 1; t <= 4; t++) {
-        ProPhysics_SDK_Execute_Custom_Tick(&pu, HomeostaticRegulationRule);
+        switch (choice) {
+        case '1':
+            ProPhysics_SDK_Execute_Custom_Tick(&pu, HomeostaticRegulationRule);
+            printf("\n>> Tick #%llu verarbeitet.\n", (unsigned long long)pu.current_cpu_tick);
+            break;
 
-        uint64_t current_sens = pu.reg_source[30].channels[2];
-        uint64_t current_act = pu.reg_source[30].channels[1];
+        case '2':
+            for (int i = 0; i < 5; i++) {
+                ProPhysics_SDK_Execute_Custom_Tick(&pu, HomeostaticRegulationRule);
+            }
+            printf("\n>> 5 Ticks vollzogen.\n");
+            break;
 
-        printf("  Tick #%d -> Aktuelle Sensitivitaet: %3llu | Gemessenes Signal: %llu\n",
-            t, current_sens, current_act);
-    }
+        case '3':
+            g_HomeoConfig.scenario = 1;
+            g_HomeoConfig.target_activity = 2ULL;
+            g_HomeoConfig.plasticity_rate = 5ULL;
+            Reset_Simulation(&pu);
+            printf("\n[PRESET OK] Ueberreizungs-Szenario geladen.\n");
+            break;
 
-    /* Wissenschaftliche Bewertung im Log ausgeben */
-    uint64_t final_sens = pu.reg_source[30].channels[2];
-    printf("\n[RESULTAT] ");
-    if (choice == 1) {
-        if (final_sens < 100) printf("Dämpfung erfolgreich. Die Exzitabilitaet wurde autonom herunterskaliert.\n");
-    }
-    else if (choice == 2) {
-        if (final_sens > 100) printf("Sensitivierung erfolgreich. Die Zelle steuert gegen den Signalverlust an.\n");
-    }
-    else {
-        if (final_sens == 100) printf("System im Gleichgewicht. Es waren keine regulatorischen Eingriffe notwendig.\n");
+        case '4':
+            g_HomeoConfig.scenario = 2;
+            g_HomeoConfig.target_activity = 2ULL;
+            g_HomeoConfig.plasticity_rate = 5ULL;
+            Reset_Simulation(&pu);
+            printf("\n[PRESET OK] Deprivations-Szenario geladen.\n");
+            break;
+
+        case '5':
+            g_HomeoConfig.scenario = 3;
+            g_HomeoConfig.target_activity = 2ULL;
+            g_HomeoConfig.plasticity_rate = 5ULL;
+            Reset_Simulation(&pu);
+            printf("\n[PRESET OK] Fliessgleichgewicht geladen.\n");
+            break;
+
+        case '6': {
+            uint64_t val = 0;
+            printf("\nNeue Ist-Aktivitaet fuer Knoten #30 eingeben > ");
+            if (scanf("%llu", &val) == 1) {
+                pu.reg_source[30].channels[1] = val;
+                printf("[OK] Ist-Aktivitaet auf %llu gesetzt.\n", (unsigned long long)val);
+            }
+            break;
+        }
+
+        case '7': {
+            uint64_t t = 0, r = 0;
+            printf("\nNeuer Soll-Wert (Target Activity) > ");
+            if (scanf("%llu", &t) == 1) g_HomeoConfig.target_activity = t;
+            printf("Neue Korrektur-Schrittweite (Plasticity Rate) > ");
+            if (scanf("%llu", &r) == 1) g_HomeoConfig.plasticity_rate = r;
+            printf("\n[OK] Reglerparameter aktualisiert.\n");
+            break;
+        }
+
+        case 'r':
+        case 'R':
+            Reset_Simulation(&pu);
+            printf("\n[OK] Simulation auf Initialzustand zurueckgesetzt.\n");
+            break;
+
+        default:
+            printf("\n[!] Ungueltige Eingabe.\n");
+            break;
+        }
     }
 
     ProPhysics_Free(&pu);

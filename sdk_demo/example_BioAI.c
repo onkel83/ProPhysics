@@ -1,10 +1,10 @@
 /**
  * @file example_BioAI.c
- * @brief BioAI SDK - Einheitlicher neuromorpher Mikroschaltkreis.
+ * @brief BioAI SDK - Interaktiver, neuromorpher Multi-Tick Mikroschaltkreis.
  *
  * Kombiniert alle 9 Kern-Mechanismen (Wave, Crossover, Hebbian, Pruning,
  * Homeostasis, Neuromodulation, STDP, Structural Plasticity, Temporal Binding)
- * in einem einzigen, branchless ausgeführten System-Kernel.
+ * in einem branchless ausgeführten System-Kernel.
  */
 
 #include <stdio.h>
@@ -25,7 +25,7 @@
 
 /**
  * @brief Der BioAI Unified Kernel.
- * Vollsymmetrische, branchless Auswertung aller 9 biologischen Core-Regeln.
+ * Vollsymmetrische, branchless Auswertung aller 9 biologischen Core-Regeln in O(1).
  */
 void BioAI_Unified_Kernel(
     uint8_t current_state, uint8_t target_state,
@@ -36,6 +36,7 @@ void BioAI_Unified_Kernel(
     *out_next_state = current_state;
     *out_next_target_state = target_state;
 
+    // Symmetrieprüfung: Beide Knoten müssen valide Neuronen sein
     uint64_t is_valid = (current_state == TYPE_NEURON) && (target_state == TYPE_NEURON);
 
     /* ====================================================================
@@ -55,12 +56,13 @@ void BioAI_Unified_Kernel(
 
     /* 1. NEUROMODULATION & SIGNAL-TRANSMISSION [Modul 1, 2, 6] */
     // Signalverdreifachung bei Modulation (Modulator-Level > 0)
+    // Branchless-Muxing: (3 * active) | (1 * !active) verhindert Pipeline-Flushes
     uint64_t modulation_active = (modulator > 0ULL);
     uint64_t signal_gain = (3ULL * modulation_active) | (1ULL * !modulation_active);
     uint64_t transmitted_energy = 10ULL * signal_gain;
 
     /* 2. TEMPORALE BINDUNG & KOHÄRENZ-GATING [Modul 9] */
-    // Absolute Phasendifferenz berechnen (Branchless)
+    // Absolute Phasendifferenz berechnen (Branchless Betrag ohne abs())
     int64_t phase_diff = (int64_t)pre_tick - (int64_t)post_tick;
     uint64_t phase_mask = (uint64_t)(phase_diff >> 63);
     uint64_t abs_phase_diff = (uint64_t)((phase_diff ^ phase_mask) - phase_mask);
@@ -72,16 +74,16 @@ void BioAI_Unified_Kernel(
         (transmitted_energy * !is_valid);
 
     /* 3. LERNEN: STDP & HEBBIAN PLASTIZITÄT [Modul 3, 7] */
-    // LTP (Kausale Korrelation)
+    // LTP (Kausale Korrelation: Post folgt kurz auf Pre)
     uint64_t is_ltp = is_valid && (post_tick > pre_tick) && ((post_tick - pre_tick) <= STDP_WINDOW);
-    // LTD (Anti-kausale Depression)
+    // LTD (Anti-kausale Depression: Pre folgt auf Post)
     uint64_t is_ltd = is_valid && (pre_tick > post_tick) && ((pre_tick - post_tick) <= STDP_WINDOW);
 
     uint64_t next_weight = weight;
     uint64_t weight_inc = next_weight + 4ULL;
-    uint64_t weight_dec = next_weight - (4ULL * (next_weight >= 4ULL));
+    uint64_t weight_dec = next_weight - (4ULL * (next_weight >= 4ULL)); // Unterlauf-Schutz
 
-    // Obergrenze bei 100 kappen
+    // Obergrenze bei 100 kappen (Branchless Clamp)
     weight_inc = (100ULL * (weight_inc > 100ULL)) | (weight_inc * (weight_inc <= 100ULL));
 
     next_weight = (weight_inc * is_ltp) | (next_weight * !is_ltp);
@@ -89,13 +91,13 @@ void BioAI_Unified_Kernel(
     current_channels[3] = next_weight;
 
     /* 4. HOMÖOSTASE (Sättigungsschutz) [Modul 5] */
-    // Empfänger-Knoten akkumuliert die Energie und regelt homöostatisch gegen
+    // Empfänger-Knoten akkumuliert Energie und regelt bei Überschreiten homöostatisch gegen
     uint64_t new_target_amp = target_amp + transmitted_energy;
     uint64_t homeostatic_damping = 2ULL * (new_target_amp > TARGET_AMPLITUDE);
     target_channels[3] = new_target_amp - (homeostatic_damping * (new_target_amp >= homeostatic_damping));
 
     /* 5. STRUKTURELLES PRUNING [Modul 4, 8] */
-    // Wenn das synaptische Gewicht unter die Schwelle fällt und kein Schutzfaktor (Modulator) stützt
+    // Wenn synaptisches Gewicht unter Schwelle fällt und kein Schutzfaktor (Modulator) stützt
     uint64_t is_degenerated = (next_weight < PRUNING_THRESHOLD);
     uint64_t has_no_protection = (modulator == 0ULL);
     uint64_t trigger_pruning = is_valid && is_degenerated && has_no_protection;
@@ -106,17 +108,62 @@ void BioAI_Unified_Kernel(
 
 int main(void) {
     printf("==================================================================\n");
-    printf("[BioAI Core Unified Kernel]: 9-Module Integrations-Engine         \n");
+    printf("[BioAI Core Unified Kernel]: 9-Module Multi-Tick Simulator        \n");
     printf("==================================================================\n\n");
 
-    printf("Waehlen Sie den Test-Modus fuer die Gesamtfusion:\n");
+    printf("Waehlen Sie den Szenario-Modus:\n");
     printf(" [1] Optimaler Kausal-Pfad  (Kohaerent, Synchronisiert -> LTP & Boosting)\n");
-    printf(" [2] Degenerativer Zerfall  (Asynchron, Niedriges Gewicht -> Pruning-Aktivierung)\n");
-    printf("Auswahl (1-2): ");
+    printf(" [2] Degenerativer Zerfall  (Asynchron, Niedriges Gewicht -> Pruning)\n");
+    printf(" [3] Interaktive Sandbox   (Alle Parameter frei konfigurierbar)\n");
+    printf("Auswahl (1-3): ");
 
     int choice = 1;
     if (scanf("%d", &choice) != 1) choice = 1;
 
+    // Standard-Parameter initialisieren
+    uint64_t init_weight = 40ULL;
+    uint64_t init_pre_tick = 10ULL;
+    uint64_t init_post_tick = 12ULL;
+    uint64_t init_modulator = 50ULL;
+    uint64_t init_target_amp = 10ULL;
+    int mode_spike = 1; // 1 = Rhythmisch, 2 = Einmaliges Ereignis
+    int total_ticks = 10;
+
+    if (choice == 2) {
+        init_weight = 4ULL;
+        init_pre_tick = 10ULL;
+        init_post_tick = 90ULL;
+        init_modulator = 0ULL;
+        init_target_amp = 10ULL;
+    }
+    else if (choice == 3) {
+        printf("\n--- SANDBOX PARAMS ---\n");
+        printf("Start-Gewicht der Synapse (0-100) [z.B. 20]: ");
+        if (scanf("%llu", &init_weight) != 1) init_weight = 20ULL;
+
+        printf("Pre-Spike Tick (Sender) [z.B. 10]: ");
+        if (scanf("%llu", &init_pre_tick) != 1) init_pre_tick = 10ULL;
+
+        printf("Post-Spike Tick (Empfaenger) [z.B. 12]: ");
+        if (scanf("%llu", &init_post_tick) != 1) init_post_tick = 12ULL;
+
+        printf("Modulator-Level / Schutzfaktor [0 = Kein Schutz, >0 = Aktiv]: ");
+        if (scanf("%llu", &init_modulator) != 1) init_modulator = 0ULL;
+
+        printf("Start-Amplitude des Empfaengers [z.B. 10]: ");
+        if (scanf("%llu", &init_target_amp) != 1) init_target_amp = 10ULL;
+    }
+
+    printf("\nWaehlen Sie das Zeitverhalten der Spikes über Ticks:\n");
+    printf(" [1] Rhythmisch / Periodisch (Phase/Delta bleibt pro Tick konstant)\n");
+    printf(" [2] Einmaliges Spike-Ereignis (Spike-Tick verfaellt dynamisch im Zeitverlauf)\n");
+    printf("Auswahl (1-2): ");
+    if (scanf("%d", &mode_spike) != 1) mode_spike = 1;
+
+    printf("Anzahl der zu simulierenden Ticks (1-100) [z.B. 10]: ");
+    if (scanf("%d", &total_ticks) != 1 || total_ticks < 1) total_ticks = 10;
+
+    // ProPhysics Universum initialisieren
     ProUniverse pu;
     ProPhysics_Initialize(&pu, 100);
 
@@ -125,53 +172,60 @@ int main(void) {
     pu.ur_grid[20].type_state = TYPE_NEURON;
     pu.reg_source[10].channels[0] = 20ULL; // Topologie-Link
 
-    if (choice == 1) {
-        /* Szenario 1: Perfekt funktionierender Pfad mit Dopamin-Burst */
-        pu.reg_source[10].channels[1] = 10ULL; // Pre-Spike bei Tick 10
-        pu.reg_source[20].channels[1] = 12ULL; // Post-Spike bei Tick 12 (In-Phase & Kausal)
-        pu.reg_source[10].channels[2] = 50ULL; // Modulator aktiv
-        pu.reg_source[10].channels[3] = 40ULL; // Gesundes synaptisches Ausgangsgewicht
-        pu.reg_source[20].channels[3] = 10ULL; // Start-Amplitude Empfaenger
+    pu.reg_source[10].channels[1] = init_pre_tick;
+    pu.reg_source[20].channels[1] = init_post_tick;
+    pu.reg_source[10].channels[2] = init_modulator;
+    pu.reg_source[10].channels[3] = init_weight;
+    pu.reg_source[20].channels[3] = init_target_amp;
+
+    printf("\n=======================================================================================\n");
+    printf("%-5s | %-8s | %-9s | %-13s | %-13s | %-18s\n",
+        "Tick", "Pre-Tick", "Post-Tick", "Syn. Gewicht", "Empf. Amp", "Topologie-Link");
+    printf("=======================================================================================\n");
+
+    for (int t = 1; t <= total_ticks; t++) {
+        uint8_t ns = pu.ur_grid[10].type_state;
+        uint8_t nts = pu.ur_grid[20].type_state;
+
+        BioAI_Unified_Kernel(
+            pu.ur_grid[10].type_state, pu.ur_grid[20].type_state,
+            pu.reg_source[10].channels, pu.reg_source[20].channels,
+            &ns, &nts
+        );
+
+        pu.ur_grid[10].type_state = ns;
+        pu.ur_grid[20].type_state = nts;
+
+        uint64_t link = pu.reg_source[10].channels[0];
+        char link_str[32];
+        if (link == UNLINKED_SENTINEL) {
+            snprintf(link_str, sizeof(link_str), "UNLINKED (Pruned)");
+        }
+        else {
+            snprintf(link_str, sizeof(link_str), "Node %llu", link);
+        }
+
+        printf("%-5d | %-8llu | %-9llu | %-13llu | %-13llu | %-18s\n",
+            t,
+            pu.reg_source[10].channels[1],
+            pu.reg_source[20].channels[1],
+            pu.reg_source[10].channels[3],
+            pu.reg_source[20].channels[3],
+            link_str);
+
+        // Fortlaufende Zeitdynamik anpassen
+        if (mode_spike == 1) {
+            // Rhythmisch: Spikes wandern synchron mit
+            pu.reg_source[10].channels[1]++;
+            pu.reg_source[20].channels[1]++;
+        }
+        else {
+            // Einmaliges Ereignis: Nur der Empfänger-Tick / System-Tick driftet ab
+            pu.reg_source[20].channels[1]++;
+        }
     }
-    else {
-        /* Szenario 2: Absterbender, asynchroner Pfad ohne Schutz */
-        pu.reg_source[10].channels[1] = 10ULL; // Pre-Spike
-        pu.reg_source[20].channels[1] = 90ULL; // Post-Spike weit weg (Asynchron)
-        pu.reg_source[10].channels[2] = 0ULL;  // Kein Modulator / Schutz
-        pu.reg_source[10].channels[3] = 4ULL;  // Bereits unterm Pruning-Limit (Gewicht = 4)
-        pu.reg_source[20].channels[3] = 10ULL;
-    }
 
-    printf("\n--- Zustand VOR Kernel-Ausfuehrung ---\n");
-    printf("  Synapsen-Gewicht [10]: %llu\n", pu.reg_source[10].channels[3]);
-    printf("  Ziel-Verknuepfung [10]: %llu\n", pu.reg_source[10].channels[0]);
-    printf("  Ziel-Amplitude [20]:   %llu\n", pu.reg_source[20].channels[3]);
-
-    /* Systemtakt simulieren (Ausführung über den kombinierten Kernel) */
-    uint8_t ns = pu.ur_grid[10].type_state;
-    uint8_t nts = pu.ur_grid[20].type_state;
-
-    BioAI_Unified_Kernel(
-        pu.ur_grid[10].type_state, pu.ur_grid[20].type_state,
-        pu.reg_source[10].channels, pu.reg_source[20].channels,
-        &ns, &nts
-    );
-
-    pu.ur_grid[10].type_state = ns;
-    pu.ur_grid[20].type_state = nts;
-
-    printf("\n--- Zustand NACH Kernel-Ausfuehrung ---\n");
-    printf("  Synapsen-Gewicht [10]: %llu\n", pu.reg_source[10].channels[3]);
-    printf("  Ziel-Amplitude [20]:   %llu (Moduliert & Homoeostatisch gedrosselt)\n", pu.reg_source[20].channels[3]);
-
-    uint64_t final_target = pu.reg_source[10].channels[0];
-    printf("  Ziel-Verknuepfung [10]: ");
-    if (final_target == UNLINKED_SENTINEL) {
-        printf("UNLINKED (Pruning erfolgreich!)\n");
-    }
-    else {
-        printf("%llu (Aktiv & Stabilisiert)\n", final_target);
-    }
+    printf("=======================================================================================\n\n");
 
     ProPhysics_Free(&pu);
     return 0;

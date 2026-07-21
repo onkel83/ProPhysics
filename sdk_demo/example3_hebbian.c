@@ -1,19 +1,17 @@
 /**
  * @file example3_hebbian.c
- * @brief BioAI SDK - Neuro-symbolische Hebbian Plasticity & LTD-Dämpfung.
+ * @brief BioAI SDK - Neuro-symbolische Hebbian Plasticity & LTD-Dämpfung (Interaktiv).
  *
  * Dieses Modul implementiert die lokale synaptische Plastizität direkt auf den
  * Kausal-Vektoren der Engine. Die synaptische Gewichtung (Stärke der Verbindung)
  * wird im oberen 16-Bit-Segment von Kanal 0 codiert, während die unteren 48 Bit
  * die Zieladresse des Zielneurons (Postsynapse) abbilden.
- *
- * Neuerungen: Interaktive Szenarien zur Simulation von LTP (Langzeit-Potenzierung),
- * LTD (Langzeit-Depression/Zerfall) und deterministischen Überlauf-Schutzmechanismen.
  */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <string.h>
 #include "ProPhysics.h"
 
@@ -32,7 +30,21 @@ typedef struct {
 } HebbianConfig;
 
 /* Globale Konfigurationsinstanz für die neuronale Simulation */
-static HebbianConfig g_HebbianConfig = { 0, 0ULL, 1 };
+static HebbianConfig g_HebbianConfig = { 1, 5ULL, 1 };
+
+/**
+ * @brief Hilfsfunktion zur Analyse und Dekodierung des 64-Bit Kausal-Vektors.
+ */
+static void Print_CausalVector_Analysis(uint64_t raw_vector) {
+    uint16_t weight = (uint16_t)(raw_vector >> 48);
+    uint64_t target_addr = raw_vector & 0x0000FFFFFFFFFFFFULL;
+
+    printf("0x%016llX | Gewicht: %5u (0x%04X) | Ziel-Knoten ID: %llu\n",
+        (unsigned long long)raw_vector,
+        (unsigned int)weight,
+        (unsigned int)weight,
+        (unsigned long long)target_addr);
+}
 
 /**
  * @brief Wissenschaftlicher Callback-Kernel: Neuro-symbolische Hebbian Plasticity.
@@ -92,7 +104,7 @@ void ProPhysics_SDK_Execute_Custom_Tick(ProUniverse* pu,
     pu->current_cpu_tick++;
     uint64_t active_interactions = 0;
 
-    memset(pu->reg_target, 0, pu->total_nodes * sizeof(ProPointerRegister));
+    memset(pu->reg_target, 0, pu->total_nodes * sizeof(*pu->reg_target));
 
     for (uint64_t idx = 0; idx < pu->total_nodes; idx++) {
         uint8_t cs = pu->ur_grid[idx].type_state;
@@ -141,83 +153,157 @@ void ProPhysics_SDK_Execute_Custom_Tick(ProUniverse* pu,
     pu->reg_source = pu->reg_target;
     pu->reg_target = t;
 
-    pu->global_entropy_index = (double)active_interactions;
+    /* Behebung von Warning C4244: Expliziter Cast auf uint32_t */
+    pu->global_entropy_index = (uint32_t)active_interactions;
 }
 
 /**
- * @brief Hauptprogramm zur Verifikation neuro-symbolischer Lernprozesse.
+ * @brief Setzt die Testnetz-Topologie auf definierte Startwerte zurück.
  */
+static void Reset_Simulation(ProUniverse* pu) {
+    /* Behebung von Error C2065: Verwende sizeof(*pointer) statt expliziten Typnamen */
+    memset(pu->ur_grid, 0, pu->total_nodes * sizeof(*pu->ur_grid));
+    memset(pu->reg_source, 0, pu->total_nodes * sizeof(*pu->reg_source));
+    memset(pu->reg_target, 0, pu->total_nodes * sizeof(*pu->reg_target));
+
+    pu->current_cpu_tick = 0;
+    pu->global_entropy_index = 0;
+
+    /* Praesasynchrones Neuron #5 feuert */
+    pu->ur_grid[5].type_state = TYPE_NEURON;
+
+    /* Postsynaptisches Neuron #15 basierend auf Szenario initialisieren */
+    if (g_HebbianConfig.scenario == 2) {
+        pu->ur_grid[15].type_state = STATE_NEUTRAL; /* LTD Szenario */
+    }
+    else {
+        pu->ur_grid[15].type_state = TYPE_NEURON;  /* Standard Koinzidenz (LTP) */
+    }
+
+    /* Ziel-Adresse 15 im 48-Bit-Raum verankern und Startgewicht injizieren */
+    pu->reg_source[5].channels[0] = 15ULL | (g_HebbianConfig.start_weight << 48);
+}
+
+/**
+ * @brief Konsolen-Visualisierung der plastischen Synapse.
+ */
+static void Print_Network_State(const ProUniverse* pu) {
+    uint64_t ch0 = pu->reg_source[5].channels[0];
+    uint16_t weight = (uint16_t)(ch0 >> 48);
+    uint64_t target = ch0 & 0x0000FFFFFFFFFFFFULL;
+
+    uint8_t pre_st = pu->ur_grid[5].type_state;
+    uint8_t post_st = (target < pu->total_nodes) ? pu->ur_grid[target].type_state : STATE_NEUTRAL;
+
+    printf("\n========================================================================================\n");
+    printf(" BIOAI HEBBIAN CORE | Tick #%-3llu | Decay Mode (LTD): %s\n",
+        (unsigned long long)pu->current_cpu_tick,
+        g_HebbianConfig.decay_mode ? "AKTIV" : "INAKTIV");
+    printf("========================================================================================\n");
+    printf(" Prae-Neuron  [#5] : Status = %-18s (0x%02X)\n",
+        (pre_st == TYPE_NEURON) ? "FEUERT [TYPE_NEURON]" : "INAKTIV [STATE_NEUTRAL]", pre_st);
+    printf(" Post-Neuron [#%llu] : Status = %-18s (0x%02X)\n",
+        (unsigned long long)target,
+        (post_st == TYPE_NEURON) ? "FEUERT [TYPE_NEURON]" : "INAKTIV [STATE_NEUTRAL]", post_st);
+    printf("----------------------------------------------------------------------------------------\n");
+    printf(" Kausal-Vektor (Ch 0) : ");
+    Print_CausalVector_Analysis(ch0);
+    printf(" Synaptische Staerke  : %u / 65535 (0xFFFF)\n", weight);
+    printf("========================================================================================\n\n");
+}
+
 int main(void) {
-    printf("==================================================================\n");
-    printf("[SDK Example 3]: Neuro-symbolische Hebbian Plasticity Engine\n");
-    printf("==================================================================\n\n");
-
-    printf("Waehlen Sie das neuronale Lern-Szenario:\n");
-    printf(" [1] Klassische LTP (Koinzidenz-Lernen: Beide Neuronen aktiv)\n");
-    printf(" [2] Synaptischer LTD-Zerfall (Asynchron: Postsynapse schlaeft)\n");
-    printf(" [3] Strikter Saettigungs-Schutz (Branchless Overflow-Check)\n");
-    printf("Auswahl (1-3): ");
-
-    int choice = 1;
-    if (scanf("%d", &choice) != 1) choice = 1;
-    g_HebbianConfig.scenario = choice;
-
-    /* Standardparameter je nach Szenario setzen */
-    if (choice == 2) {
-        g_HebbianConfig.decay_mode = 1;       /* Schalte LTD-Gewichtszerfall frei */
-        g_HebbianConfig.start_weight = 5ULL;  /* Starte erhöht, um Dämpfung zu sehen */
-    }
-    else if (choice == 3) {
-        g_HebbianConfig.start_weight = 0xFFFEULL; /* Knapp unter 16-Bit-Maximum (65534) */
-    }
-
     ProUniverse pu;
     ProPhysics_Initialize(&pu, 500);
 
-    /* --- Topologie-Setup & Zustandsinjektion --- */
-    /* Initiiere das präsynaptische Neuron auf Index 5 */
-    pu.ur_grid[5].type_state = TYPE_NEURON;
+    Reset_Simulation(&pu);
 
-    /* Zustand des postsynaptischen Neurons auf Index 15 basierend auf Szenario bestimmen */
-    if (choice == 1 || choice == 3) {
-        pu.ur_grid[15].type_state = TYPE_NEURON;   /* Aktivierte Koinzidenz */
-    }
-    else {
-        pu.ur_grid[15].type_state = STATE_NEUTRAL; /* Postsynapse schläft -> führt zu LTD */
-    }
+    char choice = 0;
+    while (true) {
+        Print_Network_State(&pu);
 
-    /* Ziel-Adresse 15 im 48-Bit-Raum verankern und konfiguriertes Startgewicht injizieren */
-    pu.reg_source[5].channels[0] = 15ULL | (g_HebbianConfig.start_weight << 48);
+        printf("--- INTERAKTIVE NEURO-PLASTIZITAETS CONSOLE ---\n");
+        printf(" [1] 1 Tick ausfuehren (Hebbian Pass)\n");
+        printf(" [2] 5 Ticks in Folge ausfuehren\n");
+        printf(" [3] Post-Neuron [#15] Zustand umschalten (Feuern vs. Ruhe)\n");
+        printf(" [4] LTD-Gewichtszerfall (Decay Mode) umschalten\n");
+        printf(" [5] Preset: LTP Koinzidenz-Lernen (Beide aktiv)\n");
+        printf(" [6] Preset: LTD Zerfall (Postsynapse inaktiv, Decay On)\n");
+        printf(" [7] Preset: Saettigungsschutz (Startgewicht 0xFFFE)\n");
+        printf(" [r] Simulation zuruecksetzen\n");
+        printf(" [q] Beenden\n");
+        printf(" Auswahl > ");
 
-    uint64_t init_w = (pu.reg_source[5].channels[0] >> 48);
-    printf("\n[START] Initialwert der Synapse [5->15]: %u (0x%04X)\n", (uint32_t)init_w, (uint32_t)init_w);
-    printf("--- Starte Zeitreihen-Simulation (5 Ticks) ---\n");
+        if (scanf(" %c", &choice) != 1) break;
 
-    for (int t = 1; t <= 5; t++) {
-        ProPhysics_SDK_Execute_Custom_Tick(&pu, HebbianPlasticityRule);
-
-        uint64_t current_weight = (pu.reg_source[5].channels[0] >> 48);
-        uint64_t target_address = (pu.reg_source[5].channels[0] & 0x0000FFFFFFFFFFFFULL);
-
-        printf("  Tick #%d -> Synaptische Staerke: %5u | Ziel-Knoten: %2llu\n",
-            t, (uint32_t)current_weight, (unsigned long long)target_address);
-    }
-
-    /* Wissenschaftliche End-Auswertung im Log */
-    uint64_t final_w = (pu.reg_source[5].channels[0] >> 48);
-    printf("\n[RESULTAT] ");
-    if (choice == 1) {
-        printf("LTP erfolgreich. Die synaptische Kopplung wurde deterministisch verstaerkt.\n");
-    }
-    else if (choice == 2) {
-        printf("LTD erfolgreich. Verbindung wurde aufgrund mangelnder Koinzidenz abgewertet.\n");
-    }
-    else if (choice == 3) {
-        if (final_w == 0xFFFFULL) {
-            printf("Ueberlauf-Schutz intakt. Das Gewicht wurde präzise bei 65535 (0xFFFF) gedeckelt.\n");
+        if (choice == 'q' || choice == 'Q') {
+            printf("\nSimulation beendet.\n");
+            break;
         }
-        else {
-            printf("WARNUNG: Bit-Kollision oder unerwarteter Register-Ueberlauf detektiert!\n");
+
+        switch (choice) {
+        case '1':
+            ProPhysics_SDK_Execute_Custom_Tick(&pu, HebbianPlasticityRule);
+            printf("\n>> Tick #%llu verarbeitet.\n", (unsigned long long)pu.current_cpu_tick);
+            break;
+
+        case '2':
+            for (int i = 0; i < 5; i++) {
+                ProPhysics_SDK_Execute_Custom_Tick(&pu, HebbianPlasticityRule);
+            }
+            printf("\n>> 5 Ticks vollzogen.\n");
+            break;
+
+        case '3':
+            if (pu.ur_grid[15].type_state == TYPE_NEURON) {
+                pu.ur_grid[15].type_state = STATE_NEUTRAL;
+                printf("\n[OK] Post-Neuron #15 ist nun RUHEND (0x00).\n");
+            }
+            else {
+                pu.ur_grid[15].type_state = TYPE_NEURON;
+                printf("\n[OK] Post-Neuron #15 ist nun AKTIV (0x05).\n");
+            }
+            break;
+
+        case '4':
+            g_HebbianConfig.decay_mode = !g_HebbianConfig.decay_mode;
+            printf("\n[OK] LTD Decay Mode ist jetzt %s.\n",
+                g_HebbianConfig.decay_mode ? "AKTIV" : "INAKTIV");
+            break;
+
+        case '5':
+            g_HebbianConfig.scenario = 1;
+            g_HebbianConfig.decay_mode = 0;
+            g_HebbianConfig.start_weight = 0ULL;
+            Reset_Simulation(&pu);
+            printf("\n[PRESET OK] LTP Koinzidenz geladen.\n");
+            break;
+
+        case '6':
+            g_HebbianConfig.scenario = 2;
+            g_HebbianConfig.decay_mode = 1;
+            g_HebbianConfig.start_weight = 10ULL;
+            Reset_Simulation(&pu);
+            printf("\n[PRESET OK] LTD Zerfall geladen.\n");
+            break;
+
+        case '7':
+            g_HebbianConfig.scenario = 3;
+            g_HebbianConfig.decay_mode = 0;
+            g_HebbianConfig.start_weight = 0xFFFEULL;
+            Reset_Simulation(&pu);
+            printf("\n[PRESET OK] Saettigungstest geladen.\n");
+            break;
+
+        case 'r':
+        case 'R':
+            Reset_Simulation(&pu);
+            printf("\n[OK] Simulation auf Initialzustand zurueckgesetzt.\n");
+            break;
+
+        default:
+            printf("\n[!] Ungueltige Eingabe.\n");
+            break;
         }
     }
 

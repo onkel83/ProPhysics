@@ -155,8 +155,8 @@ void ProPhysics_SDK_Execute_Custom_Tick(ProUniverse* pu, ProPhysics_ScientificRu
     pu->reg_source = pu->reg_target;
     pu->reg_target = temp;
 
-    // Metrik-Rückgabe an das Universum (Simulierte Entropie über Interaktionsdichte)
-    pu->global_entropy_index = (double)active_interactions;
+    // Metrik-Rückgabe an das Universum (Simulierte Entropie über Interaktionsdichte als uint32_t)
+    pu->global_entropy_index = (uint32_t)active_interactions;
 }
 
 
@@ -165,7 +165,7 @@ void ProPhysics_SDK_Execute_Custom_Tick(ProUniverse* pu, ProPhysics_ScientificRu
 // =========================================================================
 int main(void) {
     printf("================================================================================\n");
-    printf("         PROPHYSICS UNIVERSAL OPEN-SOURCE SDK RUNTIME SUPPORT\n");
+    printf("        PROPHYSICS UNIVERSAL OPEN-SOURCE SDK RUNTIME SUPPORT\n");
     printf("================================================================================\n");
     printf("[*] Lade native ProPhysics Core-DLL und allokiere Substrat...\n");
 
@@ -202,7 +202,7 @@ int main(void) {
         ProPhysics_SDK_Execute_Custom_Tick(&pu, selected_plugin);
 
         if (tick % 10 == 0) {
-            printf("  -> Simulations-Tick #%2d: Aktive System-Interaktionen = %.0f\n",
+            printf("  -> Simulations-Tick #%2d: Aktive System-Interaktionen = %u\n",
                 tick, pu.global_entropy_index);
         }
     }

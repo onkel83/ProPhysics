@@ -1,6 +1,6 @@
 /**
  * @file example4_pruning.c
- * @brief BioAI SDK - Strukturelles Synaptisches Pruning & Topologie-Bereinigung.
+ * @brief BioAI SDK - Strukturelles Synaptisches Pruning & Topologie-Bereinigung (Interaktiv).
  *
  * Dieses Modul simuliert den biologischen Pruning-Prozess (Synapsen-Eliminierung).
  * Fällt das synaptische Gewicht (obere 16 Bit von Kanal 0) unter eine kritische
@@ -11,12 +11,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <string.h>
 #include "ProPhysics.h"
 
- /* --- Systemzustände --- */
-#define STATE_NEUTRAL 0x00U
-#define TYPE_NEURON   0x05U
+ /* --- Systemzustände der Netzwerkknoten --- */
+#define STATE_NEUTRAL 0x00U  /**< Inaktiver Knoten / Ruhezustand */
+#define TYPE_NEURON   0x05U  /**< Aktiver neuronaler Knoten */
 
 /**
  * @struct PruningConfig
@@ -25,11 +26,31 @@
 typedef struct {
     uint64_t pruning_threshold; /**< Gewichts-Untergrenze, unter der gekappt wird */
     uint64_t metabolic_decay;   /**< Abzugs-Koeffizient pro Zeitschritt (Metabolischer Druck) */
-    int scenario;               /**< 1 = Sanfter Abbau, 2 = Schock-Pruning, 3 = Protektion durch Aktivität */
+    uint64_t initial_weight;    /**< Startgewicht für Rekonstruktion */
+    int scenario;                /**< Aktuelles Pruning-Szenario */
 } PruningConfig;
 
-/* Globale Struktur für die Pruning-Szenarien */
-static PruningConfig g_PruningConfig = { 10ULL, 2ULL, 1 };
+/* Globale Konfiguration für die Pruning-Simulation */
+static PruningConfig g_PruningConfig = { 10ULL, 2ULL, 15ULL, 1 };
+
+/**
+ * @brief Hilfsfunktion zur Analyse und Dekodierung des 64-Bit Kausal-Vektors.
+ */
+static void Print_CausalVector_Analysis(uint64_t raw_vector) {
+    uint16_t weight = (uint16_t)(raw_vector >> 48);
+    uint64_t target_addr = raw_vector & 0x0000FFFFFFFFFFFFULL;
+
+    if (target_addr == 0) {
+        printf("0x0000000000000000 | [GEPRUNT / PHYSISCH GETRENNT]\n");
+    }
+    else {
+        printf("0x%016llX | Gewicht: %5u (0x%04X) | Ziel-Knoten ID: %llu\n",
+            (unsigned long long)raw_vector,
+            (unsigned int)weight,
+            (unsigned int)weight,
+            (unsigned long long)target_addr);
+    }
+}
 
 /**
  * @brief Wissenschaftlicher Callback-Kernel: Branchless Synaptic Pruning.
@@ -87,7 +108,7 @@ void ProPhysics_SDK_Execute_Custom_Tick(ProUniverse* pu,
     pu->current_cpu_tick++;
     uint64_t active_interactions = 0;
 
-    memset(pu->reg_target, 0, pu->total_nodes * sizeof(ProPointerRegister));
+    memset(pu->reg_target, 0, pu->total_nodes * sizeof(*pu->reg_target));
 
     for (uint64_t idx = 0; idx < pu->total_nodes; idx++) {
         uint8_t cs = pu->ur_grid[idx].type_state;
@@ -136,62 +157,152 @@ void ProPhysics_SDK_Execute_Custom_Tick(ProUniverse* pu,
     pu->reg_source = pu->reg_target;
     pu->reg_target = t;
 
-    pu->global_entropy_index = (double)active_interactions;
+    /* Behebung von Warning C4244: Expliziter Cast auf uint32_t */
+    pu->global_entropy_index = (uint32_t)active_interactions;
+}
+
+/**
+ * @brief Setzt die Testnetz-Topologie auf definierte Startwerte zurück.
+ */
+static void Reset_Simulation(ProUniverse* pu) {
+    memset(pu->ur_grid, 0, pu->total_nodes * sizeof(*pu->ur_grid));
+    memset(pu->reg_source, 0, pu->total_nodes * sizeof(*pu->reg_source));
+    memset(pu->reg_target, 0, pu->total_nodes * sizeof(*pu->reg_target));
+
+    pu->current_cpu_tick = 0;
+    pu->global_entropy_index = 0;
+
+    /* Aktivierung der beteiligten neuronalen Einheiten (#10 und #20) */
+    pu->ur_grid[10].type_state = TYPE_NEURON;
+    pu->ur_grid[20].type_state = TYPE_NEURON;
+
+    /* Kausal-Verknüpfung von Knoten 10 auf Knoten 20 mit Startgewicht */
+    pu->reg_source[10].channels[0] = 20ULL | (g_PruningConfig.initial_weight << 48);
+}
+
+/**
+ * @brief Konsolen-Visualisierung der Synapse und des Pruning-Zustands.
+ */
+static void Print_Network_State(const ProUniverse* pu) {
+    uint64_t ch0 = pu->reg_source[10].channels[0];
+    uint16_t weight = (uint16_t)(ch0 >> 48);
+    uint64_t target = ch0 & 0x0000FFFFFFFFFFFFULL;
+
+    printf("\n========================================================================================\n");
+    printf(" BIOAI PRUNING CORE | Tick #%-3llu | Decay Rate: %llu | Threshold: %llu\n",
+        (unsigned long long)pu->current_cpu_tick,
+        (unsigned long long)g_PruningConfig.metabolic_decay,
+        (unsigned long long)g_PruningConfig.pruning_threshold);
+    printf("========================================================================================\n");
+
+    /* Topologie-Graph im ASCII-Format */
+    printf(" TOPOLOGIE:  [Knoten #10] ");
+    if (target == 0) {
+        printf(" --x-- ( GEPRUNT / ELEMINIERT ) --x-- ");
+    }
+    else if (weight < g_PruningConfig.pruning_threshold + 5) {
+        printf(" --?-- (DEGRADIERT: %2u) --------> ", weight);
+    }
+    else {
+        printf(" ===== (STABIL: %2u) ===========> ", weight);
+    }
+    printf("[Knoten #20]\n");
+
+    printf("----------------------------------------------------------------------------------------\n");
+    printf(" Kausal-Vektor (Ch 0) : ");
+    Print_CausalVector_Analysis(ch0);
+    printf(" Synaptischer Status  : %s\n",
+        (target == 0) ? "INAKTIV (Null-Maske angewendet)" : "STABIL / VERBUNDEN");
+    printf("========================================================================================\n\n");
 }
 
 int main(void) {
-    printf("==================================================================\n");
-    printf("[SDK Example 4]: Strukturelles Synaptisches Pruning-System\n");
-    printf("==================================================================\n\n");
-
-    printf("Waehlen Sie das Pruning-Szenario:\n");
-    printf(" [1] Sanfter Zerfall (Kappung unterschreitet Schwelle 10)\n");
-    printf(" [2] Schock-Pruning  (Aggressiver Abbau, hohe Degradierung)\n");
-    printf(" [3] Funktionale Protektion (Gewicht hoch genug, Pfad bleibt stabil)\n");
-    printf("Auswahl (1-3): ");
-
-    int choice = 1;
-    if (scanf("%d", &choice) != 1) choice = 1;
-    g_PruningConfig.scenario = choice;
-
-    /* Szenarienspezifische Injektions-Werte definieren */
-    uint64_t initial_weight = 15ULL; // Startgewicht
-    if (choice == 2) {
-        g_PruningConfig.metabolic_decay = 12ULL;   // Riesiger Verlust pro Tick
-        g_PruningConfig.pruning_threshold = 5ULL;
-    }
-    else if (choice == 3) {
-        initial_weight = 50ULL; // Sehr stark verankerte Verbindung
-        g_PruningConfig.metabolic_decay = 2ULL;
-        g_PruningConfig.pruning_threshold = 5ULL;
-    }
-
     ProUniverse pu;
     ProPhysics_Initialize(&pu, 100);
 
-    /* Aktivierung der beteiligten neuronalen Einheiten */
-    pu.ur_grid[10].type_state = TYPE_NEURON;
-    pu.ur_grid[20].type_state = TYPE_NEURON;
+    Reset_Simulation(&pu);
 
-    /* Kausal-Verknuepfung von Knoten 10 auf Knoten 20 mit Startgewicht */
-    pu.reg_source[10].channels[0] = 20ULL | (initial_weight << 48);
+    char choice = 0;
+    while (true) {
+        Print_Network_State(&pu);
 
-    printf("\n[START] Synapse [10->20] geladen. Init-Staerke: %llu, Schwelle: %llu\n",
-        initial_weight, g_PruningConfig.pruning_threshold);
-    printf("--- Starte Zeitreihen-Simulation (4 Ticks) ---\n");
+        printf("--- INTERAKTIVE SYNAPTIC PRUNING CONSOLE ---\n");
+        printf(" [1] 1 Tick ausfuehren (Metabolischen Zerfall berechnen)\n");
+        printf(" [2] 5 Ticks in Folge ausfuehren\n");
+        printf(" [3] Preset: Sanfter Zerfall (Init: 15, Decay: 2, Threshold: 10)\n");
+        printf(" [4] Preset: Schock-Pruning   (Init: 15, Decay: 12, Threshold: 5)\n");
+        printf(" [5] Preset: Protektion       (Init: 50, Decay: 2, Threshold: 5)\n");
+        printf(" [6] Parameter manuell anpassen (Decay / Threshold)\n");
+        printf(" [r] Simulation zuruecksetzen\n");
+        printf(" [q] Beenden\n");
+        printf(" Auswahl > ");
 
-    for (int t = 1; t <= 4; t++) {
-        ProPhysics_SDK_Execute_Custom_Tick(&pu, SynapticPruningRule);
+        if (scanf(" %c", &choice) != 1) break;
 
-        uint64_t current_weight = (pu.reg_source[10].channels[0] >> 48);
-        uint64_t target_address = (pu.reg_source[10].channels[0] & 0x0000FFFFFFFFFFFFULL);
-
-        if (target_address == 0) {
-            printf("  Tick #%d -> [GEPRUNT] Verbindung wurde irreversibel geloescht!\n", t);
+        if (choice == 'q' || choice == 'Q') {
+            printf("\nSimulation beendet.\n");
+            break;
         }
-        else {
-            printf("  Tick #%d -> Synaptische Staerke: %2llu | Ziel-Knoten: %2llu\n",
-                t, current_weight, target_address);
+
+        switch (choice) {
+        case '1':
+            ProPhysics_SDK_Execute_Custom_Tick(&pu, SynapticPruningRule);
+            printf("\n>> Tick #%llu verarbeitet.\n", (unsigned long long)pu.current_cpu_tick);
+            break;
+
+        case '2':
+            for (int i = 0; i < 5; i++) {
+                ProPhysics_SDK_Execute_Custom_Tick(&pu, SynapticPruningRule);
+            }
+            printf("\n>> 5 Ticks vollzogen.\n");
+            break;
+
+        case '3':
+            g_PruningConfig.scenario = 1;
+            g_PruningConfig.initial_weight = 15ULL;
+            g_PruningConfig.metabolic_decay = 2ULL;
+            g_PruningConfig.pruning_threshold = 10ULL;
+            Reset_Simulation(&pu);
+            printf("\n[PRESET OK] Sanfter Zerfall geladen.\n");
+            break;
+
+        case '4':
+            g_PruningConfig.scenario = 2;
+            g_PruningConfig.initial_weight = 15ULL;
+            g_PruningConfig.metabolic_decay = 12ULL;
+            g_PruningConfig.pruning_threshold = 5ULL;
+            Reset_Simulation(&pu);
+            printf("\n[PRESET OK] Schock-Pruning geladen.\n");
+            break;
+
+        case '5':
+            g_PruningConfig.scenario = 3;
+            g_PruningConfig.initial_weight = 50ULL;
+            g_PruningConfig.metabolic_decay = 2ULL;
+            g_PruningConfig.pruning_threshold = 5ULL;
+            Reset_Simulation(&pu);
+            printf("\n[PRESET OK] Funktionale Protektion geladen.\n");
+            break;
+
+        case '6': {
+            uint64_t d = 0, t = 0;
+            printf("\nNeuer Decay-Koeffizient > ");
+            if (scanf("%llu", &d) == 1) g_PruningConfig.metabolic_decay = d;
+            printf("Neuer Pruning-Schwellenwert > ");
+            if (scanf("%llu", &t) == 1) g_PruningConfig.pruning_threshold = t;
+            printf("\n[OK] Parameter aktualisiert.\n");
+            break;
+        }
+
+        case 'r':
+        case 'R':
+            Reset_Simulation(&pu);
+            printf("\n[OK] Simulation auf Initialzustand zurueckgesetzt.\n");
+            break;
+
+        default:
+            printf("\n[!] Ungueltige Eingabe.\n");
+            break;
         }
     }
 
