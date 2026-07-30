@@ -1,0 +1,40 @@
+# ====================================================================
+# BioAI SDK Pipeline - Microsoft NMAKE Script (Makefile.nmake)
+# ====================================================================
+
+CC     = cl.exe
+# /wd4146 schaltet die Warnung fuer uneres Minus auf unsigned Typen stumm (wichtig fuer Branchless-Masken)
+CFLAGS = /nologo /O2 /W3 /D_CRT_SECURE_NO_WARNINGS /wd4146 /I.
+LIBS   = ProPhysics.lib
+
+# Relativer Pfad zum globalen Ausgabe-Verzeichnis
+OUTDIR = ..\bin\sdk_demo
+
+# Hauptziel fuer die automatisierte GitHub Build-Pipeline
+all: prep build_all copy_sdk_assets clean_temp
+
+# Stellt sicher, dass das Verzeichnis existiert
+prep:
+	@if not exist "$(OUTDIR)" mkdir "$(OUTDIR)"
+
+# Exkludiert ProPhysics.c, indem gezielt nur die Executables angewaehlt werden
+build_all:
+	@echo [BUILD] Kompiliere alle SDK-Komponenten autark...
+	@for %f in (example*.c pro_sdk_interface.c) do @$(CC) $(CFLAGS) %f /Fe$(OUTDIR)\%~nf.exe /link $(LIBS)
+
+# Kopiert Source-Templates & Laufzeit-DLLs fuer das fertige SDK-Paket
+copy_sdk_assets:
+	@echo [SDK] Bereite SDK-Ordnerstruktur vor
+	@if exist pro_sdk_interface.c copy /Y pro_sdk_interface.c "$(OUTDIR)\" >nul
+	@if exist pro_sdk_interface.h copy /Y pro_sdk_interface.h "$(OUTDIR)\" >nul
+	@if exist ProPhysics.dll copy /Y ProPhysics.dll "$(OUTDIR)\" >nul
+
+# Automatisches Aufraeumen nach erfolgreichem Pipeline-Durchlauf
+clean_temp:
+	@echo [CLEAN] Entferne temporaere Build-Artefakte (.obj)
+	-@del /q /f *.obj 2>nul
+
+# Manueller Full-Clean
+clean: clean_temp
+	@echo [CLEAN] Loesche komplettes SDK-Ausgabe-Verzeichnis
+	-@rmdir /s /q "$(OUTDIR)" 2>nul
