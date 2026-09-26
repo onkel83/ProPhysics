@@ -4,7 +4,7 @@ Ein topologischer Graph-Kernel in C99, der Quantenmechanik
 **emergieren** lässt — aus signed permutations, 8-dimensionaler
 Amplituden-Basis und einer einzigen shared-reference-Regel.
 
-**Version:** 3.0.0
+**Version:** 1.23.0
 **Stand:** 2026-09-25 (Etappe 23 abgeschlossen, 43/43 Tests)
 **Lizenz:** (siehe LICENSE)
 **Status:** validierter Forschungs-Prototyp
@@ -455,9 +455,9 @@ Details in `docs\project\Project.md` §2.
 
 ## 12. Kontakt und Mitwirkung
 
-**Repository:** (URL hier eintragen)
-**Issue-Tracker:** (URL hier eintragen)
-**Lizenz:** (siehe LICENSE)
+**Repository:** (https://github.com/onkel83/ProPhysics)
+**Issue-Tracker:** (https://github.com/onkel83/ProPhysics/issues)
+**Lizenz:** [siehe LICENSE](LICENSE.md)
 
 **Beiträge willkommen.** Vor dem ersten Commit bitte lesen:
 
@@ -473,9 +473,9 @@ Details in `docs\project\Project.md` §2.
 
 | Version | Bedeutung |
 |---|---|
-| 3.0.0 | **jetzt** — validierter Kernel |
-| 3.1.0 | komplette QM (nach Etappe 24–27) |
-| 3.2.0 | Makrophysik (nach M1–M3) |
+| 1.23.0 | **jetzt** — validierter Kernel |
+| 2.27.0 | komplette QM (nach Etappe 24–27) |
+| 3.XX.X | Makrophysik (nach M1–M3) |
 
 **Doc-Versionen** sind unabhängig und niedriger nummeriert
 (z.B. `Project.md` v1.x).

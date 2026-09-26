@@ -1,0 +1,187 @@
+# ==========================================================================
+# ProPhysics - NMAKE Build
+# File: build\prophysics\Makefile.nmake
+# Version: 3.1 — Multi-Modul-Kernel (12 .c-Dateien)
+# Architecture: MSVC x64 Architecture Optimization (Core Engine DLL Only)
+#
+# Aufruf: aus build\prophysics\ heraus
+#         (cd build\prophysics && nmake /f Makefile.nmake)
+#
+# Struktur:
+#   Quellen:  ..\..\src\prophysics\*.c
+#   Header:   ..\..\src\prophysics\header\*.h
+#   Ziel DLL: ..\..\bin\ProPhysics.dll
+#   Ziel LIB: ..\..\lib\ProPhysics.lib
+#   OBJ/EXP:  _obj\  (temporaer, wird nach Link geloescht)
+#
+# Etappe 18c: ProPhysics_Shared.c hinzugefuegt (U4 als shared reference).
+# Etappe 21:  ProPhysics_Dirac.c hinzugefuegt (4-Komponenten-Spinor).
+# Etappe 22:  ProPhysics_SU2.c hinzugefuegt (SU(2)-Eichfeld).
+#             Refactoring: pro_aligned_calloc fuer Hot-Arrays (Cache-Align).
+# ==========================================================================
+
+CC = cl.exe
+LINKER = link.exe
+
+# ==========================================================================
+# HIGH-PERFORMANCE COMPILER FLAGS
+# /O2: Maximale Geschwindigkeit
+# /Ob2: Aggressives Inlining
+# /Oi: Intrinsische Funktionen
+# /GL: Whole Program Optimization
+# /MP: Multi-Prozessor-Kompilierung
+#
+# /I-Pfade (relativ zu build\prophysics):
+#   ..\..\src\prophysics\header  -- ProPhysics.h, ProPhysics_Internal.h, ...
+#   ..\..\src\sdk\header         -- pro_sdk_interface.h (falls referenziert)
+#
+# Refactoring 22: /arch:AVX2 aktiviert, damit MSVC SSE/AVX fuer die
+# Q31-Arithmetik nutzen kann. Cache-Line-Align erfolgt im Kernel selbst
+# ueber pro_aligned_calloc.
+# ==========================================================================
+CFLAGS = /nologo /O2 /Ob2 /Oi /GL /W4 /MP /arch:AVX2 \
+         /I..\..\src\prophysics\header \
+         /I..\..\src\sdk\header \
+         /D_CRT_SECURE_NO_WARNINGS
+
+# DLL-spezifisches Export-Macro
+DLL_FLAGS = /DPROPHYSICS_EXPORTS
+
+# --------------------------------------------------------------------------
+# Pfad-Konfiguration (relativ zu build\prophysics)
+# --------------------------------------------------------------------------
+SRC_DIR = ..\..\src\prophysics
+HDR_DIR = ..\..\src\prophysics\header
+OBJ_DIR = _obj
+BIN_DIR = ..\..\bin
+LIB_DIR = ..\..\lib
+
+DLL_TARGET = $(BIN_DIR)\ProPhysics.dll
+LIB_TARGET = $(LIB_DIR)\ProPhysics.lib
+
+# --------------------------------------------------------------------------
+# Kernel-Module (v3.1, 12 .c-Dateien)
+#
+#   Core      -- Lifecycle, Topologie, Amp-Grid-Zugriff, Injektoren,
+#                ProPhysics_Tick (Refactoring 22)
+#   Amp       -- unitaere Dynamik (Context, Transport, Wave, Amp_Step)
+#   Dirac     -- 4-Komponenten-Spinor (Etappe 21)
+#   SU2       -- SU(2)-Eichfeld (Etappe 22)
+#   Gauge     -- U(1), Wilson-Loop, Lambda-Feld, Mess-Helfer
+#   EPR       -- EPR-Paarmessungen, Apparat-Subgraph
+#   Observer  -- Beobachter, Diffusion, chaotische Quelle, Dephasierung
+#   Tensor    -- Tensorpaare, Gates, Fermionen-Adapter, SU(2)
+#   Fock      -- 256-dim Fock-Raum, Jordan-Wigner
+#   Density   -- Dichte-Trilogie (8x8, 64x64, 256x256) + Auto-Sync
+#   Shared    -- U4 als shared reference (Etappe 18c)
+# --------------------------------------------------------------------------
+OBJ_KERNEL = \
+    $(OBJ_DIR)\ProPhysics_Core.obj \
+    $(OBJ_DIR)\ProPhysics_Amp.obj \
+    $(OBJ_DIR)\ProPhysics_Dirac.obj \
+    $(OBJ_DIR)\ProPhysics_SU2.obj \
+    $(OBJ_DIR)\ProPhysics_SU2_Dynamics.obj \
+    $(OBJ_DIR)\ProPhysics_Gauge.obj \
+    $(OBJ_DIR)\ProPhysics_EPR.obj \
+    $(OBJ_DIR)\ProPhysics_Observer.obj \
+    $(OBJ_DIR)\ProPhysics_Tensor.obj \
+    $(OBJ_DIR)\ProPhysics_Fock.obj \
+    $(OBJ_DIR)\ProPhysics_Density.obj \
+    $(OBJ_DIR)\ProPhysics_Shared.obj
+
+# --------------------------------------------------------------------------
+# Header als Dependency.
+#
+# ACHTUNG: ProPhysics_Internal.h MUSS in src\prophysics\header\ liegen,
+# sonst bricht der Build ab. Sie wird von jeder .c-Datei inkludiert.
+# --------------------------------------------------------------------------
+HEADERS_PUBLIC = \
+    $(HDR_DIR)\ProPhysics.h \
+    $(HDR_DIR)\ProPhysics_Config.h \
+    $(HDR_DIR)\ProPhysics_Types.h \
+    $(HDR_DIR)\ProPhysics_Exports.h \
+    $(HDR_DIR)\ProPhysics_Version.h
+
+HEADERS_INTERNAL = $(HDR_DIR)\ProPhysics_Internal.h
+
+HEADERS_ALL = $(HEADERS_PUBLIC) $(HEADERS_INTERNAL)
+
+# --------------------------------------------------------------------------
+# Master-Target
+# --------------------------------------------------------------------------
+all: setup $(DLL_TARGET)
+
+setup:
+	@if not exist "$(OBJ_DIR)" mkdir "$(OBJ_DIR)"
+	@if not exist "$(BIN_DIR)" mkdir "$(BIN_DIR)"
+	@if not exist "$(LIB_DIR)" mkdir "$(LIB_DIR)"
+
+# --------------------------------------------------------------------------
+# Modul-Regeln
+# Jede Regel: abhaengig von eigener .c + ALLEN Headern.
+# --------------------------------------------------------------------------
+
+$(OBJ_DIR)\ProPhysics_Core.obj: $(SRC_DIR)\ProPhysics_Core.c $(HEADERS_ALL)
+	$(CC) $(CFLAGS) $(DLL_FLAGS) /c $(SRC_DIR)\ProPhysics_Core.c /Fo$@
+
+$(OBJ_DIR)\ProPhysics_Amp.obj: $(SRC_DIR)\ProPhysics_Amp.c $(HEADERS_ALL)
+	$(CC) $(CFLAGS) $(DLL_FLAGS) /c $(SRC_DIR)\ProPhysics_Amp.c /Fo$@
+
+$(OBJ_DIR)\ProPhysics_Dirac.obj: $(SRC_DIR)\ProPhysics_Dirac.c $(HEADERS_ALL)
+	$(CC) $(CFLAGS) $(DLL_FLAGS) /c $(SRC_DIR)\ProPhysics_Dirac.c /Fo$@
+
+$(OBJ_DIR)\ProPhysics_SU2.obj: $(SRC_DIR)\ProPhysics_SU2.c $(HEADERS_ALL)
+	$(CC) $(CFLAGS) $(DLL_FLAGS) /c $(SRC_DIR)\ProPhysics_SU2.c /Fo$@
+
+$(OBJ_DIR)\ProPhysics_SU2_Dynamics.obj: $(SRC_DIR)\ProPhysics_SU2_Dynamics.c $(HEADERS_ALL)
+	$(CC) $(CFLAGS) $(DLL_FLAGS) /c $(SRC_DIR)\ProPhysics_SU2_Dynamics.c /Fo$@
+
+$(OBJ_DIR)\ProPhysics_Gauge.obj: $(SRC_DIR)\ProPhysics_Gauge.c $(HEADERS_ALL)
+	$(CC) $(CFLAGS) $(DLL_FLAGS) /c $(SRC_DIR)\ProPhysics_Gauge.c /Fo$@
+
+$(OBJ_DIR)\ProPhysics_EPR.obj: $(SRC_DIR)\ProPhysics_EPR.c $(HEADERS_ALL)
+	$(CC) $(CFLAGS) $(DLL_FLAGS) /c $(SRC_DIR)\ProPhysics_EPR.c /Fo$@
+
+$(OBJ_DIR)\ProPhysics_Observer.obj: $(SRC_DIR)\ProPhysics_Observer.c $(HEADERS_ALL)
+	$(CC) $(CFLAGS) $(DLL_FLAGS) /c $(SRC_DIR)\ProPhysics_Observer.c /Fo$@
+
+$(OBJ_DIR)\ProPhysics_Tensor.obj: $(SRC_DIR)\ProPhysics_Tensor.c $(HEADERS_ALL)
+	$(CC) $(CFLAGS) $(DLL_FLAGS) /c $(SRC_DIR)\ProPhysics_Tensor.c /Fo$@
+
+$(OBJ_DIR)\ProPhysics_Fock.obj: $(SRC_DIR)\ProPhysics_Fock.c $(HEADERS_ALL)
+	$(CC) $(CFLAGS) $(DLL_FLAGS) /c $(SRC_DIR)\ProPhysics_Fock.c /Fo$@
+
+$(OBJ_DIR)\ProPhysics_Density.obj: $(SRC_DIR)\ProPhysics_Density.c $(HEADERS_ALL)
+	$(CC) $(CFLAGS) $(DLL_FLAGS) /c $(SRC_DIR)\ProPhysics_Density.c /Fo$@
+
+$(OBJ_DIR)\ProPhysics_Shared.obj: $(SRC_DIR)\ProPhysics_Shared.c $(HEADERS_ALL)
+	$(CC) $(CFLAGS) $(DLL_FLAGS) /c $(SRC_DIR)\ProPhysics_Shared.c /Fo$@
+
+# --------------------------------------------------------------------------
+# Link
+#
+# /LTCG vollendet das Whole-Program-Optimization der /GL-Objekte.
+# /OUT bestimmt den DLL-Pfad.
+# /IMPLIB bestimmt den Import-Lib-Pfad.
+#
+# Nach dem Link werden OBJ und EXP entfernt.
+# --------------------------------------------------------------------------
+$(DLL_TARGET): $(OBJ_KERNEL)
+	@echo [LINKING] $(DLL_TARGET)
+	$(LINKER) /nologo /DLL /LTCG \
+	    /OUT:$(DLL_TARGET) \
+	    /IMPLIB:$(LIB_TARGET) \
+	    $(OBJ_KERNEL)
+	@if exist "$(OBJ_DIR)\*.obj" del /Q "$(OBJ_DIR)\*.obj" 2>nul
+	@if exist "$(OBJ_DIR)\*.exp" del /Q "$(OBJ_DIR)\*.exp" 2>nul
+	@echo [CLEANUP] OBJ/EXP entfernt.
+
+# --------------------------------------------------------------------------
+# Clean
+# --------------------------------------------------------------------------
+clean:
+	@if exist "$(OBJ_DIR)" del /Q /F /S "$(OBJ_DIR)\*.*" 2>nul
+	@if exist "$(OBJ_DIR)" rmdir /S /Q "$(OBJ_DIR)" 2>nul
+	@if exist "$(DLL_TARGET)" del /Q "$(DLL_TARGET)" 2>nul
+	@if exist "$(LIB_TARGET)" del /Q "$(LIB_TARGET)" 2>nul
+	@echo [DEEP CLEAN] ProPhysics-Artefakte entfernt.

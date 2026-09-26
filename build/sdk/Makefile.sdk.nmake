@@ -1,0 +1,128 @@
+# ==========================================================================
+# ProPhysics - SDK Interface NMAKE Build
+# File: build\sdk\Makefile.sdk.nmake
+# Version: 3.0 — SDK-Interface (Single .c)
+#
+# Aufruf: aus build\sdk\ heraus (cd build\sdk && nmake /f Makefile.sdk.nmake)
+#
+# Struktur (Etappe 21, neue Ordnerorganisation):
+#   Quelle:      ..\..\src\sdk\pro_sdk_interface.c
+#   SDK-Header:  ..\..\src\sdk\header\pro_sdk_interface.h
+#   Kern-Header: ..\..\src\prophysics\header\*.h    (ProPhysics.h etc.)
+#   Kern-Lib:    ..\..\lib\ProPhysics.lib          (aus prophysics-Build)
+#   Ziel DLL:    ..\..\bin\pro_sdk_interface.dll
+#   Ziel LIB:    ..\..\lib\pro_sdk_interface.lib
+#   OBJ:         _obj\  (temporaer, wird nach Link geloescht)
+#
+# Voraussetzung: ProPhysics.lib muss bereits existieren.
+#               Reihenfolge: prophysics -> sdk -> test.
+# ==========================================================================
+
+CC = cl.exe
+LINKER = link.exe
+
+# ==========================================================================
+# COMPILER FLAGS
+#
+# /I-Pfade (relativ zu build\sdk):
+#   ..\..\src\sdk\header         -- pro_sdk_interface.h
+#   ..\..\src\prophysics\header  -- ProPhysics.h, ProPhysics_Types.h, ...
+# ==========================================================================
+CFLAGS = /nologo /O2 /Ob2 /Oi /GL /W3 /MP \
+         /I..\..\src\sdk\header \
+         /I..\..\src\prophysics\header \
+         /D_CRT_SECURE_NO_WARNINGS
+
+# DLL-spezifisches Export-Macro
+DLL_FLAGS = /DPRO_SDK_EXPORTS
+
+# --------------------------------------------------------------------------
+# Pfad-Konfiguration (relativ zu build\sdk)
+# --------------------------------------------------------------------------
+SRC_DIR = ..\..\src\sdk
+HDR_DIR = ..\..\src\sdk\header
+OBJ_DIR = _obj
+BIN_DIR = ..\..\bin
+LIB_DIR = ..\..\lib
+
+DLL_TARGET = $(BIN_DIR)\pro_sdk_interface.dll
+LIB_TARGET = $(LIB_DIR)\pro_sdk_interface.lib
+
+# Import-Lib des Kernels
+CORE_LIB = ..\..\lib\ProPhysics.lib
+
+# --------------------------------------------------------------------------
+# Modul (Single Source)
+# --------------------------------------------------------------------------
+OBJ_SDK = $(OBJ_DIR)\pro_sdk_interface.obj
+
+# --------------------------------------------------------------------------
+# Header als Dependency
+#
+# Zwei Sätze:
+#   SDK-Header  -- pro_sdk_interface.h
+#   Kern-Header -- ProPhysics.h etc. (fuer die API-Deklarationen)
+# --------------------------------------------------------------------------
+HEADERS_SDK = $(HDR_DIR)\pro_sdk_interface.h
+
+HEADERS_CORE = \
+    ..\..\src\prophysics\header\ProPhysics.h \
+    ..\..\src\prophysics\header\ProPhysics_Config.h \
+    ..\..\src\prophysics\header\ProPhysics_Types.h \
+    ..\..\src\prophysics\header\ProPhysics_Exports.h \
+    ..\..\src\prophysics\header\ProPhysics_Version.h
+
+HEADERS_ALL = $(HEADERS_SDK) $(HEADERS_CORE)
+
+# --------------------------------------------------------------------------
+# Master-Target
+# --------------------------------------------------------------------------
+all: check_core setup $(DLL_TARGET)
+
+# Vorabpruefung: ProPhysics.lib muss existieren.
+check_core:
+	@if not exist "$(CORE_LIB)" ( \
+	    echo [FEHLER] $(CORE_LIB) fehlt. Zuerst build\prophysics bauen. & \
+	    exit /B 1 \
+	)
+
+setup:
+	@if not exist "$(OBJ_DIR)" mkdir "$(OBJ_DIR)"
+	@if not exist "$(BIN_DIR)" mkdir "$(BIN_DIR)"
+	@if not exist "$(LIB_DIR)" mkdir "$(LIB_DIR)"
+
+# --------------------------------------------------------------------------
+# Modul-Regel
+# --------------------------------------------------------------------------
+$(OBJ_SDK): $(SRC_DIR)\pro_sdk_interface.c $(HEADERS_ALL)
+	$(CC) $(CFLAGS) $(DLL_FLAGS) /c $(SRC_DIR)\pro_sdk_interface.c /Fo$@
+
+# --------------------------------------------------------------------------
+# Link
+#
+# /LTCG wie im Kernel.
+# /OUT  -> bin\pro_sdk_interface.dll
+# /IMPLIB -> lib\pro_sdk_interface.lib
+# CORE_LIB -> lib\ProPhysics.lib (Import-Lib des Kernels)
+#
+# Nach dem Link: OBJ und EXP weg.
+# --------------------------------------------------------------------------
+$(DLL_TARGET): $(OBJ_SDK) $(CORE_LIB)
+	@echo [LINKING] $(DLL_TARGET)
+	$(LINKER) /nologo /DLL /LTCG \
+	    /OUT:$(DLL_TARGET) \
+	    /IMPLIB:$(LIB_TARGET) \
+	    $(OBJ_SDK) $(CORE_LIB)
+	@if exist "$(OBJ_DIR)\*.obj" del /Q "$(OBJ_DIR)\*.obj" 2>nul
+	@if exist "$(OBJ_DIR)\*.exp" del /Q "$(OBJ_DIR)\*.exp" 2>nul
+	@echo [CLEANUP] OBJ/EXP entfernt.
+
+# --------------------------------------------------------------------------
+# Clean
+# --------------------------------------------------------------------------
+clean:
+	@if exist "$(OBJ_DIR)" del /Q /F /S "$(OBJ_DIR)\*.*" 2>nul
+	@if exist "$(OBJ_DIR)" rmdir /S /Q "$(OBJ_DIR)" 2>nul
+	@if exist "$(DLL_TARGET)" del /Q "$(DLL_TARGET)" 2>nul
+	@if exist "$(LIB_TARGET)" del /Q "$(LIB_TARGET)" 2>nul
+	@echo [DEEP CLEAN] SDK-Interface-Artefakte entfernt.
