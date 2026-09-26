@@ -1,7 +1,11 @@
 # ProPhysics — Roadmap / Projekt-Dokumentation
 
-**Version:** 3.0
-**Stand:** 2026-09-25 nach Etappe 23 (Running-Coupling mit V&V-Anker,
+**Datei:** `docs/project/Project.md`
+**Version:** 1.0
+**Kernel:** 1.23.0
+**Etappe:** 23
+**Stand:** 2026-09-26 nach Etappe 23 und Konsolidierungs-Serie
+            1.23.1–1.23.8 (Running-Coupling mit V&V-Anker,
             Prio-All 43/43)
 **Nächster Schritt:** Etappe 24 — Euklidisches Pfadintegral
 
@@ -17,11 +21,15 @@
 6. **Die Roadmap** — Etappen 24–27 und M1–M3.
 7. **Was wir bewusst nicht behaupten** — die Grenzen des Anspruchs.
 
-**Neu in v3.0:** Der Kernel ist gegen einen externen physikalischen
-Referenzwert validiert (Etappe 23, V&V-Anker). Bis Etappe 22b waren
-alle Tests **relativ** (Konsistenz, Selbsterhaltung). Etappe 23
-liefert den ersten **absoluten** Vergleich mit publizierter
-Lattice-QCD-Physik.
+**Neu in v1.0 (Etappen-Schema):** Der Kernel ist gegen einen externen
+physikalischen Referenzwert validiert (Etappe 23, V&V-Anker). Bis
+Etappe 22b waren alle Tests **relativ** (Konsistenz, Selbsterhaltung).
+Etappe 23 liefert den ersten **absoluten** Vergleich mit publizierter
+Lattice-QCD-Physik. Zusätzlich wurden in der Konsolidierungs-Serie
+`1.23.1`–`1.23.8` alle Kernel-Module auf ein einheitliches Schema
+gebracht (Kernel-/Etappe-Kopf, Modul-Referenz in `docs/project/`,
+keine Etappen-Historie mehr im Quellcode). Siehe `CHANGELOG.md` §2.5
+für die Abbildung alter auf neue Versionen (`3.0.0` → `1.23.0`).
 
 ---
 
@@ -59,19 +67,53 @@ ProPhysics\
 
 ### §1.2 — Dokument-Struktur
 
+**Projekt-Dokumente (`docs/project/`):**
+
 | Datei | Inhalt |
 |---|---|
-| `docs\project\Project.md` | dieses Dokument |
-| `docs\test\ProPhysics_Testkatalog.md` | alle 43 Tests |
-| `docs\test\run_alpha_tests.md` | Test-Runner |
-| `docs\build\BUILD_SCRIPT.md` | Build-Übersicht |
-| `docs\build\main\Makefile.md` | Master-Makefile |
-| `docs\build\prophysics\Makefile.md` | Kernel-Build |
-| `docs\build\sdk\Makefile.md` | SDK-Interface-Build |
-| `docs\build\test\Makefile.md` | Test-Build |
-| `docs\build\helper\build.md` | `build.ps1` / `build.cmd` |
-| `docs\build\helper\export.md` | `export.ps1` / `export.cmd` |
-| `docs\build\helper\write_build_info.md` | `write_build_info.ps1` |
+| `Project.md` | dieses Dokument (Roadmap, Ontologie, Historie) |
+| `ProPhysics_API.md` | vollständige Funktions-Referenz |
+| `ProPhysics_Differentiators.md` | Abgrenzung zu anderen Frameworks |
+| `ProPhysics_VersionRegistry.md` | Versionen aller Dateien |
+| `CONFIG.md` | Compile-Time-Konstanten |
+| `VERSIONING.md` | Etappen-Versionierungs-Konzept (geplant, `TODO.md` §1.6) |
+
+**Modul-Referenzen (`docs/project/`):**
+
+| Datei | Modul |
+|---|---|
+| `Amp.md` | `ProPhysics_Amp.c` |
+| `Core.md` | `ProPhysics_Core.c` |
+| `Density.md` | `ProPhysics_Density.c` |
+| `Dirac.md` | `ProPhysics_Dirac.c` |
+| `EPR.md` | `ProPhysics_EPR.c` |
+| `Fock.md` | `ProPhysics_Fock.c` |
+| `Gauge.md` | `ProPhysics_Gauge.c` |
+| `Observer.md` | `ProPhysics_Observer.c` |
+| `Shared.md` | `ProPhysics_Shared.c` |
+| `SU2.md` | `ProPhysics_SU2.c` |
+| `SU2_Dynamics.md` | `ProPhysics_SU2_Dynamics.c` |
+| `Tensor.md` | `ProPhysics_Tensor.c` |
+
+**Test-Dokumente (`docs/test/`):**
+
+| Datei | Inhalt |
+|---|---|
+| `ProPhysics_Testkatalog.md` | alle 43 Tests |
+| `run_alpha_tests.md` | Test-Runner |
+
+**Build-Dokumente (`docs/build/`):**
+
+| Datei | Inhalt |
+|---|---|
+| `BUILD_SCRIPT.md` | Build-Übersicht |
+| `main/Makefile.md` | Master-Makefile |
+| `prophysics/Makefile.md` | Kernel-Build |
+| `sdk/Makefile.md` | SDK-Interface-Build |
+| `test/Makefile.md` | Test-Build |
+| `helper/build.md` | `build.ps1` / `build.cmd` |
+| `helper/export.md` | `export.ps1` / `export.cmd` |
+| `helper/write_build_info.md` | `write_build_info.ps1` |
 
 ### §1.3 — Build-Skripte
 
@@ -140,10 +182,13 @@ Q31-Rundung.
 ### R5 — Keine stillen API-Brüche
 
 Bei Änderung einer API-Signatur wird der betroffene Test mit angepasst.
-Für Refactoring 22: alle alten SDK-Symbole bleiben funktional
+Für **Refactoring 22**: alle alten SDK-Symbole bleiben funktional
 (`ProPhysics_SDK_Execute_Plastizitaet_Tick` delegiert jetzt an
 `ProPhysics_Tick`; `ProPhysics_ScientificRuleCallback` ist Alias
-für `ProPhysics_RuleCallback`).
+für `ProPhysics_RuleCallback`). Für die **Konsolidierungs-Serie
+`1.23.1`–`1.23.8`**: alle Änderungen sind rein intern (Auslagerung
+in `static`-Helfer, Header-Konsolidierung, Modul-Docs), keine
+Signaturänderung.
 
 ### R6 — Jede Etappe endet mit einem Test
 
@@ -166,6 +211,7 @@ Neue Funktionalität in parallelen Funktionen oder als Dispatch über
 | 22 | `su2_active` | bit-identisch |
 | 22b | `su2_dynamics_active` | bit-identisch |
 | **23** | **nur lesende API-Erweiterung** | **bit-identisch** |
+| **1.23.1–1.23.8** | **reine Konsolidierung** | **bit-identisch** |
 
 ---
 
@@ -215,7 +261,7 @@ U5:  Σ_{x∈G} A_t(x) = Konstante         (Bit-Erhaltung)
 | Dirac | 21 | Basis 1–4 | `reserved_gating` Bit 1 | `Apply_Dirac_Step`, `Apply_Dirac_Mass_Term` |
 | SU(2)-Eichfeld (kinematisch) | 22 | Basis 1–4 (Links in `ProEdge`) | `su2_active` | `Set_Edge_SU2`, `Wilson_Loop_SU2`, `Apply_Local_SU2_Gauge` |
 | SU(2)-Link-Dynamik (Leapfrog) | 22b | `ProEdge.su2_E_*` | `su2_dynamics_active` | `Apply_SU2_Tick`, `SU2_Plaquette_Action`, `SU2_Total_Energy` |
-| **SU(2)-Metropolis (Thermostat)** | **23** | **read-only** | **kein Flag** | **`SU2_Link_Plaquette_Sum` (Vorbereitung für Metropolis im Test)** |
+| SU(2)-Metropolis (Thermostat) | 23 | read-only | kein Flag | `SU2_Link_Plaquette_Sum` (Vorbereitung für Metropolis im Test) |
 
 Alle fünf sind Struktur-Erweiterungen, keine Reduktion auf die reine
 Ur-Grammatik.
@@ -244,7 +290,7 @@ Ur-Grammatik.
 - 21 — Dirac-Spinor als 4-Komponenten-Erweiterung.
 - 22 — SU(2)-Link-Struktur auf `ProEdge`; nicht-abelsche Korrelation.
 - 22b — Links werden dynamisch; Yang-Mills-Feld als aktive Struktur.
-- **23 — Links thermalisieren; kanonische Verteilung als Zustand.**
+- 23 — Links thermalisieren; kanonische Verteilung als Zustand.
 
 ---
 
@@ -299,7 +345,7 @@ Ur-Grammatik.
 | Gauge U(1) | ✅ |
 | Gauge SU(2), kinematisch | ✅ seit 22 |
 | Gauge SU(2), dynamisch (Leapfrog) | ✅ seit 22b |
-| **Gauge SU(2), thermalisiert (Metropolis)** | ✅ **neu in 23** |
+| Gauge SU(2), thermalisiert (Metropolis) | ✅ neu in 23 |
 | Observer | ✅ |
 | Verschränkung (Tensor, CHSH) | ✅ |
 | U4 Shared Reference | ✅ seit 18e |
@@ -313,7 +359,7 @@ Ur-Grammatik.
 | Phase Plate | ✅ |
 | Coulomb-Field 3D | ✅ |
 | Imaginaerzeit-Prep | ✅ |
-| **Wilson-Action-Plaquette-Validierung** | ✅ **neu in 23** |
+| Wilson-Action-Plaquette-Validierung | ✅ neu in 23 |
 
 ### §6.3 — Numerisch hart belegte Resultate
 
@@ -331,9 +377,9 @@ Ur-Grammatik.
 | 10 | Dirac | γ-Algebra 9,31e-10; Masse 2,4e-07 |
 | 11 | SU(2)-Eichfeld (kinematisch) | 14/14 + Kernel-Algebra 4,45e-10 |
 | 12 | SU(2)-Link-Dynamik (Leapfrog) | 18/18 + KA = 19/19 |
-| **13** | **SU(2)-Metropolis / Wilson-Action** | **V&V-Anker 0,08 % (siehe unten)** |
+| 13 | SU(2)-Metropolis / Wilson-Action | V&V-Anker 0,08 % (siehe unten) |
 
-**Beleg 13 — SU(2)-Metropolis-Validierung (Etappe 23, NEU):**
+**Beleg 13 — SU(2)-Metropolis-Validierung (Etappe 23):**
 
 Erste **absolute** Validierung des Kernels gegen externe
 Lattice-QCD-Physik.
@@ -377,7 +423,7 @@ Fehler bei falscher Verteilung **prozentual** wäre, nicht 0,08 %.
   β-Funktions-Messung braucht eine zweite Observable (Creutz-Ratio),
   Etappe 23b optional.
 
-### §6.5 — Prio-all-Regression (2026-09-25 nach Etappe 23)
+### §6.5 — Prio-all-Regression (2026-09-26 nach Etappe 23 + Konsolidierung)
 
 | Prio | Thema | Tests | Status |
 |---|---|---|---|
@@ -402,6 +448,9 @@ Fehler bei falscher Verteilung **prozentual** wäre, nicht 0,08 %.
 - **Prio 1–4, 6, 7** + `SU2-Wilson-Loop` (~1,5 min) in normalen CI-Läufen.
 - **`Running-Coupling`** als Nightly-Job (Timeout 2 400 s).
 - **Prio 5** (Hydrogen-48) ebenfalls als Nightly-Job.
+
+**Konsolidierungs-Serie:** Die Patches `1.23.1`–`1.23.8` ändern
+**keine** Testergebnisse. Alle 43 Tests bleiben bit-identisch grün.
 
 ---
 
@@ -505,7 +554,7 @@ O(Δ²)-Oszillation für `dt=500, g²=500` hergibt.
 
 **Test:** 18/18 + Kernel-Algebra = 19/19 PASS.
 
-### §7.6 — Etappe 23: SU(2)-Metropolis / Wilson-Action-Validierung (NEU)
+### §7.6 — Etappe 23: SU(2)-Metropolis / Wilson-Action-Validierung
 
 **Design-Entscheidungen:**
 
@@ -734,7 +783,7 @@ Amplituden sind bisher unabhängig.
 
 ---
 
-## §12c — Etappe 23 abgeschlossen (Metropolis / Wilson-Action) — NEU
+## §12c — Etappe 23 abgeschlossen (Metropolis / Wilson-Action)
 
 ### §12c.1 — Was implementiert ist
 
@@ -864,7 +913,7 @@ dominiert). Nicht in normalen CI-Läufen.
     Quantenfeldtheorie.
 12. Keine β-Funktion ohne zweite Observable (u_plaq allein ist
     skalenunempfindlich).
-13. **V&V-Anker (0,08 %) ist Ein-Plaquette-Näherung**, nicht exakte
+13. V&V-Anker (0,08 %) ist Ein-Plaquette-Näherung, nicht exakte
     Gitter-QCD. Für die Sampler-Validierung reicht es.
 
 ---
@@ -880,7 +929,8 @@ dominiert). Nicht in normalen CI-Läufen.
 | Refactoring 22 | ✅ | 22 |
 | SU(2)-Link-Dynamik | ✅ 18/18 | 22b |
 | Backward-Staple-Fix | ✅ bestätigt (T16 2,44e-03) | 22b |
-| **SU(2)-Metropolis / V&V-Anker** | ✅ **0,08 %** | **23** |
+| SU(2)-Metropolis / V&V-Anker | ✅ 0,08 % | 23 |
+| Konsolidierungs-Serie `1.23.1`–`1.23.8` | ✅ | 23 |
 | Wasserstoff quantitativ | ⚠ 0,296 | 18d-B |
 | Creutz-Ratio / β-Funktion | offen | 23b |
 | Euklidisches Pfadintegral | offen | 24 |
@@ -951,8 +1001,8 @@ Kategorien sind unabhängig; Etappen können mehrere betreffen.
 - ✅ U(1)-Eichtheorie (abelsch).
 - ✅ SU(2)-Eichtheorie (nicht-abelsch, kinematisch).
 - ✅ SU(2)-Link-Dynamik (Leapfrog, klassisch).
-- ✅ **Metropolis-Sampling auf SU(2)-Links (kanonische Verteilung).**
-- ✅ **Wilson-Action-V&V-Anker gegen externe Referenz.**
+- ✅ Metropolis-Sampling auf SU(2)-Links (kanonische Verteilung).
+- ✅ Wilson-Action-V&V-Anker gegen externe Referenz.
 - ✅ Jordan-Wigner / Fermionen.
 - ✅ Lindblad / Offene Systeme.
 - ✅ Soliton / Breather.
@@ -1023,6 +1073,9 @@ nicht-terminierte Strukturen. Optional Etappe 23b für β-Funktion.
 | `ProPhysics_SU2_Dynamics.c` | 22b | neues Modul |
 | **Backward-Staple-Fix (`su2_force_on_link`)** | **23** | **Bug-Fix bestätigt** |
 | **`alpha_test_running_coupling.c`** | **23** | **neuer Test** |
+| **Konsolidierung aller 12 Kernel-Module** | **1.23.1–1.23.8** | **rein intern, bit-identisch** |
+| **12 neue Modul-Docs (`docs/project/*.md`)** | **1.23.1–1.23.8** | **vollständig** |
+| **`pro_su2_edge*` nach `Internal.h` (B7-Auflösung)** | **1.23.7** | **refactoring** |
 
 ---
 
@@ -1046,8 +1099,9 @@ nicht-terminierte Strukturen. Optional Etappe 23b für β-Funktion.
 | 2.7 | 2026-09-24 | Etappe 21 + 21b: Dirac, 41/41 |
 | 2.8 | 2026-09-25 | Etappe 22 + Refactoring: SU(2)-Eichfeld (14/14 + KA). Prio-All 42/42. |
 | 2.9 | 2026-09-25 | Etappe 22b: SU(2)-Link-Dynamik (Leapfrog). Prio-8 auf 18/18 + KA. |
-| **3.0** | **2026-09-25** | **Etappe 23: SU(2)-Metropolis / Wilson-Action-Validierung. Prio-All 43/43. Kernel auf 13 Module unverändert, 1 neue read-only Funktion `SU2_Link_Plaquette_Sum`. Neuer Test `alpha_test_running_coupling.c`. **Erste absolute Validierung gegen externe Lattice-QCD-Physik** (V&V-Anker: ⟨P⟩(β=2) = 0,43346 vs. Referenz 0,43313, Abweichung 0,08 %). Backward-Staple-Fix in 22b bestätigt (T16 2,44e-03, T15 1,80e-08). §2 R7 um Etappe 23 (read-only). §3.4 fünfte Schicht-2-Erweiterung (Metropolis). §6.1 Kernel-Umfang auf 36 kLOC. §6.3 Beleg 13 (V&V-Anker). §6.5 43/43. Neuer §7.6 Etappe-23-Details. Neuer §12c Etappe-23-Zusammenfassung. §13 Roadmap 23 ✅, 23b optional. §14 Punkt 13 (V&V-Grenze). §15 Offene Punkte: Etappe 23 ✅, Creutz-Ratio offen. §16 N2 erledigt. §17 Chronik: Backward-Staple-Fix + neue Testdatei. §18 Historie. **Major-Bump wegen Statuswechsel: Kernel ist validiert.** |
+| 3.0 | 2026-09-25 | Etappe 23: SU(2)-Metropolis / Wilson-Action-Validierung. Prio-All 43/43. 1 neue read-only Funktion `SU2_Link_Plaquette_Sum`. Neuer Test `alpha_test_running_coupling.c`. **Erste absolute Validierung gegen externe Lattice-QCD-Physik** (V&V-Anker: ⟨P⟩(β=2) = 0,43346 vs. Referenz 0,43313, Abweichung 0,08 %). |
+| **1.0** | **2026-09-26** | **Schema-Wechsel auf Etappen-basierte Versionierung (Kernel 1.23.0, Etappe 23). Doc-Version von `3.0` auf `1.0`. Konsolidierungs-Serie `1.23.1`–`1.23.8`: alle 12 Kernel-Module auf einheitliches Schema (Kernel-/Etappe-Kopf, Modul-Referenz, keine Etappen-Historie im Quellcode), 12 neue Modul-Docs in `docs/project/`, Header konsolidiert, Backlog B7 (SU(2)-Edge-Zugriff) gelöst. Alle Änderungen bit-identisch, 43/43 PASS. Siehe `CHANGELOG.md` §2.5 für die Abbildung alter auf neue Versionen.** |
 
 ---
 
-**Ende Roadmap v3.0.**
+**Ende Roadmap v1.0.**

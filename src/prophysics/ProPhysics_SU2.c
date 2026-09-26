@@ -1,35 +1,56 @@
 /* ==========================================================================
- * ProPhysics - SU(2)-Eichfeld (Etappe 22)
+ * ProPhysics - SU(2)-Eichfeld
  * File: ProPhysics_SU2.c
  *
  * Kernel: 1.23.0
- * Etappe: 22
- * 
- * Quaternion-Repraesentation eines SU(2)-Links:
+ * Etappe: 23
  *
+ * Quaternion-Repraesentation eines SU(2)-Links, Wilson-Loop,
+ * lokale Eichtransformation und Algebra-Verifikation.
+ *
+ * Verantwortlich fuer:
+ *   - ProPhysics_Set_Edge_SU2 / _AxisAngle / Get_Edge_SU2
+ *   - ProPhysics_Wilson_Loop_SU2 / _Trace
+ *   - ProPhysics_Apply_Local_SU2_Gauge
+ *   - ProPhysics_Verify_SU2_Quaternion
+ *
+ * Quaternion-Konvention:
  *   U = [ a   b  ]       mit |a|^2 + |b|^2 = 1
  *       [-b*  a* ]
  *
- * Speicherung in int32 pro Komponente, Skala PRO_SU2_SCALE = 2^30:
- *   a = a_re + i*a_im      (a_re, a_im in [-2^30, 2^30])
- *   b = b_re + i*b_im
- *   Normierung |a|^2 + |b|^2 = PRO_SU2_NORM = 2^60.
+ *   Speicherung in int32 pro Komponente, Skala PRO_SU2_SCALE = 2^30:
+ *     a = a_re + i*a_im      (a_re, a_im in [-2^30, 2^30])
+ *     b = b_re + i*b_im
+ *     Normierung |a|^2 + |b|^2 = PRO_SU2_NORM = 2^60.
  *
- * Warum Skala 2^30 statt 2^31?
- *   Bei 2^31 kann die Summe der vier Produktterme in a_new = a1*a2 - b1* * b2
- *   bis |2^62| + |2^62| = 2^63 gehen -- int64-Grenze. Bei 2^30 bleibt der
- *   Zwischenwert <= 4*2^60 = 2^62 (sicher).
+ *   Warum Skala 2^30 statt 2^31?
+ *     Bei 2^31 kann die Summe der vier Produktterme in
+ *     a_new = a1*a2 - b1* * b2 bis |2^62| + |2^62| = 2^63 gehen
+ *     -- int64-Grenze. Bei 2^30 bleibt der Zwischenwert
+ *     <= 4*2^60 = 2^62 (sicher).
  *
- * Wilson-Loop-Konvention (rueckwaerts / Path-Ordered):
- *   W(C) = U_{n-1} * U_{n-2} * ... * U_0
- *   mit U_k = Link(path_nodes[k] -> path_nodes[k+1]).
- *   Inversionssymmetrie W(C^-1) = W(C)^dagger ist damit erfuellt.
+ * Wilson-Loop-Konvention (vorwaerts / Path-Ordered):
+ *   W(C) = U_0 * U_1 * ... * U_{n-1}
+ *   mit U_k = Link(path_nodes[k] -> path_nodes[k+1 mod n]).
+ *   Inversionssymmetrie W(C^-1) = W(C)^dagger ist damit erfuellt;
+ *   die Eichinvarianz folgt aus der Teleskop-Eigenschaft der
+ *   inneren g-Faktoren.
  *
  * R-Konformitaet:
- *   R1: keine div/mod in Hotpath (Bit-Shift statt /).
+ *   R1: keine div/mod im Hotpath (Bit-Shift statt /).
  *   R2: kein malloc (lokale Puffer, Stack).
  *   R3: U5 bleibt erhalten (nur Link-Metadaten, amp_grid unberuehrt).
  *   R7: bei su2_active == 0 liest niemand die su2-Felder.
+ *
+ * Interne Helfer:
+ *   - pro_su2_normalize (Q30-Normalisierung auf PRO_SU2_NORM)
+ *   - pro_su2_edge_mut / pro_su2_edge (Link-Slot-Zugriff)
+ *   - pro_su2_axis_angle_to_quat (Achse+Winkel -> Q30-Quaternion)
+ *   - pro_su2_verify_product / _pauli (Algebra-Verifikation)
+ *
+ * Aenderungshistorie: siehe CHANGELOG.md im Projekt-Root.
+ * Konfiguration:       siehe docs/project/CONFIG.md.
+ * Modul-Dokumentation: siehe docs/project/SU2.md.
  * ========================================================================== */
 
 #include "ProPhysics_Internal.h"
@@ -37,11 +58,12 @@
  /* ==========================================================================
   * Interne Helfer: SU(2)-Arithmetik in Skala 2^30.
   *
-  * pro_su2_mul, pro_su2_conj, pro_su2_norm_sq sind ab Etappe 22b zentral
-  * in ProPhysics_Internal.h definiert (static inline), damit auch
+  * pro_su2_mul, pro_su2_conj, pro_su2_norm_sq sind zentral in
+  * ProPhysics_Internal.h definiert (static inline), damit auch
   * ProPhysics_SU2_Dynamics.c und ProPhysics_Amp.c sie nutzen koennen.
-  * Hier bleibt nur die lokale Normalisierung pro_su2_normalize.
+  * Hier bleibt die lokale Normalisierung pro_su2_normalize.
   * ========================================================================== */
+
 static bool pro_su2_normalize(
     int32_t* a_re, int32_t* a_im, int32_t* b_re, int32_t* b_im)
 {
@@ -94,6 +116,31 @@ static const ProEdge* pro_su2_edge(const ProUniverse* pu,
     return &pu->edge_phases[src * (uint64_t)CHANNELS_MAX + ch];
 }
 
+/* Achse + Winkel -> Q30-Quaternion (a_re, a_im, b_re, b_im).
+ *
+ *   U = cos(alpha/2) * I - i * sin(alpha/2) * (n . sigma)
+ *
+ *   in Quaternion-Form (a, b):
+ *     a = cos(alpha/2) - i * sin(alpha/2) * nz
+ *     b = -sin(alpha/2) * (ny + i*nx)
+ *
+ * Achse (nx, ny, nz) muss normiert sein (Normierung prueft der Aufrufer).
+ * Ersetzt 6x inline-Konvertierung in ProPhysics_Verify_SU2_Quaternion
+ * und 1x in ProPhysics_Set_Edge_SU2_AxisAngle. */
+static void pro_su2_axis_angle_to_quat(
+    double nx, double ny, double nz, double alpha,
+    int32_t* a_re, int32_t* a_im, int32_t* b_re, int32_t* b_im)
+{
+    const double c = cos(alpha * 0.5);
+    const double s = sin(alpha * 0.5);
+    const double S = (double)PRO_SU2_SCALE;
+
+    *a_re = pro_sat_i32((int64_t)llround(c * S));
+    *a_im = pro_sat_i32((int64_t)llround(-s * nz * S));
+    *b_re = pro_sat_i32((int64_t)llround(-s * ny * S));
+    *b_im = pro_sat_i32((int64_t)llround(-s * nx * S));
+}
+
 /* ==========================================================================
  * Oeffentliche API
  * ========================================================================== */
@@ -126,19 +173,8 @@ PROPHYSICS_API bool ProPhysics_Set_Edge_SU2_AxisAngle(
     if (nrm < 1e-12) return false;
     nx /= nrm; ny /= nrm; nz /= nrm;
 
-    /* U = cos(alpha/2) * I - i * sin(alpha/2) * (n . sigma)
-     *
-     * In Quaternion-Form (a, b):
-     *   a = cos(alpha/2) - i * sin(alpha/2) * nz
-     *   b = -sin(alpha/2) * (ny + i*nx)  */
-    const double c = cos(alpha * 0.5);
-    const double s = sin(alpha * 0.5);
-
-    const double S = (double)PRO_SU2_SCALE;
-    const int32_t a_re = pro_sat_i32((int64_t)llround(c * S));
-    const int32_t a_im = pro_sat_i32((int64_t)llround(-s * nz * S));
-    const int32_t b_re = pro_sat_i32((int64_t)llround(-s * ny * S));
-    const int32_t b_im = pro_sat_i32((int64_t)llround(-s * nx * S));
+    int32_t a_re, a_im, b_re, b_im;
+    pro_su2_axis_angle_to_quat(nx, ny, nz, alpha, &a_re, &a_im, &b_re, &b_im);
 
     return ProPhysics_Set_Edge_SU2(pu, src, ch, a_re, a_im, b_re, b_im);
 }
@@ -173,15 +209,12 @@ PROPHYSICS_API bool ProPhysics_Wilson_Loop_SU2(
     int32_t b_re = 0, b_im = 0;
 
     /* Vorwaerts-Iteration (Standard-Lattice-QCD-Konvention):
-     *   W(C) = U(p[0]->p[1]) * U(p[1]->p[2]) * ... * U(p[n-1]->p[0])
+     *   W(C) = U_0 * U_1 * ... * U_{n-1}
      * mit U_k = Link(path_nodes[k] -> path_nodes[k+1 mod n]).
      *
      * Diese Reihenfolge ist entscheidend fuer die Eichinvarianz:
      *   W' = g(p[0]) * W * g(p[0])^dagger
-     *   Tr(W') = Tr(W).
-     *
-     * Die vorige Version (rueckwaerts) ist NICHT eichinvariant, weil die
-     * inneren g-Faktoren dann nicht paarweise invers sind. */
+     *   Tr(W') = Tr(W). */
     for (uint32_t k = 0; k < path_len; ++k) {
         const uint64_t src = path_nodes[k];
         const uint8_t  ch = path_channels[k];
@@ -281,14 +314,14 @@ PROPHYSICS_API void ProPhysics_Apply_Local_SU2_Gauge(
  * Prueft zwei Aussagen:
  *   (1) Quaternion-Produkt = 2x2-Matrix-Multiplikation.
  *       Referenz: baut die 2x2-Matrix explizit und multipliziert in double.
- *   (2) Pauli-Kommutator [sx, sy] = 2i * sz (ueber pro_pauli_get).
+ *   (2) Pauli-Kommutator [i*sx, i*sy] = -2 * i*sz (ueber pro_pauli_get).
  *
  * Rueckgabe: max_err ueber beide Pruefungen.
  * ========================================================================== */
 
 static double pro_su2_verify_product(void)
 {
-    /* Achsen-Winkel-Paare (normiert). */
+    /* Achsen-Winkel-Paare (achsen normiert). */
     const double angles[3] = { 0.7, 1.7, 2.9 };
     const double axes[3][3] = {
         { 1.0, 0.0, 0.0 },
@@ -301,19 +334,16 @@ static double pro_su2_verify_product(void)
 
     for (int i = 0; i < 3; ++i) {
         for (int j = 0; j < 3; ++j) {
-            const double ai = angles[i] * 0.5;
-            const double aj = angles[j] * 0.5;
-
             /* U_i, U_j in Quaternion-Form (Q30). */
-            const int32_t i_ar = (int32_t)llround(cos(ai) * S);
-            const int32_t i_ai = (int32_t)llround(-sin(ai) * axes[i][2] * S);
-            const int32_t i_br = (int32_t)llround(-sin(ai) * axes[i][1] * S);
-            const int32_t i_bi = (int32_t)llround(-sin(ai) * axes[i][0] * S);
+            int32_t i_ar, i_ai, i_br, i_bi;
+            pro_su2_axis_angle_to_quat(
+                axes[i][0], axes[i][1], axes[i][2], angles[i],
+                &i_ar, &i_ai, &i_br, &i_bi);
 
-            const int32_t j_ar = (int32_t)llround(cos(aj) * S);
-            const int32_t j_ai = (int32_t)llround(-sin(aj) * axes[j][2] * S);
-            const int32_t j_br = (int32_t)llround(-sin(aj) * axes[j][1] * S);
-            const int32_t j_bi = (int32_t)llround(-sin(aj) * axes[j][0] * S);
+            int32_t j_ar, j_ai, j_br, j_bi;
+            pro_su2_axis_angle_to_quat(
+                axes[j][0], axes[j][1], axes[j][2], angles[j],
+                &j_ar, &j_ai, &j_br, &j_bi);
 
             /* Ist: pro_su2_mul. */
             int32_t p_ar, p_ai, p_br, p_bi;
@@ -418,7 +448,6 @@ PROPHYSICS_API double ProPhysics_Verify_SU2_Quaternion(void)
     const double e_pauli = pro_su2_verify_pauli();
     return (e_prod > e_pauli) ? e_prod : e_pauli;
 }
-
 
 /* ==========================================================================
  * End of ProPhysics_SU2.c

@@ -1,21 +1,40 @@
 /* ==========================================================================
- * ProPhysics - Shared-Reference Modul (Etappe 18c + 18e + 19, Refactoring 22)
+ * ProPhysics - Shared-Reference Modul
  * File: ProPhysics_Shared.c
  *
  * Kernel: 1.23.0
- * Etappe: 22
+ * Etappe: 23
  *
- * Etappe 19: Spin-1/2-Erweiterung.
- *   - Entangle_Nodes_Singlet: markiert b als spin-flipped gegenueber a.
- *   - Get_Node_Spin_View: liest Spin-Zustand mit optionaler Flip-Anwendung.
+ * Union-Find-basierte Shared-Reference-Klassen auf amp_grid.
+ * Ermoeglicht EPR-artige Korrelationen, Singlet-Zustaende und
+ * klassenweisen Tick.
  *
- * Spin-Flip wird in ProNode.reserved_gating kodiert (Bit 0). Kein
- * Struct-Change noetig -- Bit 0 war zuvor ungenutzt.
+ * Verantwortlich fuer:
+ *   - ProPhysics_Shared_Sync
+ *   - ProPhysics_Entangle_Nodes / _Singlet / ProPhysics_Dissociate_Node
+ *   - ProPhysics_Is_Entangled / ProPhysics_Get_Representative
+ *   - ProPhysics_Shared_Class_Count
+ *   - ProPhysics_Is_Spin_Flipped / ProPhysics_Get_Node_Spin_View
+ *   - ProPhysics_Shared_Tick_Reps
  *
- * Etappe 22-Refactoring:
- *   - pro_sat_i32 ersetzt die manuellen if-Ketten in Shared_Tick_Reps.
- *   - Header-Kommentare auf v3.1 aktualisiert.
- *   - PRO_NODE_SPIN_FLIP_BIT kommt jetzt aus ProPhysics_Config.h.
+ * Spin-Flip:
+ *   Wird in ProNode.reserved_gating Bit 0 kodiert (PRO_NODE_SPIN_FLIP_BIT).
+ *   Kein Struct-Change noetig -- Bit 0 war zuvor ungenutzt.
+ *
+ * Shared-Reference:
+ *   Klassen werden ueber ein Union-Find mit Pfadkompression in
+ *   pu->shared.parent gehalten. amp_grid wird beim Sync aus dem
+ *   jeweiligen Wurzel-Knoten kopiert (Copy-on-Sync).
+ *
+ * Interne Helfer:
+ *   - pro_node_spin_flipped / pro_node_set_spin_flip (Bit 0)
+ *   - pro_shared_find (mutierend, mit Pfadkompression)
+ *   - pro_shared_find_const (lesend, ohne Kompression)
+ *   - pro_shared_pair_rotate_q31 (2x2-Komplex-Rotation im Klassen-Tick)
+ *
+ * Aenderungshistorie: siehe CHANGELOG.md im Projekt-Root.
+ * Konfiguration:       siehe docs/project/CONFIG.md.
+ * Modul-Dokumentation: siehe docs/project/Shared.md.
  * ========================================================================== */
 
 #include "ProPhysics_Internal.h"
@@ -64,6 +83,36 @@ static uint64_t pro_shared_find_const(const ProUniverse* pu, uint64_t k)
 }
 
 /* ==========================================================================
+ * Interne Helfer: 2x2-Komplex-Rotation
+ *
+ *   a' = c*a + i*s*b
+ *   b' = c*b + i*s*a
+ *
+ * Bit-identisch zur inline-Form in Shared_Tick_Reps (Vorzeichen s
+ * traegt die Richtung). Dieselbe Matrix-Form existiert in
+ * ProPhysics_Fock.c (Apply_Hopping) mit s_signed = +/-s; eine spaetere
+ * Etappe kann den Helfer nach ProPhysics_Internal.h verschieben, so
+ * dass Fock.c und SU2.c ihn teilen.
+ *
+ * Rein rechnerisch: kein Div/Mod (R1), keine Allokation (R2). */
+static inline void pro_shared_pair_rotate_q31(
+    ProAmpQ31* a, ProAmpQ31* b, double c, double s)
+{
+    const int64_t ar = (int64_t)pro_amp_real(*a);
+    const int64_t ai = (int64_t)pro_amp_imag(*a);
+    const int64_t br = (int64_t)pro_amp_real(*b);
+    const int64_t bi = (int64_t)pro_amp_imag(*b);
+
+    const int64_t na_re = (int64_t)llround(c * (double)ar - s * (double)bi);
+    const int64_t na_im = (int64_t)llround(c * (double)ai + s * (double)br);
+    const int64_t nb_re = (int64_t)llround(c * (double)br - s * (double)ai);
+    const int64_t nb_im = (int64_t)llround(c * (double)bi + s * (double)ar);
+
+    *a = pro_amp_pack(pro_sat_i32(na_re), pro_sat_i32(na_im));
+    *b = pro_amp_pack(pro_sat_i32(nb_re), pro_sat_i32(nb_im));
+}
+
+/* ==========================================================================
  * Sync
  * ========================================================================== */
 
@@ -91,6 +140,8 @@ PROPHYSICS_API bool ProPhysics_Entangle_Nodes(ProUniverse* pu, uint64_t a, uint6
     uint64_t rb = pro_shared_find(pu, b);
     if (ra == rb) return true;
 
+    /* a wird zur Wurzel der neuen Klasse; a's alte Klasse wird unter a
+     * gehaengt, b's Wurzel ebenfalls. */
     if (ra != a) {
         pu->amp_grid[a] = pu->amp_grid[ra];
         pu->shared.parent[a] = a;
@@ -103,14 +154,13 @@ PROPHYSICS_API bool ProPhysics_Entangle_Nodes(ProUniverse* pu, uint64_t a, uint6
     return true;
 }
 
-/* Etappe 19: Singlet-Variante -- markiert b als spin-flipped. */
+/* Singlet-Variante: markiert b als spin-flipped. Der Wurzel-Knoten a
+ * bleibt normal. Non-Roots der b-Klasse erben das Flag beim naechsten
+ * Sync. */
 PROPHYSICS_API bool ProPhysics_Entangle_Nodes_Singlet(
     ProUniverse* pu, uint64_t a, uint64_t b)
 {
     if (!ProPhysics_Entangle_Nodes(pu, a, b)) return false;
-
-    /* b wird als spin-flipped markiert. Der Wurzel-Knoten a bleibt normal.
-     * Alle Non-Roots der b-Klasse erben das Flag beim naechsten Sync. */
     pro_node_set_spin_flip(pu, b, 1);
     return true;
 }
@@ -119,7 +169,10 @@ PROPHYSICS_API bool ProPhysics_Dissociate_Node(ProUniverse* pu, uint64_t a)
 {
     if (!pu || !pu->amp_grid || !pu->shared.parent) return false;
     if (a >= pu->total_nodes) return false;
+
     const uint64_t ra = pro_shared_find(pu, a);
+
+    /* Fall 1: a ist nicht Wurzel -- a wird eigenstaendige Klasse. */
     if (ra != a) {
         pu->amp_grid[a] = pu->amp_grid[ra];
         pu->shared.parent[a] = a;
@@ -127,16 +180,24 @@ PROPHYSICS_API bool ProPhysics_Dissociate_Node(ProUniverse* pu, uint64_t a)
         ProPhysics_Shared_Sync(pu);
         return true;
     }
+
+    /* a ist Wurzel. Sync zuerst, damit alle Mitglieder konsistent sind. */
     ProPhysics_Shared_Sync(pu);
+
+    /* Neuen Wurzel-Kandidaten suchen (erster direkter Nachfolger). */
     uint64_t other = UINT64_MAX;
     for (uint64_t k = 0; k < pu->total_nodes; ++k) {
         if (k == a) continue;
         if (pu->shared.parent[k] == a) { other = k; break; }
     }
+
+    /* Fall 2: a war Einzelklasse. */
     if (other == UINT64_MAX) {
         pro_node_set_spin_flip(pu, a, 0);
         return true;
     }
+
+    /* Fall 3: Klasse umhaengen auf other als neue Wurzel. */
     pu->amp_grid[other] = pu->amp_grid[a];
     for (uint64_t k = 0; k < pu->total_nodes; ++k) {
         if (k == a || k == other) continue;
@@ -180,7 +241,7 @@ PROPHYSICS_API uint64_t ProPhysics_Shared_Class_Count(const ProUniverse* pu)
 }
 
 /* ==========================================================================
- * Spin-Flip-Query (Etappe 19)
+ * Spin-Flip-Query
  * ========================================================================== */
 
 PROPHYSICS_API bool ProPhysics_Is_Spin_Flipped(
@@ -189,7 +250,7 @@ PROPHYSICS_API bool ProPhysics_Is_Spin_Flipped(
     return pro_node_spin_flipped(pu, k);
 }
 
-/* Etappe 19: Spin-View lesen. Wenn der Knoten spin-flipped ist, wird die
+/* Spin-View lesen. Wenn der Knoten spin-flipped ist, wird die
  * {up, down}-Komponente transformiert (c_up, c_down) -> (c_down, -c_up). */
 PROPHYSICS_API bool ProPhysics_Get_Node_Spin_View(
     const ProUniverse* pu, uint64_t k,
@@ -214,14 +275,12 @@ PROPHYSICS_API bool ProPhysics_Get_Node_Spin_View(
 }
 
 /* ==========================================================================
- * Klassen-Tick (Etappe 18e, unveraendert)
+ * Klassen-Tick
  *
- * Sammelt Kanten zwischen verschiedenen Klassen, rotiert die Repraesentanten
- * paarweise, synchronisiert anschliessend alle Mitglieder.
- *
- * Etappe 22-Refactoring: pro_sat_i32 fuer die 8 Saturationen.
- * ========================================================================== */
-
+ * Sammelt Kanten zwischen verschiedenen Klassen, rotiert die
+ * Repraesentanten paarweise, synchronisiert anschliessend alle
+ * Mitglieder. Die Rotationsstaerke waechst mit der Kantenzahl
+ * (theta_eff = theta_rad * count), geklemmt auf pi/2. */
 #define SHARED_MAX_PAIRS 1024u
 
 typedef struct {
@@ -242,6 +301,8 @@ PROPHYSICS_API void ProPhysics_Shared_Tick_Reps(
     SharedKantenPaar pairs[SHARED_MAX_PAIRS];
     uint32_t n_pairs = 0u;
 
+    /* Kanten zwischen verschiedenen Klassen sammeln, dedupliziert
+     * nach (rep_a, rep_b) mit rep_a < rep_b. */
     for (uint64_t k = 0; k < pu->total_nodes; ++k) {
         const uint64_t rep_a = pro_shared_find(pu, k);
         const ProRegister* r = &pu->reg_source[k];
@@ -292,20 +353,10 @@ PROPHYSICS_API void ProPhysics_Shared_Tick_Reps(
         const double s = sin(theta_eff);
 
         for (uint8_t b = 0; b < PRO_AMP_BASIS_SIZE; ++b) {
-            const int64_t ar = (int64_t)pro_amp_real(pu->amp_grid[rep_a].coeff[b]);
-            const int64_t ai = (int64_t)pro_amp_imag(pu->amp_grid[rep_a].coeff[b]);
-            const int64_t br = (int64_t)pro_amp_real(pu->amp_grid[rep_b].coeff[b]);
-            const int64_t bi = (int64_t)pro_amp_imag(pu->amp_grid[rep_b].coeff[b]);
-
-            const int64_t na_re = (int64_t)llround(c * (double)ar - s * (double)bi);
-            const int64_t na_im = (int64_t)llround(c * (double)ai + s * (double)br);
-            const int64_t nb_re = (int64_t)llround(c * (double)br - s * (double)ai);
-            const int64_t nb_im = (int64_t)llround(c * (double)bi + s * (double)ar);
-
-            pu->amp_grid[rep_a].coeff[b] =
-                pro_amp_pack(pro_sat_i32(na_re), pro_sat_i32(na_im));
-            pu->amp_grid[rep_b].coeff[b] =
-                pro_amp_pack(pro_sat_i32(nb_re), pro_sat_i32(nb_im));
+            pro_shared_pair_rotate_q31(
+                &pu->amp_grid[rep_a].coeff[b],
+                &pu->amp_grid[rep_b].coeff[b],
+                c, s);
         }
     }
 

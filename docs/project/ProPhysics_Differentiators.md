@@ -1,7 +1,11 @@
 # ProPhysics — Was uns unterscheidet
 
+**Datei:** `docs/project/ProPhysics_Differentiators.md`
 **Version:** 1.0
-**Stand:** 2026-09-25 (Etappe 23, Kernel-Version 3.0.0)
+**Kernel:** 1.23.0
+**Etappe:** 23
+**Stand:** 2026-09-26 (Kernel 1.23.0, Konsolidierungs-Serie
+1.23.1–1.23.8 abgeschlossen)
 **Zweck:** Erklärt sachlich, was ProPhysics anders macht als
 etablierte Software, warum das wichtig ist, und welchen konkreten
 Vorteil der aktuelle Stand bietet.
@@ -503,7 +507,7 @@ in ein C/C++-Projekt eingebettet werden kann. Lizenz siehe
 
 Wenn Etappe 24–27 abgeschlossen sind:
 
-- **Kernel-Version 3.1.0** („komplette QM")
+- **Kernel-Version 2.0.0** (Phase 2: „komplette QM")
 - Pfadintegral-Äquivalenz demonstriert
 - GHZ-Verschränkung über Hypergraph
 - Universalität über T-Gate

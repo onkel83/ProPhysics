@@ -85,7 +85,7 @@ finden ein Modell, das für beide Seiten fair ist.
 
 ## 4. Ablauf
 
-1. **Kontakt aufnehmen** — E-Mail an [koehne83@googlemail.com] mit kurzer
+1. **Kontakt aufnehmen** — E-Mail an [koehne83 at googlemail.com](koehne83@googlemail.com) mit kurzer
    Beschreibung der geplanten Nutzung
 2. **Erstgespräch** — 30 Minuten, was du vorhast, welches Modell passt
 3. **Angebot** — schriftlich, mit klaren Konditionen

@@ -1,21 +1,15 @@
 /* ==========================================================================
- * ProPhysics - Tensor Modul (Etappe 13-15, Refactoring 22)
+ * ProPhysics - Tensor Modul
  * File: ProPhysics_Tensor.c
- * Architecture: 2-Knoten-Verschaenkung in Q31. Tensorpaare sind isolierte
- *               Objekte, optional an amp_grid gekoppelt (Phase 3b).
- * Kernel: 1.23.0
- * Etappe: 22
  *
- * Etappe 22-Refactoring:
- *   - pro_sat_i32 ersetzt die manuellen if-Ketten in
- *     pro_tensor_set, Apply_Local_Op, Partial_Trace_A/B,
- *     Sync_From_Amp, Apply_Single_Qubit_Gate, Apply_Two_Qubit_Gate,
- *     Apply_Hopping, To/From_Fock.
- *   - pro_amp_abs2 bei Norm-Berechnungen.
- *   - Header-Kommentare auf v3.1 aktualisiert.
+ * Kernel: 1.23.0
+ * Etappe: 23
+ *
+ * 2-Knoten-Verschaenkung in Q31. Tensorpaare sind isolierte Objekte,
+ * optional an amp_grid gekoppelt.
  *
  * Verantwortlich fuer:
- *   - Jacobi-Eigenzerlegung (shared mit ProPhysics_Density.c, extern)
+ *   - Jacobi-Eigenzerlegung (shared mit ProPhysics_Density.c)
  *   - Tensor-Paar-Lifecycle (Create, Destroy, Set/Get_State, Local_Op)
  *   - Partial_Trace_A / _B, VN-Entropie, Tensor_Entanglement_Entropy
  *   - Tensor_Measure_Projective (ECHTE Born-Regel, kein sharp-Modell)
@@ -28,20 +22,96 @@
  *   - Fermionen: Is_Antisymmetric, Pauli_Violation, Antisymmetrize,
  *     Fermionize, Set_Slater, Apply_Hopping
  *   - Tensor<->Fock-Adapter (2-Teilchen-Sektor)
+ *
+ * Konventionen:
+ *   - Basis-Layout: coeff[a*8 + b], a = Knoten A, b = Knoten B.
+ *   - Qubit-Basis: {1, 4} = {UR_POSITRON_CW, UR_NEGATRON_CCW}.
+ *   - Antisymmetrie: psi[a,b] = -psi[b,a] (Fermionen-Konvention).
+ *   - Skala: Q31 (2^31-1 = 1.0).
+ *   - Q62-Normierung: 2^62 = physikalisch 1.0 (in Antisymmetrize).
+ *
+ * Interne Helfer:
+ *   - pro_rho_to_real16 (Q31 8x8 -> reelles 16x16)
+ *   - pro_write_dominant_eigvec (Jacobi-Eigenvektor nach amp_grid)
+ *   - pro_tensor_cmul_acc (acc += a*b in Q31)
+ *   - pro_tensor_cmul_conj_acc (acc += a*conj(b) in Q31)
+ *   - pro_tensor_get / pro_tensor_set (Zugriff mit Index-Layout)
+ *   - pro_pair_to_bits (Tensor-Paar -> Fock-Bits)
+ *
+ * Aenderungshistorie: siehe CHANGELOG.md im Projekt-Root.
+ * Konfiguration:       siehe docs/project/CONFIG.md.
+ * Modul-Dokumentation: siehe docs/project/Tensor.md.
  * ========================================================================== */
 
 #include "ProPhysics_Internal.h"
 
  /* ==========================================================================
-  * Jacobi-Eigenzerlegung fuer reelle symmetrische n x n-Matrix (in-place).
-  *
-  * A: Matrix, Diagonale = Eigenwerte nach Konvergenz.
-  * V: optional (NULL erlaubt). Wenn != NULL, akkumuliert V die
-  *    Rotationsmatrix. Spalte k von V = Eigenvektor zu A[k][k].
-  * n <= 16.
-  *
-  * Shared mit ProPhysics_Density.c (dort via ProPhysics_Internal.h).
+  * Interne Helfer
   * ========================================================================== */
+
+  /* acc += a * b (komplexe Multiplikation in Q31, ein Term).
+   *
+   *   (a_re + i·a_im) · (b_re + i·b_im)
+   *     = (a_re·b_re - a_im·b_im) + i·(a_re·b_im + a_im·b_re)
+   *
+   * Akkumulation erfolgt NACH dem pro_round_shift_q31, damit die
+   * Reihenfolge der Shift-Operationen bit-identisch zu den vormals
+   * inline-geschriebenen Summen bleibt. */
+static inline void pro_tensor_cmul_acc(
+    int64_t ar, int64_t ai, int64_t br, int64_t bi,
+    int64_t* acc_re, int64_t* acc_im)
+{
+    *acc_re += pro_round_shift_q31(ar * br - ai * bi);
+    *acc_im += pro_round_shift_q31(ar * bi + ai * br);
+}
+
+/* acc += a * conj(b) (komplexe Multiplikation mit Konjugation).
+ *
+ *   (a_re + i·a_im) · (b_re - i·b_im)
+ *     = (a_re·b_re + a_im·b_im) + i·(a_im·b_re - a_re·b_im) */
+static inline void pro_tensor_cmul_conj_acc(
+    int64_t ar, int64_t ai, int64_t br, int64_t bi,
+    int64_t* acc_re, int64_t* acc_im)
+{
+    *acc_re += pro_round_shift_q31(ar * br + ai * bi);
+    *acc_im += pro_round_shift_q31(ai * br - ar * bi);
+}
+
+/* Q31-rho (8x8 komplex) -> reelles 16x16-Embedding.
+ *
+ *   M[2i,   2j  ] =  Re(rho[i][j]) / 2^31
+ *   M[2i,   2j+1] = -Im(rho[i][j]) / 2^31
+ *   M[2i+1, 2j  ] =  Im(rho[i][j]) / 2^31
+ *   M[2i+1, 2j+1] =  Re(rho[i][j]) / 2^31
+ *
+ * Verwendung in ProPhysics_Von_Neumann_Entropy und in
+ * ProPhysics_Tensor_Sync_To_Amp (beide mit anschliessender
+ * Jacobi-Eigenzerlegung). */
+static void pro_rho_to_real16(
+    const ProAmpQ31 rho[8][8], double M[16][16])
+{
+    for (int a = 0; a < 8; ++a) {
+        for (int ap = 0; ap < 8; ++ap) {
+            const double re = (double)pro_amp_real(rho[a][ap]) / 2147483647.0;
+            const double im = (double)pro_amp_imag(rho[a][ap]) / 2147483647.0;
+            M[2 * a][2 * ap] = re;
+            M[2 * a][2 * ap + 1] = -im;
+            M[2 * a + 1][2 * ap] = im;
+            M[2 * a + 1][2 * ap + 1] = re;
+        }
+    }
+}
+
+/* ==========================================================================
+ * Jacobi-Eigenzerlegung fuer reelle symmetrische n x n-Matrix (in-place).
+ *
+ * A: Matrix, Diagonale = Eigenwerte nach Konvergenz.
+ * V: optional (NULL erlaubt). Wenn != NULL, akkumuliert V die
+ *    Rotationsmatrix. Spalte k von V = Eigenvektor zu A[k][k].
+ * n <= 16.
+ *
+ * Shared mit ProPhysics_Density.c (dort via ProPhysics_Internal.h).
+ * ========================================================================== */
 
 void pro_jacobi_sym_eigen(double A[16][16], double V[16][16], int n)
 {
@@ -193,12 +263,10 @@ PROPHYSICS_API bool ProPhysics_Tensor_Apply_Local_Op(
                 for (int ap = 0; ap < 8; ++ap) {
                     const ProAmpQ31 u = U[a][ap];
                     const ProAmpQ31 psi = p->coeff[ap * 8 + b];
-                    const int64_t ur = pro_amp_real(u);
-                    const int64_t ui = pro_amp_imag(u);
-                    const int64_t pr = pro_amp_real(psi);
-                    const int64_t pi = pro_amp_imag(psi);
-                    sum_re += pro_round_shift_q31(ur * pr - ui * pi);
-                    sum_im += pro_round_shift_q31(ur * pi + ui * pr);
+                    pro_tensor_cmul_acc(
+                        pro_amp_real(u), pro_amp_imag(u),
+                        pro_amp_real(psi), pro_amp_imag(psi),
+                        &sum_re, &sum_im);
                 }
                 tmp[a * 8 + b] = pro_amp_pack(pro_sat_i32(sum_re),
                     pro_sat_i32(sum_im));
@@ -213,12 +281,10 @@ PROPHYSICS_API bool ProPhysics_Tensor_Apply_Local_Op(
                 for (int bp = 0; bp < 8; ++bp) {
                     const ProAmpQ31 u = U[b][bp];
                     const ProAmpQ31 psi = p->coeff[a * 8 + bp];
-                    const int64_t ur = pro_amp_real(u);
-                    const int64_t ui = pro_amp_imag(u);
-                    const int64_t pr = pro_amp_real(psi);
-                    const int64_t pi = pro_amp_imag(psi);
-                    sum_re += pro_round_shift_q31(ur * pr - ui * pi);
-                    sum_im += pro_round_shift_q31(ur * pi + ui * pr);
+                    pro_tensor_cmul_acc(
+                        pro_amp_real(u), pro_amp_imag(u),
+                        pro_amp_real(psi), pro_amp_imag(psi),
+                        &sum_re, &sum_im);
                 }
                 tmp[a * 8 + b] = pro_amp_pack(pro_sat_i32(sum_re),
                     pro_sat_i32(sum_im));
@@ -250,12 +316,10 @@ PROPHYSICS_API bool ProPhysics_Tensor_Partial_Trace_A(
             for (int b = 0; b < 8; ++b) {
                 const ProAmpQ31 psi_ab = p->coeff[a * 8 + b];
                 const ProAmpQ31 psi_apb = p->coeff[ap * 8 + b];
-                const int64_t ar = pro_amp_real(psi_ab);
-                const int64_t ai = pro_amp_imag(psi_ab);
-                const int64_t br = pro_amp_real(psi_apb);
-                const int64_t bi = pro_amp_imag(psi_apb);
-                sum_re += pro_round_shift_q31(ar * br + ai * bi);
-                sum_im += pro_round_shift_q31(ai * br - ar * bi);
+                pro_tensor_cmul_conj_acc(
+                    pro_amp_real(psi_ab), pro_amp_imag(psi_ab),
+                    pro_amp_real(psi_apb), pro_amp_imag(psi_apb),
+                    &sum_re, &sum_im);
             }
             out_rho[a][ap] = pro_amp_pack(pro_sat_i32(sum_re),
                 pro_sat_i32(sum_im));
@@ -280,12 +344,10 @@ PROPHYSICS_API bool ProPhysics_Tensor_Partial_Trace_B(
             for (int a = 0; a < 8; ++a) {
                 const ProAmpQ31 psi_ab = p->coeff[a * 8 + b];
                 const ProAmpQ31 psi_abp = p->coeff[a * 8 + bp];
-                const int64_t ar = pro_amp_real(psi_ab);
-                const int64_t ai = pro_amp_imag(psi_ab);
-                const int64_t br = pro_amp_real(psi_abp);
-                const int64_t bi = pro_amp_imag(psi_abp);
-                sum_re += pro_round_shift_q31(ar * br + ai * bi);
-                sum_im += pro_round_shift_q31(ai * br - ar * bi);
+                pro_tensor_cmul_conj_acc(
+                    pro_amp_real(psi_ab), pro_amp_imag(psi_ab),
+                    pro_amp_real(psi_abp), pro_amp_imag(psi_abp),
+                    &sum_re, &sum_im);
             }
             out_rho[b][bp] = pro_amp_pack(pro_sat_i32(sum_re),
                 pro_sat_i32(sum_im));
@@ -304,17 +366,7 @@ PROPHYSICS_API double ProPhysics_Von_Neumann_Entropy(
     if (!rho) return 0.0;
 
     double M[16][16];
-    for (int i = 0; i < 8; ++i) {
-        for (int j = 0; j < 8; ++j) {
-            const double re = (double)pro_amp_real(rho[i][j]) / 2147483647.0;
-            const double im = (double)pro_amp_imag(rho[i][j]) / 2147483647.0;
-            M[2 * i][2 * j] = re;
-            M[2 * i][2 * j + 1] = -im;
-            M[2 * i + 1][2 * j] = im;
-            M[2 * i + 1][2 * j + 1] = re;
-        }
-    }
-
+    pro_rho_to_real16(rho, M);
     pro_jacobi_sym_eigen(M, NULL, 16);
 
     double S = 0.0;
@@ -334,7 +386,7 @@ PROPHYSICS_API double ProPhysics_Tensor_Entanglement_Entropy(
 }
 
 /* ==========================================================================
- * Tensor_Measure_Projective (Etappe 13 Phase 2)
+ * Tensor_Measure_Projective
  *
  * ECHTE Born-Regel: p(sigma_a, sigma_b | theta_a, theta_b)
  *   = |<theta_a, sigma_a; theta_b, sigma_b | psi>|^2.
@@ -446,7 +498,7 @@ PROPHYSICS_API uint32_t ProPhysics_Tensor_Find_Pair_By_Node(
 }
 
 /* ==========================================================================
- * Sync Tensor -> amp_grid (Etappe 13 Phase 2b)
+ * Sync Tensor -> amp_grid
  *
  * amp_grid[k] ist die Marginale des fundamentalen Tensor-Zustands.
  * Fuer Paare: dominanter Eigenvektor von rho_k.
@@ -454,21 +506,6 @@ PROPHYSICS_API uint32_t ProPhysics_Tensor_Find_Pair_By_Node(
  * Interner Helfer: rho (8x8 Q31 komplex) -> 16x16 reell-symmetrisch, dann
  * Jacobi mit Eigenvektoren, dominanter zurueck nach Q31.
  * ========================================================================== */
-
-static void pro_rho_to_real16(
-    const ProAmpQ31 rho[8][8], double M[16][16])
-{
-    for (int a = 0; a < 8; ++a) {
-        for (int ap = 0; ap < 8; ++ap) {
-            const double re = (double)pro_amp_real(rho[a][ap]) / 2147483647.0;
-            const double im = (double)pro_amp_imag(rho[a][ap]) / 2147483647.0;
-            M[2 * a][2 * ap] = re;
-            M[2 * a][2 * ap + 1] = -im;
-            M[2 * a + 1][2 * ap] = im;
-            M[2 * a + 1][2 * ap + 1] = re;
-        }
-    }
-}
 
 static void pro_write_dominant_eigvec(
     ProUniverse* pu, uint64_t node, double M[16][16])
@@ -518,7 +555,7 @@ PROPHYSICS_API bool ProPhysics_Tensor_Sync_To_Amp(ProUniverse* pu)
 }
 
 /* ==========================================================================
- * Sync amp_grid -> Tensor (Etappe 13 Phase 2b)
+ * Sync amp_grid -> Tensor
  *
  * Aeusseres Produkt der beiden Knoten-Amplitudenvektoren:
  *   p->coeff[a*8+b] = amp_grid[node_a].coeff[a] * amp_grid[node_b].coeff[b]
@@ -541,13 +578,11 @@ PROPHYSICS_API bool ProPhysics_Tensor_Sync_From_Amp(
             const ProAmpQ31 ca = pu->amp_grid[p->node_a].coeff[a];
             const ProAmpQ31 cb = pu->amp_grid[p->node_b].coeff[b];
 
-            const int64_t ar = pro_amp_real(ca);
-            const int64_t ai = pro_amp_imag(ca);
-            const int64_t br = pro_amp_real(cb);
-            const int64_t bi = pro_amp_imag(cb);
-
-            const int64_t re = pro_round_shift_q31(ar * br - ai * bi);
-            const int64_t im = pro_round_shift_q31(ar * bi + ai * br);
+            int64_t re = 0, im = 0;
+            pro_tensor_cmul_acc(
+                pro_amp_real(ca), pro_amp_imag(ca),
+                pro_amp_real(cb), pro_amp_imag(cb),
+                &re, &im);
 
             p->coeff[a * 8 + b] = pro_amp_pack(pro_sat_i32(re),
                 pro_sat_i32(im));
@@ -557,7 +592,7 @@ PROPHYSICS_API bool ProPhysics_Tensor_Sync_From_Amp(
 }
 
 /* ==========================================================================
- * 1-Qubit-Gatter (Etappe 13 Phase 3a)
+ * 1-Qubit-Gatter
  * ========================================================================== */
 
 PROPHYSICS_API bool ProPhysics_Tensor_Apply_Single_Qubit_Gate(
@@ -587,14 +622,11 @@ PROPHYSICS_API bool ProPhysics_Tensor_Apply_Single_Qubit_Gate(
             const int64_t o0r = pro_amp_real(o0), o0i = pro_amp_imag(o0);
             const int64_t o1r = pro_amp_real(o1), o1i = pro_amp_imag(o1);
 
-            const int64_t nr0 = pro_round_shift_q31(u00r * o0r - u00i * o0i)
-                + pro_round_shift_q31(u01r * o1r - u01i * o1i);
-            const int64_t ni0 = pro_round_shift_q31(u00r * o0i + u00i * o0r)
-                + pro_round_shift_q31(u01r * o1i + u01i * o1r);
-            const int64_t nr1 = pro_round_shift_q31(u10r * o0r - u10i * o0i)
-                + pro_round_shift_q31(u11r * o1r - u11i * o1i);
-            const int64_t ni1 = pro_round_shift_q31(u10r * o0i + u10i * o0r)
-                + pro_round_shift_q31(u11r * o1i + u11i * o1r);
+            int64_t nr0 = 0, ni0 = 0, nr1 = 0, ni1 = 0;
+            pro_tensor_cmul_acc(u00r, u00i, o0r, o0i, &nr0, &ni0);
+            pro_tensor_cmul_acc(u01r, u01i, o1r, o1i, &nr0, &ni0);
+            pro_tensor_cmul_acc(u10r, u10i, o0r, o0i, &nr1, &ni1);
+            pro_tensor_cmul_acc(u11r, u11i, o1r, o1i, &nr1, &ni1);
 
             p->coeff[b0 * 8 + j] = pro_amp_pack(pro_sat_i32(nr0),
                 pro_sat_i32(ni0));
@@ -609,14 +641,11 @@ PROPHYSICS_API bool ProPhysics_Tensor_Apply_Single_Qubit_Gate(
             const int64_t o0r = pro_amp_real(o0), o0i = pro_amp_imag(o0);
             const int64_t o1r = pro_amp_real(o1), o1i = pro_amp_imag(o1);
 
-            const int64_t nr0 = pro_round_shift_q31(u00r * o0r - u00i * o0i)
-                + pro_round_shift_q31(u01r * o1r - u01i * o1i);
-            const int64_t ni0 = pro_round_shift_q31(u00r * o0i + u00i * o0r)
-                + pro_round_shift_q31(u01r * o1i + u01i * o1r);
-            const int64_t nr1 = pro_round_shift_q31(u10r * o0r - u10i * o0i)
-                + pro_round_shift_q31(u11r * o1r - u11i * o1i);
-            const int64_t ni1 = pro_round_shift_q31(u10r * o0i + u10i * o0r)
-                + pro_round_shift_q31(u11r * o1i + u11i * o1r);
+            int64_t nr0 = 0, ni0 = 0, nr1 = 0, ni1 = 0;
+            pro_tensor_cmul_acc(u00r, u00i, o0r, o0i, &nr0, &ni0);
+            pro_tensor_cmul_acc(u01r, u01i, o1r, o1i, &nr0, &ni0);
+            pro_tensor_cmul_acc(u10r, u10i, o0r, o0i, &nr1, &ni1);
+            pro_tensor_cmul_acc(u11r, u11i, o1r, o1i, &nr1, &ni1);
 
             p->coeff[i * 8 + b0] = pro_amp_pack(pro_sat_i32(nr0),
                 pro_sat_i32(ni0));
@@ -656,10 +685,9 @@ PROPHYSICS_API bool ProPhysics_Tensor_Apply_Two_Qubit_Gate(
     for (int a = 0; a < 4; ++a) {
         int64_t sr = 0, si = 0;
         for (int b = 0; b < 4; ++b) {
-            const int64_t or_ = pro_amp_real(old[b]);
-            const int64_t oi_ = pro_amp_imag(old[b]);
-            sr += pro_round_shift_q31(gr[a][b] * or_ - gi[a][b] * oi_);
-            si += pro_round_shift_q31(gr[a][b] * oi_ + gi[a][b] * or_);
+            pro_tensor_cmul_acc(gr[a][b], gi[a][b],
+                pro_amp_real(old[b]), pro_amp_imag(old[b]),
+                &sr, &si);
         }
         out[a] = pro_amp_pack(pro_sat_i32(sr), pro_sat_i32(si));
     }
@@ -814,7 +842,7 @@ PROPHYSICS_API double ProPhysics_Tensor_Concurrence(
 }
 
 /* ==========================================================================
- * Mark / Unmark / Auto-Sync (Etappe 13 Phase 3b-a)
+ * Mark / Unmark / Auto-Sync
  * ========================================================================== */
 
 PROPHYSICS_API bool ProPhysics_Tensor_Mark_Nodes(
@@ -867,7 +895,7 @@ PROPHYSICS_API bool ProPhysics_Tensor_Sync_Marked_To_Amp(ProUniverse* pu)
 }
 
 /* ==========================================================================
- * XX-Kopplung (Etappe 13 Phase 3b-b)
+ * XX-Kopplung
  *
  * U(theta) = cos(theta) * I - i sin(theta) * sigma_x (x) sigma_x
  * ========================================================================== */
@@ -921,7 +949,7 @@ PROPHYSICS_API bool ProPhysics_Tensor_Apply_XX_Step(
 }
 
 /* ==========================================================================
- * SU(2) auf Spinor-Paaren (Etappe 13 Phase 3g)
+ * SU(2) auf Spinor-Paaren
  * ========================================================================== */
 
 PROPHYSICS_API bool ProPhysics_Apply_SU2_Rotation(
@@ -957,14 +985,11 @@ PROPHYSICS_API bool ProPhysics_Apply_SU2_Rotation(
     const int64_t br = pro_amp_real(pu->amp_grid[node].coeff[id]);
     const int64_t bi = pro_amp_imag(pu->amp_grid[node].coeff[id]);
 
-    const int64_t nr0 = pro_round_shift_q31(u00r * ar - u00i * ai)
-        + pro_round_shift_q31(u01r * br - u01i * bi);
-    const int64_t ni0 = pro_round_shift_q31(u00r * ai + u00i * ar)
-        + pro_round_shift_q31(u01r * bi + u01i * br);
-    const int64_t nr1 = pro_round_shift_q31(u10r * ar - u10i * ai)
-        + pro_round_shift_q31(u11r * br - u11i * bi);
-    const int64_t ni1 = pro_round_shift_q31(u10r * ai + u10i * ar)
-        + pro_round_shift_q31(u11r * bi + u11i * br);
+    int64_t nr0 = 0, ni0 = 0, nr1 = 0, ni1 = 0;
+    pro_tensor_cmul_acc(u00r, u00i, ar, ai, &nr0, &ni0);
+    pro_tensor_cmul_acc(u01r, u01i, br, bi, &nr0, &ni0);
+    pro_tensor_cmul_acc(u10r, u10i, ar, ai, &nr1, &ni1);
+    pro_tensor_cmul_acc(u11r, u11i, br, bi, &nr1, &ni1);
 
     pu->amp_grid[node].coeff[iu] = pro_amp_pack(pro_sat_i32(nr0),
         pro_sat_i32(ni0));
@@ -1047,7 +1072,7 @@ PROPHYSICS_API double ProPhysics_Verify_SU2_Algebra(void)
 }
 
 /* ==========================================================================
- * Fermionen / Antisymmetrie (Etappe 14)
+ * Fermionen / Antisymmetrie
  * ========================================================================== */
 
 static inline void pro_tensor_get(const ProAmpTensorPair* p,
@@ -1202,7 +1227,7 @@ PROPHYSICS_API bool ProPhysics_Tensor_Set_Slater(
 }
 
 /* ==========================================================================
- * Fermionisches Hopping (Etappe 14b/14c)
+ * Fermionisches Hopping
  * ========================================================================== */
 
 PROPHYSICS_API bool ProPhysics_Tensor_Apply_Hopping(
@@ -1300,7 +1325,7 @@ PROPHYSICS_API bool ProPhysics_Tensor_Get_Hopping(
 }
 
 /* ==========================================================================
- * Tensor <-> Fock Adapter (Etappe 15e)
+ * Tensor <-> Fock Adapter
  *
  * Konvention (norm-erhaltend):
  *   Tensor Slater(i,j)  <->  Fock |i,j>  mit bits = (1<<i)|(1<<j)

@@ -1,19 +1,24 @@
 /* ==========================================================================
- * ProPhysics - Gauge Modul (Etappe 4-18, Refactoring 22)
+ * ProPhysics - Gauge Modul
  * File: ProPhysics_Gauge.c
  * Architecture: U(1)-Eichstruktur, lambda-Feld, Amplitudenrotation,
  *               Mess-Helfer fuer den Test-Harness.
  * Kernel: 1.23.0
- * Etappe: 22
+ * Etappe: 23
  *
- * Etappe 22-Refactoring:
- *   - pro_sat_i32 in pro_amp_rotate_q16.
- *   - pro_wilson_validate_path Helper fuer Pfad-Validierung
- *     (shared mit ProPhysics_SU2.c, definiert in ProPhysics_Internal.h).
- *   - Header-Kommentare auf v3.1 aktualisiert.
- *
- * Etappe 17b: ProPhysics_Apply_Local_Phase_Plate.
- * Etappe 18:  ProPhysics_Apply_Coulomb_Phase_Field_3D.
+ * Verantwortlich fuer:
+ *   - pro_amp_to_lambda, pro_measure_sharp (Wrapper)
+ *   - pro_trig_init, pro_amp_rotate_q16 (Q30-Tabelle, lazy init)
+ *   - ProPhysics_Wilson_Loop
+ *   - ProPhysics_Global_Phase
+ *   - ProPhysics_Get_Born_Probability
+ *   - ProPhysics_Make_Lambda_Field
+ *   - ProPhysics_Apply_Local_Gauge
+ *   - ProPhysics_Apply_Local_Phase_Plate
+ *   - ProPhysics_Apply_Coulomb_Phase_Field_3D
+ *   - ProPhysics_Compute_Lambda (oeffentlicher Wrapper)
+ *   - ProPhysics_Sharp_Measure  (oeffentlicher Wrapper)
+ *   - ProPhysics_Type_State_Measure
  *
  * Hinweis zur U(1)- vs. SU(2)-Wilson-Loop:
  *   Der U(1)-Loop ist der abelsche Spezialfall des SU(2)-Loops mit
@@ -26,30 +31,54 @@
  *   Path-Ordered), der U(1)-Loop vorwaerts (abelsch, Reihenfolge
  *   irrelevant).
  *
- * Verantwortlich fuer:
- *   - pro_amp_to_lambda, pro_measure_sharp (Wrapper)
- *   - pro_trig_init, pro_amp_rotate_q16 (Q30-Tabelle, lazy init)
- *   - ProPhysics_Wilson_Loop
- *   - ProPhysics_Global_Phase
- *   - ProPhysics_Get_Born_Probability
- *   - ProPhysics_Make_Lambda_Field
- *   - ProPhysics_Apply_Local_Gauge
- *   - ProPhysics_Apply_Local_Phase_Plate   (Etappe 17b)
- *   - ProPhysics_Apply_Coulomb_Phase_Field_3D (Etappe 18)
- *   - ProPhysics_Compute_Lambda (oeffentlicher Wrapper)
- *   - ProPhysics_Sharp_Measure  (oeffentlicher Wrapper)
- *   - ProPhysics_Type_State_Measure
+ * Historie und Details siehe docs/project/Gauge.md und CHANGELOG.md.
  * ========================================================================== */
 
 #include "ProPhysics_Internal.h"
 
  /* ==========================================================================
-  * Amplituden-Vektor -> Projektionsachse lambda
-  *
-  * lambda ist der Winkel im 2-dim Unterraum {UR_POSITRON_CW (=1),
-  * UR_NEGATRON_CCW (=4)}, den der Amplitudenvektor aufspannt.
-  * Annahme: beide Koeffizienten sind reell.
+  * Interne Helfer (static, nicht Teil der API)
   * ========================================================================== */
+
+  /* Rotiert alle Basis-Koeffizienten eines Amplitudenvektors um
+   * phase_q16 (Q16, 65536 = 2*pi). Ersetzt vier identische Schleifen:
+   *   - ProPhysics_Global_Phase
+   *   - ProPhysics_Apply_Local_Gauge (Schritt 2)
+   *   - ProPhysics_Apply_Local_Phase_Plate
+   *   - ProPhysics_Apply_Coulomb_Phase_Field_3D
+   * Reihenfolge der Basiszustaende bleibt 0..PRO_AMP_BASIS_SIZE-1,
+   * damit RNG-Fluss / Determinismus unveraendert bleiben. */
+static void pro_amp_vector_rotate_q16(ProAmpVector* v, uint16_t phase_q16)
+{
+    for (uint8_t b = 0; b < PRO_AMP_BASIS_SIZE; ++b) {
+        v->coeff[b] = pro_amp_rotate_q16(v->coeff[b], phase_q16);
+    }
+}
+
+/* Normalisiert eine (moeglicherweise negative oder grosse) Q15-Phase
+ * auf einen Q16-Winkel in [0, 65536).
+ *
+ * Konvention:
+ *   - Eingabe strength_q15 ist in Q15-Einheiten
+ *     (1 Einheit = 2*pi / 32768).
+ *   - Ausgabe ist ein Q16-Winkel (65536 = 2*pi), wie ihn
+ *     pro_amp_rotate_q16 erwartet.
+ *   - Damit ist der Faktor zwischen Eingang und Ausgang exakt 2. */
+static inline uint16_t pro_phase_q15_to_q16(int32_t phase_q15)
+{
+    int64_t p = (int64_t)phase_q15 * 2;
+    p %= 65536;
+    if (p < 0) p += 65536;
+    return (uint16_t)p;
+}
+
+/* ==========================================================================
+ * Amplituden-Vektor -> Projektionsachse lambda
+ *
+ * lambda ist der Winkel im 2-dim Unterraum {UR_POSITRON_CW (=1),
+ * UR_NEGATRON_CCW (=4)}, den der Amplitudenvektor aufspannt.
+ * Annahme: beide Koeffizienten sind reell.
+ * ========================================================================== */
 
 double pro_amp_to_lambda(const ProAmpVector* v)
 {
@@ -122,8 +151,8 @@ ProAmpQ31 pro_amp_rotate_q16(ProAmpQ31 c, uint16_t phase_fx)
  * Summe der Kantenphasen mod 65536 ueber einen geschlossenen Pfad.
  * Spezialfall path_len == 1: Self-Loop, gibt die eine Phase zurueck.
  *
- * Etappe 22-Refactoring: Pfad-Validierung zentralisiert ueber
- * pro_wilson_validate_path (shared mit ProPhysics_SU2.c).
+ * Pfad-Validierung zentralisiert ueber pro_wilson_validate_path
+ * (shared mit ProPhysics_SU2.c, definiert in ProPhysics_Internal.h).
  *
  * Reihenfolge: vorwaerts. Fuer die abelsche U(1)-Gruppe ist die
  * Reihenfolge irrelevant. Die SU(2)-Version iteriert rueckwaerts
@@ -173,10 +202,7 @@ PROPHYSICS_API void ProPhysics_Global_Phase(ProUniverse* pu, uint16_t phase_fx)
     if (phase_fx == 0u) return;
 
     for (uint64_t k = 0; k < pu->total_nodes; ++k) {
-        ProAmpVector* v = &pu->amp_grid[k];
-        for (uint8_t b = 0; b < PRO_AMP_BASIS_SIZE; ++b) {
-            v->coeff[b] = pro_amp_rotate_q16(v->coeff[b], phase_fx);
-        }
+        pro_amp_vector_rotate_q16(&pu->amp_grid[k], phase_fx);
     }
 }
 
@@ -269,16 +295,12 @@ PROPHYSICS_API void ProPhysics_Apply_Local_Gauge(ProUniverse* pu,
     for (uint64_t k = 0; k < n; ++k) {
         const uint16_t lam = lambda_fx[k];
         if (lam == 0u) continue;
-
-        ProAmpVector* v = &pu->amp_grid[k];
-        for (uint8_t b = 0; b < PRO_AMP_BASIS_SIZE; ++b) {
-            v->coeff[b] = pro_amp_rotate_q16(v->coeff[b], lam);
-        }
+        pro_amp_vector_rotate_q16(&pu->amp_grid[k], lam);
     }
 }
 
 /* ==========================================================================
- * Etappe 17b: Ortsabhaengige Phase Plate.
+ * Ortsabhaengige Phase Plate (Etappe 17b).
  *
  * Multipliziert die Amplitude an allen Knoten im 2D-Rechteck
  *   [x0, x0+w) x [y0, y0+h)
@@ -320,16 +342,13 @@ PROPHYSICS_API void ProPhysics_Apply_Local_Phase_Plate(
         for (uint32_t x = x0; x < x1; ++x) {
             const uint64_t idx = row_base + x;
             if (idx >= pu->total_nodes) continue;
-            ProAmpVector* v = &pu->amp_grid[idx];
-            for (uint8_t b = 0; b < PRO_AMP_BASIS_SIZE; ++b) {
-                v->coeff[b] = pro_amp_rotate_q16(v->coeff[b], phase_q15);
-            }
+            pro_amp_vector_rotate_q16(&pu->amp_grid[idx], phase_q15);
         }
     }
 }
 
 /* ==========================================================================
- * Etappe 18: Coulomb-Phase-Field 3D
+ * Coulomb-Phase-Field 3D (Etappe 18)
  *
  * Radialsymmetrisches 1/r-Phase-Feld um ein Zentrum (cx, cy, cz) im
  * 3D-Torus. Pro Tick wird jeder Knoten (x, y, z) um
@@ -457,20 +476,10 @@ PROPHYSICS_API void ProPhysics_Apply_Coulomb_Phase_Field_3D(
 
         if (phase_q15 == 0) continue;
 
-        /* phase_q15 in Q16-Phase umrechnen:
-         * strength_q15 ist in Q15-Einheiten (2*pi/32768 pro Einheit).
-         * Um daraus einen Q16-Phasenwert zu machen:
-         *   phase_q16 = phase_q15 * 2. */
-        int64_t phase_q16_i64 = (int64_t)phase_q15 * 2;
-        phase_q16_i64 = phase_q16_i64 % 65536;
-        if (phase_q16_i64 < 0) phase_q16_i64 += 65536;
+        /* Q15 -> Q16 (65536 = 2*pi), siehe pro_phase_q15_to_q16. */
+        const uint16_t phase_q16 = pro_phase_q15_to_q16(phase_q15);
 
-        const uint16_t phase_q16 = (uint16_t)phase_q16_i64;
-
-        ProAmpVector* v = &pu->amp_grid[k];
-        for (uint8_t b = 0; b < PRO_AMP_BASIS_SIZE; ++b) {
-            v->coeff[b] = pro_amp_rotate_q16(v->coeff[b], phase_q16);
-        }
+        pro_amp_vector_rotate_q16(&pu->amp_grid[k], phase_q16);
     }
 }
 

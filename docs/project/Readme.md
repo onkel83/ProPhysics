@@ -2,7 +2,10 @@
 
 **Datei:** `docs/physics/README.md`
 **Version:** 1.0
-**Stand:** 2026-09-25 (Kernel-Version 3.0.0, Etappe 23)
+**Kernel:** 1.23.0
+**Etappe:** 23
+**Stand:** 2026-09-26 (Kernel 1.23.0, Konsolidierungs-Serie
+1.23.1–1.23.8 abgeschlossen)
 **Zweck:** Kompakte Einführung in die Physik von ProPhysics. Für Leser,
 die verstehen wollen, **was** der Kernel physikalisch tut, ohne den
 Testkatalog zu lesen oder den Code zu studieren.
@@ -81,7 +84,7 @@ notwendig sind — nur, dass sie **ausreichend** sind.
 ## §2 — Die 5 Ur-Regeln
 
 Das Fundament. Jede andere Struktur folgt aus ihnen — oder ist eine
-explizite Erweiterung (siehe §3.4).
+explizite Erweiterung (siehe §3.4 in `Project.md`).
 
 ### §2.1 — U1: Zustandsmenge
 
@@ -618,18 +621,27 @@ sind implementiert.
 
 ### §8.3 — Gitter-Größen
 
-| Gitter | Knoten | RAM (ProUniverse) |
-|---|---|---|
-| 16² | 256 | 232 KB |
-| 64² | 4 096 | 3,7 MB |
-| 128² | 16 384 | 14,8 MB |
-| 16³ | 4 096 | 3,7 MB |
-| 32³ | 32 768 | 29,6 MB |
-| 64³ | 262 144 | 237 MB |
-| 128³ | 2 097 152 | 1,9 GB |
+`sizeof(ProUniverse)`-Arrays pro Knoten: **1 032 B** (siehe
+`ARCHITECTURE.md` §2.2 — sechs Kern-Arrays: `ur_grid` 8 B,
+`reg_source` 128 B, `reg_target` 128 B, `edge_phases` 640 B,
+`amp_grid` 64 B, `amp_scratch` 64 B).
 
-**Praktische Obergrenze:** `64³` (237 MB), darüber wird der Tick zu
-langsam.
+| Gitter | Knoten | RAM (ProUniverse-Kernarrays) |
+|---|---|---|
+| 16² | 256 | ~258 KB |
+| 64² | 4 096 | ~4,0 MB |
+| 128² | 16 384 | ~16,2 MB |
+| 16³ | 4 096 | ~4,0 MB |
+| 32³ | 32 768 | ~32,3 MB |
+| 64³ | 262 144 | ~259 MB |
+| 128³ | 2 097 152 | ~2,07 GB |
+
+**Praktische Obergrenze:** `64³` (~260 MB), darüber wird der Tick
+zu langsam.
+
+**Korrektur-Hinweis:** Frühere Fassungen rechneten mit 904 B × N
+(Summen-Fehler: `amp_grid` und `amp_scratch` fehlten). Die korrekte
+Summe ist 1 032 B × N.
 
 ---
 
@@ -731,6 +743,8 @@ Forschungs-Programms.
 
 ## §12 — Siehe auch
 
+**Übergreifende Dokumente:**
+
 | Thema | Datei |
 |---|---|
 | Testkatalog (Rohwerte) | `docs/test/ProPhysics_Testkatalog.md` |
@@ -738,10 +752,48 @@ Forschungs-Programms.
 | Projekt-Roadmap | `docs/project/Project.md` |
 | Architektur | `docs/project/ARCHITECTURE.md` |
 | API-Referenz Kernel | `docs/project/ProPhysics_API.md` |
-| API-Referenz SDK | `docs/project/SDK_API.md` |
+| API-Referenz SDK | `docs/project/SDK_API.md` (geplant, `TODO.md` §5.3) |
 | Abgrenzung | `docs/project/ProPhysics_Differentiators.md` |
+| Versions-Register | `docs/project/ProPhysics_VersionRegistry.md` |
+| Konfiguration | `docs/project/CONFIG.md` |
 | Changelog | `CHANGELOG.md` |
+
+**Modul-Referenzen:**
+
+| Modul | Datei |
+|---|---|
+| Core | `docs/project/Core.md` |
+| Amp | `docs/project/Amp.md` |
+| Gauge | `docs/project/Gauge.md` |
+| EPR | `docs/project/EPR.md` |
+| Observer | `docs/project/Observer.md` |
+| Shared | `docs/project/Shared.md` |
+| Dirac | `docs/project/Dirac.md` |
+| SU2 | `docs/project/SU2.md` |
+| SU2_Dynamics | `docs/project/SU2_Dynamics.md` |
+| Tensor | `docs/project/Tensor.md` |
+| Fock | `docs/project/Fock.md` |
+| Density | `docs/project/Density.md` |
+
+**Externe Verweise:**
+
+| Thema | URL |
+|---|---|
 | Repository | https://github.com/onkel83/prophysics |
+
+---
+
+## §13 — Versions-Historie dieses Dokuments
+
+| Version | Datum | Änderung |
+|---|---|---|
+| 1.0 | 2026-09-25 | Erste Fassung, Etappe 23, Kernel-Version 3.0.0 |
+| 1.0 | 2026-09-26 | Header auf Etappen-Schema umgestellt (Kernel 1.23.0, Etappe 23); §8.3 Größenrechnung korrigiert (904 → 1 032 B × N — `amp_grid` und `amp_scratch` fehlten in der Summe); §12 um alle 12 Modul-Docs und Versions-Register/Konfiguration erweitert; `SDK_API.md` als geplant markiert |
+
+**Hinweis zum Schema-Wechsel:** Frühere Versionen dieses Dokuments
+trugen `Kernel-Version 3.0.0` (SemVer-ähnlich). Mit der Umstellung auf
+das Etappen-Schema entspricht `3.0.0` jetzt `1.23.0`. Siehe
+`CHANGELOG.md` §2.5.
 
 ---
 

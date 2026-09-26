@@ -1,7 +1,7 @@
 # ProPhysics — Änderungsprotokoll
 
 **Datei:** `CHANGELOG.md`
-**Version:** 1.23.2
+**Version:** 1.23.8
 **Kernel:** 1.23.0
 **Etappe:** 23
 **Stand:** 2026-09-26
@@ -40,6 +40,12 @@ Die drei Ziffern bedeuten:
 | `1.23.0` | Phase 1, Etappe 23, kein Fix |
 | `1.23.1` | Phase 1, Etappe 23, Konsolidierungs-Fix 1 |
 | `1.23.2` | Phase 1, Etappe 23, Konsolidierungs-Fix 2 |
+| `1.23.3` | Phase 1, Etappe 23, Konsolidierungs-Fix 3 (Gauge) |
+| `1.23.4` | Phase 1, Etappe 23, Konsolidierungs-Fix 4 (Observer) |
+| `1.23.5` | Phase 1, Etappe 23, Konsolidierungs-Fix 5 (Shared) |
+| `1.23.6` | Phase 1, Etappe 23, Konsolidierungs-Fix 6 (SU2) |
+| `1.23.7` | Phase 1, Etappe 23, Konsolidierungs-Fix 7 (SU2_Dynamics) |
+| `1.23.8` | Phase 1, Etappe 23, Konsolidierungs-Fix 8 (Tensor) |
 | `1.22.1` | Phase 1, Etappe 22, Fix 1 (Etappe 22b) |
 | `1.18.0` | Phase 1, Etappe 18, kein Fix |
 
@@ -104,6 +110,414 @@ Build-Skripte sind unabhängige Werkzeuge.
 ### Added (geplant, aufgeschoben)
 
 - Etappe O1 — Cache-Optimierung (`CHANNELS_MAX` 16 → 8, SoA-Layout)
+
+---
+
+## [1.23.8] — 2026-09-26 — Konsolidierung
+
+**Etappen:** 23 (Konsolidierung)
+**Tests:** 43/43 PASS (unverändert)
+**Fokus:** Modul-Konsolidierung Tensor. Keine Verhaltensänderung,
+keine API-Änderung.
+
+**Hintergrund:** Nach `1.23.7` (SU2_Dynamics) wurde
+`ProPhysics_Tensor.c` auf das einheitliche Schema gebracht. Zwei
+komplexe Multiplikationsmuster (mit/ohne Konjugation) sind in
+`static`-Helfer ausgelagert; das Q31-rho-→-16×16-Embedding ist
+jetzt an einer Stelle (`pro_rho_to_real16`) zentralisiert.
+
+**Versions-Kopplung:**
+
+| Komponente | Version | Bemerkung |
+|---|---|---|
+| Kernel | `1.23.0` | unverändert (keine ABI-Änderung) |
+| SDK | `1.23.0` | folgt Kernel |
+| Doku | `1.23.0` | folgt Kernel |
+| Tests | `1.0.0` | unverändert |
+| Build / Tools | `1.0.0` | unverändert |
+
+### Added — Modul-Dokumentation
+
+- **`docs/project/Tensor.md`** (neu) — Modul-Referenz Tensor:
+  Basis-Layout, Partial Traces, Sync zu/aus `amp_grid`, Gatter,
+  Fermionen-Adapter, Fallstricke.
+
+### Added — Interne Helfer (Refactoring)
+
+Alle folgenden Helfer sind `static` (nicht Teil der API):
+
+**`ProPhysics_Tensor.c`:**
+- `pro_tensor_cmul_acc` — `acc += a · b` in Q31. Ersetzt 8×
+  inline-c-Mul in `Apply_Local_Op`, `Apply_Single_Qubit_Gate`,
+  `Apply_Two_Qubit_Gate`, `Sync_From_Amp`, `Apply_SU2_Rotation`.
+- `pro_tensor_cmul_conj_acc` — `acc += a · conj(b)` in Q31.
+  Ersetzt 2× inline-c-Mul in `Partial_Trace_A` und `_B`.
+- `pro_rho_to_real16` — war bereits vorhanden, jetzt an
+  zentraler Stelle (oberhalb `Von_Neumann_Entropy`), damit
+  `Von_Neumann_Entropy` und `Sync_To_Amp` sie teilen.
+
+### Changed — Modul-Refactoring
+
+- **`ProPhysics_Tensor.c`** — Header-Kopf von
+  `(Etappe 13-15, Refactoring 22)` / `Etappe: 22` auf
+  `Etappe: 23` korrigiert. Etappen-Historie aus dem Header
+  entfernt, Verantwortlich-Liste, Konventionsblock,
+  Helfer-Liste und aligned Footer ergänzt (Fock-Schema).
+  Section-Separatoren auf Spalte 0.
+
+### Fixed
+
+- **`ProPhysics_Tensor.c`** — Kein Verhaltensunterschied. Beide
+  cmul-Helfer runden jeden Term einzeln vor der Akkumulation
+  (bit-identisch zur Vorversion). `Von_Neumann_Entropy` nutzt
+  jetzt `pro_rho_to_real16`, das dieselbe 16×16-Matrix erzeugt
+  wie der vormalige inline-Code.
+
+### Tests
+
+- Unverändert: 43/43 PASS.
+- Semantisch identisch (verifiziert durch `test_tensor_*`,
+  `test_su2_*`, `test_fermionize`, `test_slater`).
+
+### Docs
+
+- `CHANGELOG.md` (diese Datei) auf `1.23.8`.
+- 1 neues Modul-Dokument: `Tensor.md`.
+
+---
+
+## [1.23.7] — 2026-09-26 — Konsolidierung + B7
+
+**Etappen:** 23 (Konsolidierung)
+**Tests:** 43/43 PASS (unverändert)
+**Fokus:** Modul-Konsolidierung SU2_Dynamics, Auflösung Backlog B7
+(SU(2)-Edge-Zugriff vereinheitlicht).
+
+**Hintergrund:** Nach `1.23.6` (SU2) wurde
+`ProPhysics_SU2_Dynamics.c` auf das einheitliche Schema gebracht.
+`su2_plaquette_action_at` wird jetzt auch vom Hauptloop in
+`ProPhysics_SU2_Plaquette_Action` genutzt, und
+`su2_leapfrog_kick_E` fasst die beiden identischen E-Kick-Schleifen
+in `Apply_SU2_Tick` zusammen.
+
+**Versions-Kopplung:** (unverändert zu `1.23.6`)
+
+### Added — Modul-Dokumentation
+
+- **`docs/project/SU2_Dynamics.md`** (neu) — Modul-Referenz
+  SU2_Dynamics: Hamilton-Funktion, Leapfrog, Plaquette-Action,
+  Link-Plaquette-Summe, Konventionen, Fallstricke.
+
+### Added — Interne Helfer (Refactoring)
+
+**`ProPhysics_Internal.h`:**
+- `pro_su2_edge` / `pro_su2_edge_mut` — SU(2)-Edge-Zugriff als
+  `static inline`. Löst Backlog B7 (geteilter Zugriff zwischen
+  `SU2.c` und `SU2_Dynamics.c`).
+
+**`ProPhysics_SU2_Dynamics.c`:**
+- `su2_leapfrog_kick_E` — E-Kick-Schleife
+  (`E += half_dt_g2 · F(U)`). Ersetzt die zwei identischen
+  Schleifen in `Apply_SU2_Tick` (Schritt 1 und 3).
+- `su2_plaquette_action_at` — bereits vorhanden; wird jetzt auch
+  vom Hauptloop in `ProPhysics_SU2_Plaquette_Action` genutzt
+  (vorher inline 4-Link-Produkt).
+
+### Changed — Modul-Refactoring
+
+- **`ProPhysics_SU2.c`** — lokale `pro_su2_edge` /
+  `pro_su2_edge_mut`-Definitionen entfernt (jetzt in `Internal.h`).
+  Aufrufer unverändert.
+- **`ProPhysics_SU2_Dynamics.c`** — Header-Kopf konsolidiert
+  (Etappen-Historie `(Etappe 22b)` und `Etappe 23:`-Marker aus
+  Section-Headern entfernt). `su2_read_link` / `su2_write_link` /
+  `su2_read_E` / `su2_write_E` nutzen jetzt `pro_su2_edge` /
+  `pro_su2_edge_mut` statt direktem Slot-Index.
+
+### Fixed
+
+- **`ProPhysics_SU2_Dynamics.c`** — Kein Verhaltensunterschied.
+  `su2_plaquette_action_at` liest exakt dieselben vier Links in
+  derselben Reihenfolge wie der bisherige Hauptloop.
+  `su2_leapfrog_kick_E` iteriert `k` außen, `d` innen — identisch
+  zur Vorversion. Die zusätzlichen Bounds-Checks in den
+  `pro_su2_edge`-Wrappern sind nie negativ (Aufrufer prüft via
+  `su2_link_exists`).
+- **Backlog B7** — aufgelöst. `SU2.c` und `SU2_Dynamics.c` teilen
+  jetzt denselben Edge-Zugriff über `ProPhysics_Internal.h`.
+
+### Tests
+
+- Unverändert: 43/43 PASS.
+- Semantisch identisch (verifiziert durch `test_su2_wilson_loop`,
+  `test_running_coupling`).
+
+### Docs
+
+- `CHANGELOG.md` (diese Datei) auf `1.23.7`.
+- 1 neues Modul-Dokument: `SU2_Dynamics.md`.
+
+---
+
+## [1.23.6] — 2026-09-26 — Konsolidierung
+
+**Etappen:** 23 (Konsolidierung)
+**Tests:** 43/43 PASS (unverändert)
+**Fokus:** Modul-Konsolidierung SU2. Keine Verhaltensänderung,
+keine API-Änderung.
+
+**Hintergrund:** Nach `1.23.5` (Shared) wurde `ProPhysics_SU2.c`
+auf das einheitliche Schema gebracht. Die
+Achse-Winkel-zu-Quaternion-Konvertierung ist in einen
+`static`-Helfer ausgelagert. Der Header-Kopf ist von `Etappe: 22`
+auf `Etappe: 23` korrigiert, und die Wilson-Loop-Konvention im
+Header von „rückwärts / Path-Ordered" auf „vorwärts" (Stand des
+Codes seit dem Backward-Staple-Fix in `1.23.0`) berichtigt.
+
+**Versions-Kopplung:** (unverändert zu `1.23.5`)
+
+### Added — Modul-Dokumentation
+
+- **`docs/project/SU2.md`** (neu) — Modul-Referenz SU2:
+  Quaternion-Konvention (Skala 2^30), Wilson-Loop (vorwärts),
+  lokale Eichtransformation, Verifikation, Fallstricke.
+
+### Added — Interne Helfer (Refactoring)
+
+**`ProPhysics_SU2.c`:**
+- `pro_su2_axis_angle_to_quat` — Achse (normiert) + Winkel →
+  Q30-Quaternion. Ersetzt 6× inline-Konvertierung in
+  `pro_su2_verify_product` und 1× in
+  `ProPhysics_Set_Edge_SU2_AxisAngle`.
+
+### Changed — Modul-Refactoring
+
+- **`ProPhysics_SU2.c`** — Header-Kopf von `Etappe: 22` auf
+  `Etappe: 23` korrigiert. **Wilson-Loop-Konvention im Header
+  korrigiert**: Der Header sagte fälschlich „rückwärts /
+  Path-Ordered `W(C) = U_{n-1}·…·U_0`"; der Code macht seit
+  `1.23.0` vorwärts (`W(C) = U_0·…·U_{n-1}`, Backward-Staple-Fix).
+  `Interne Helfer`-Liste und aligned Footer ergänzt (Fock-Schema).
+  Section-Separatoren auf Spalte 0.
+
+### Fixed
+
+- **`ProPhysics_SU2.c`** — Kein Verhaltensunterschied.
+  `pro_su2_axis_angle_to_quat` erzeugt exakt dieselben Q30-Werte
+  wie der ausgelagerte Block (identische `llround`-Reihenfolge).
+  Die Achsen in `pro_su2_verify_product` sind Einheitsvektoren,
+  daher ist der Helper-Aufruf semantisch äquivalent zur bisherigen
+  inline-Konvertierung. Wilson-Loop-Iteration und Eichinvarianz
+  unverändert.
+
+### Tests
+
+- Unverändert: 43/43 PASS.
+- Semantisch identisch (verifiziert durch `test_su2_wilson_loop`,
+  `test_running_coupling`).
+
+### Docs
+
+- `CHANGELOG.md` (diese Datei) auf `1.23.6`.
+- 1 neues Modul-Dokument: `SU2.md`.
+
+---
+
+## [1.23.5] — 2026-09-26 — Konsolidierung
+
+**Etappen:** 23 (Konsolidierung)
+**Tests:** 43/43 PASS (unverändert)
+**Fokus:** Modul-Konsolidierung Shared. Keine Verhaltensänderung,
+keine API-Änderung.
+
+**Hintergrund:** Nach `1.23.4` (Observer) wurde
+`ProPhysics_Shared.c` auf das einheitliche Schema gebracht. Die
+inline-2×2-Komplex-Rotation in `Shared_Tick_Reps` ist in einen
+`static`-Helfer ausgelagert. Header-Kopf auf `Etappe: 23`
+korrigiert (war `Etappe: 22`).
+
+**Versions-Kopplung:** (unverändert zu `1.23.4`)
+
+### Added — Modul-Dokumentation
+
+- **`docs/project/Shared.md`** (neu) — Modul-Referenz Shared:
+  Union-Find, Copy-on-Sync, Klassen-Tick, Spin-Flip/Singlet,
+  Konventionen, Fallstricke.
+
+### Added — Interne Helfer (Refactoring)
+
+**`ProPhysics_Shared.c`:**
+- `pro_shared_pair_rotate_q31` — 2×2-Komplex-Rotation
+  `a' = c·a + i·s·b`, `b' = c·b + i·s·a`. Ersetzt die inline-Form
+  in `Shared_Tick_Reps`. Dieselbe Matrix-Form existiert in
+  `ProPhysics_Fock.c` (`Apply_Hopping`) mit umgekehrtem
+  Vorzeichen-Konvention; eine spätere Etappe kann den Helfer nach
+  `ProPhysics_Internal.h` verschieben.
+
+### Changed — Modul-Refactoring
+
+- **`ProPhysics_Shared.c`** — Header-Kopf von `Etappe: 22` auf
+  `Etappe: 23` korrigiert. Etappen-Historie (`Etappe 18c + 18e +
+  19`, `Refactoring 22`) aus dem Header entfernt. `Interne
+  Helfer`-Liste und aligned Footer ergänzt (Fock-Schema).
+  Fallunterscheidung in `Dissociate_Node` mit Kommentaren
+  (`Fall 1 / 2 / 3`) versehen.
+
+### Fixed
+
+- **`ProPhysics_Shared.c`** — Kein Verhaltensunterschied. Die
+  ausgelagerte Rotation liest alle vier Komponenten vor dem
+  Schreiben (bit-identisch zur inline-Form). Die Reihenfolge der
+  Paar-Sammlung und Paar-Iteration ist unverändert.
+
+### Tests
+
+- Unverändert: 43/43 PASS.
+- Semantisch identisch (verifiziert durch `test_shared_reference`,
+  `test_su2_wilson_loop`, `test_chsh_*`).
+
+### Docs
+
+- `CHANGELOG.md` (diese Datei) auf `1.23.5`.
+- 1 neues Modul-Dokument: `Shared.md`.
+
+---
+
+## [1.23.4] — 2026-09-26 — Konsolidierung
+
+**Etappen:** 23 (Konsolidierung)
+**Tests:** 43/43 PASS (unverändert)
+**Fokus:** Modul-Konsolidierung Observer. Keine Verhaltensänderung,
+keine API-Änderung.
+
+**Hintergrund:** Nach `1.23.3` (Gauge) wurde
+`ProPhysics_Observer.c` auf das einheitliche Schema gebracht. Der
+Diffusions-Kern wurde aus zwei Funktionen in einen gemeinsamen
+`static`-Helfer extrahiert; ebenso wurden die Ping-Pong-Sequenz,
+die ProU128-Summe über einen Vektor und der `sign(cos(θ-λ))`-Aufruf
+zentralisiert.
+
+**Versions-Kopplung:** (unverändert zu `1.23.3`)
+
+### Added — Modul-Dokumentation
+
+- **`docs/project/Observer.md`** (neu) — Modul-Referenz Observer:
+  Deskriptor, lokales Lesen, Diffusion, CHSH-Messung, chaotische
+  Quelle, Dephasing, Konventionen.
+
+### Added — Interne Helfer (Refactoring)
+
+**`ProPhysics_Observer.c`:**
+- `pro_amp_vector_abs2_sum` — ProU128-Summe `Σ_b |c_b|²`.
+  Ersetzt 2× inline-Schleife in `Get_Environment_Trace` und in
+  der Sättigungs-Prüfung von `Apply_Nonlinear_Diffusion_Tick`.
+- `pro_observer_diffusion_pass` — Gemeinsamer Diffusions-Kern
+  für `Apply_Local_Amplitude_Diffusion` und
+  `Apply_Nonlinear_Diffusion_Tick`.
+- `pro_observer_ping_pong` — `amp_grid ↔ amp_scratch`-Tausch.
+- `pro_observer_measure_axis` — `sign(cos(θ - λ(v)))`.
+  Ersetzt 4× Aufruf in beiden CHSH-Varianten.
+
+### Changed — Modul-Refactoring
+
+- **`ProPhysics_Observer.c`** — Header-Kopf von `Etappe: 22` auf
+  `Etappe: 23` korrigiert. Etappen-Historie (`Etappe 6a-6f`,
+  `Refactoring 22`) aus dem Header entfernt, Verweis auf
+  `docs/project/Observer.md` und `CHANGELOG.md` ergänzt.
+  `INTERPRETATION (bindend)`-Block in den regulären
+  Konventionsblock überführt.
+
+### Fixed
+
+- **`ProPhysics_Observer.c`** — Kein Verhaltensunterschied. Der
+  Diffusions-Pass ist semantisch identisch (gleiche Reihenfolge
+  der Nachbar-Schleife, gleiche Q31-Koeffizienten). Die
+  Ping-Pong-Reihenfolge ist unverändert (Schritt 2 der
+  nichtlinearen Diffusion liest weiterhin aus `pu->amp_scratch`,
+  das vor dem Tausch `dst` entspricht).
+
+### Tests
+
+- Unverändert: 43/43 PASS.
+- Semantisch identisch (verifiziert durch `test_chsh_*`,
+  `test_observer_diffusion`, `test_chaotic_source`,
+  `test_dephasing`).
+
+### Docs
+
+- `CHANGELOG.md` (diese Datei) auf `1.23.4`.
+- 1 neues Modul-Dokument: `Observer.md`.
+
+---
+
+## [1.23.3] — 2026-09-26 — Konsolidierung
+
+**Etappen:** 23 (Konsolidierung)
+**Tests:** 43/43 PASS (unverändert)
+**Fokus:** Modul-Konsolidierung Gauge. Keine Verhaltensänderung,
+keine API-Änderung.
+
+**Hintergrund:** Nach `1.23.2` (EPR + Fock) wurde
+`ProPhysics_Gauge.c` auf das einheitliche Schema gebracht. Vier
+identische Rotationsschleifen und eine inline Q15→Q16-Normalisierung
+sind jetzt in `static`-Helfer ausgelagert.
+
+**Versions-Kopplung:** (unverändert zu `1.23.2`)
+
+### Added — Modul-Dokumentation
+
+- **`docs/project/Gauge.md`** (neu) — Modul-Referenz Gauge:
+  U(1)-Eichstruktur, Wilson-Loop, Phase Plate, Coulomb-Phase-Feld,
+  Konventionen Q15/Q16/Q30 und Fallstricke.
+
+### Added — Interne Helfer (Refactoring)
+
+**`ProPhysics_Gauge.c`:**
+- `pro_amp_vector_rotate_q16` — rotiert alle
+  `PRO_AMP_BASIS_SIZE` Koeffizienten eines `ProAmpVector` um eine
+  Q16-Phase. Ersetzt vier identische Schleifen in
+  `Global_Phase`, `Apply_Local_Gauge` (Schritt 2),
+  `Apply_Local_Phase_Plate`, `Apply_Coulomb_Phase_Field_3D`.
+- `pro_phase_q15_to_q16` — normalisiert eine (möglicherweise
+  negative oder große) Q15-Phase auf einen Q16-Winkel in
+  `[0, 65536)`. Ersetzt die inline-Normalisierung in
+  `Apply_Coulomb_Phase_Field_3D`.
+
+### Changed — Modul-Refactoring
+
+- **`ProPhysics_Gauge.c`** — Header-Kopf von `Etappe: 22` auf
+  `Etappe: 23` korrigiert (war inkonsistent zur Kernel-Version
+  `1.23.0`). Etappen-Historie (`Etappe 4-18`, `Refactoring 22`,
+  `Etappe 17b:`, `Etappe 18:`) aus dem Header entfernt, Verweis
+  auf `docs/project/Gauge.md` und `CHANGELOG.md` ergänzt.
+- **`ProPhysics_Fock.c`** — Kommentar-Separatoren auf Spalte 0
+  vereinheitlicht (rein kosmetisch). Kein Code-Change.
+- **`ProPhysics_Gauge.c`** — Header auf Fock-Schema umgestellt
+  (Konventionsblöcke, „Interne Helfer"-Liste, aligned Footer);
+  Section-Separatoren auf Spalte 0, `(Etappe NN)`-Annotationen
+  entfernt. Kein Code-Change.
+
+### Fixed
+
+- **`ProPhysics_Gauge.c`** — Kein Verhaltensunterschied. Alle vier
+  Rotationsschleifen sind semantisch identisch (gleiche Reihenfolge
+  der Basis-Indizes, gleicher Aufruf von `pro_amp_rotate_q16`).
+  Q15→Q16-Normalisierung liefert bit-identische Werte.
+
+### Tests
+
+- Unverändert: 43/43 PASS.
+- Semantisch identisch (verifiziert durch die bestehende
+  Test-Suite; insbesondere `test_wilson_loop_*`, `test_local_gauge`,
+  `test_coulomb_*`, `test_phase_plate`).
+
+### Docs
+
+- `CHANGELOG.md` (diese Datei) auf `1.23.3`.
+- 1 neues Modul-Dokument: `Gauge.md`.
+- Modul-Header in `ProPhysics_Fock.c` und `ProPhysics_Gauge.c`
+  folgen jetzt demselben Schema wie `docs/project/Fock.md`
+  (Konventionen, Helfer-Liste, Footer).
 
 ---
 
@@ -832,7 +1246,7 @@ Detail-Beschreibungen dieser Etappen stehen in `Project.md` §18.
 |---|---|---|---|
 | **MAJOR** | Phase | bei physikalischem Paradigmenwechsel | `1.x → 2.x` wenn Etappe 24–27 abgeschlossen |
 | **MINOR** | Etappe | bei jeder neuen Etappe | `1.22.x → 1.23.0` bei Etappe 23 |
-| **PATCH** | Fix | bei Unter-Etappe, Bugfix oder Konsolidierung | `1.23.1 → 1.23.2` bei weiterer Konsolidierung |
+| **PATCH** | Fix | bei Unter-Etappe, Bugfix oder Konsolidierung | `1.23.7 → 1.23.8` bei weiterer Konsolidierung |
 
 ### §2.2 — Phasen-Übersicht
 
@@ -858,7 +1272,9 @@ Ein **PATCH**-Sprung passiert, wenn:
 - Ein **Bugfix** an einer bereits veröffentlichten Version nötig ist.
 - Eine **Konsolidierung** mit substanziellen Änderungen stattfindet
   (z.B. `1.23.1` — Header-, Modul- und Doku-Konsolidierung;
-  `1.23.2` — Modul-Konsolidierung EPR/Fock).
+  `1.23.2` — EPR + Fock; `1.23.3` — Gauge; `1.23.4` — Observer;
+  `1.23.5` — Shared; `1.23.6` — SU2; `1.23.7` — SU2_Dynamics;
+  `1.23.8` — Tensor).
 
 Ein PATCH-Sprung passiert **nicht** bei:
 
@@ -935,7 +1351,7 @@ aber die **Kernel-Version** kommt ausschließlich aus
 
 | Dokument | Was es zeigt | Soll-Version |
 |---|---|---|
-| `CHANGELOG.md` (diese Datei) | Versions-Historie | `1.23.2` (folgt Kernel-Patch) |
+| `CHANGELOG.md` (diese Datei) | Versions-Historie | `1.23.8` (folgt Kernel-Patch) |
 | `ProPhysics_VersionRegistry.md` | Versionen **aller** Dateien | `1.23.0` (folgt Kernel) |
 | `Project.md` §18 | Detaillierte Etappen-Historie | `1.23.0` (folgt Kernel) |
 | `ProPhysics_Version.h` | Aktuelle Kernel-Version | `1.23.0` |
@@ -945,7 +1361,7 @@ aber die **Kernel-Version** kommt ausschließlich aus
 Anker. `CHANGELOG.md` folgt ihm. Alle anderen Dokumente folgen
 `CHANGELOG.md`.
 
-**Hinweis zu PATCH-Versionen:** Die Changelog-Version (z.B. `1.23.2`)
+**Hinweis zu PATCH-Versionen:** Die Changelog-Version (z.B. `1.23.8`)
 kann höher sein als die Kernel-Version (z.B. `1.23.0`), wenn der
 Patch **nur** Doku und interne Refactorings betrifft. Ein PATCH
 **ohne** Kernel-Bump ist erlaubt, wenn keine ABI-Änderung stattfindet.
@@ -1009,8 +1425,14 @@ Wenn die Kernel-Version sich ändert:
 | Dirac-Modul | `docs/project/Dirac.md` |
 | EPR-Modul | `docs/project/EPR.md` |
 | Fock-Modul | `docs/project/Fock.md` |
+| Gauge-Modul | `docs/project/Gauge.md` |
+| Observer-Modul | `docs/project/Observer.md` |
+| Shared-Modul | `docs/project/Shared.md` |
+| SU2-Modul | `docs/project/SU2.md` |
+| SU2-Dynamik | `docs/project/SU2_Dynamics.md` |
+| Tensor-Modul | `docs/project/Tensor.md` |
 | Repository | https://github.com/onkel83/prophysics |
 
 ---
 
-**Ende CHANGELOG v1.23.2.**
+**Ende CHANGELOG v1.23.8.**

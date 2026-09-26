@@ -2,7 +2,7 @@
 
 **Datei:** `CONTRIBUTING.md`
 **Version:** 1.0
-**Stand:** 2026-09-25 (Kernel-Version 3.0.0, Etappe 23)
+**Stand:** 2026-09-25 (Kernel-Version 1.23.0, Etappe 23)
 **Repository:** https://github.com/onkel83/prophysics
 **Zweck:** Verbindliche Anleitung für Beiträge zum Projekt. Wer zum
 ersten Mal etwas beiträgt, liest dieses Dokument **vor** dem ersten

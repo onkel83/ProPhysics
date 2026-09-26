@@ -2,7 +2,10 @@
 
 **Datei:** `docs/project/ProPhysics_API.md`
 **Version:** 1.0
-**Stand:** 2026-09-25 (Kernel-Version 3.0.0, Etappe 23)
+**Kernel:** 1.23.0
+**Etappe:** 23
+**Stand:** 2026-09-26 (Kernel 1.23.0, Konsolidierungs-Serie
+1.23.1–1.23.8 abgeschlossen)
 **Zweck:** Vollständige Referenz aller öffentlichen Typen, Konstanten und
 Funktionen. Dieses Dokument ist die verbindliche Schnittstellenbeschreibung
 des Kernels.
@@ -32,13 +35,20 @@ Verhalten und muss mit Änderungen rechnen.
 **Zitierweise:** `ProPhysics_Initialize` verweist auf die gleichnamige
 Funktion in diesem Dokument.
 
+**Versions-Kontext:** Diese Referenz beschreibt den Kernel in
+**Phase 1, Etappe 23** (`Kernel: 1.23.0`). Die API-Stabilität ist durch
+**R5** („keine stillen API-Brüche") garantiert — innerhalb einer Phase
+(`1.x`) ist die API stabil; neue Funktionen kommen **additiv** hinzu.
+
 ---
 
 ## §1 — Übersicht und Aufbau
 
 ### §1.1 — Modul-Übersicht
 
-Der Kernel besteht aus 13 `.c`-Modulen. Die API ist entsprechend gegliedert:
+Der Kernel besteht aus **12 `.c`-Modulen**. Die API ist entsprechend
+gegliedert. Modul-Referenzen (Funktionsdetails, Konventionen,
+Fallstricke) stehen in `docs/project/<Name>.md` — siehe §30.
 
 | Modul | Datei | Aufgabe |
 |---|---|---|
@@ -64,6 +74,11 @@ Der Kernel besteht aus 13 `.c`-Modulen. Die API ist entsprechend gegliedert:
 | `PRO_<NAME>` | Konstante (Compile-Time) | `PRO_AMP_BASIS_SIZE` |
 | `Pro<Name>` | Typ | `ProUniverse`, `ProEdge` |
 | `pro_<name>` | interner Helfer | `pro_amp_abs2` |
+
+Alle Symbole folgen einem **Modul-Prefix-Schema**. Die API-Stabilität
+ist durch **R5** („keine stillen API-Brüche") garantiert: innerhalb
+einer Phase (`1.x`) ist die API stabil; neue Funktionen kommen
+additiv hinzu.
 
 ### §1.3 — Numerische Konventionen
 
@@ -2597,7 +2612,38 @@ embedded-fähig und verwendet keine `errno`-Konventionen.
 
 | Version | Datum | Änderung |
 |---|---|---|
-| 1.0 | 2026-09-25 | Erste Fassung, Etappe 23, Kernel-Version 3.0.0 |
+| 1.0 | 2026-09-25 | Erste Fassung, Etappe 23 |
+| 1.0 | 2026-09-26 | Header auf Etappen-Schema umgestellt (Kernel 1.23.0, Etappe 23); §1.1 Modul-Zählung auf 12 korrigiert; §30 (Siehe auch) ergänzt; Verweise auf Modul-Docs aktualisiert |
+
+**Hinweis zum Schema-Wechsel:** Frühere Versionen dieses Dokuments
+trugen `Kernel-Version 3.0.0` (SemVer-ähnlich). Mit der Umstellung auf
+das Etappen-Schema entspricht `3.0.0` jetzt `1.23.0`. Siehe
+`CHANGELOG.md` §2.5.
+
+---
+
+## §30 — Siehe auch
+
+| Thema | Datei |
+|---|---|
+| Changelog | `CHANGELOG.md` |
+| Konfiguration | `docs/project/CONFIG.md` |
+| Versions-Register | `docs/project/ProPhysics_VersionRegistry.md` |
+| Amp-Modul | `docs/project/Amp.md` |
+| Core-Modul | `docs/project/Core.md` |
+| Density-Modul | `docs/project/Density.md` |
+| Dirac-Modul | `docs/project/Dirac.md` |
+| EPR-Modul | `docs/project/EPR.md` |
+| Fock-Modul | `docs/project/Fock.md` |
+| Gauge-Modul | `docs/project/Gauge.md` |
+| Observer-Modul | `docs/project/Observer.md` |
+| Shared-Modul | `docs/project/Shared.md` |
+| SU2-Modul | `docs/project/SU2.md` |
+| SU2-Dynamik | `docs/project/SU2_Dynamics.md` |
+| Tensor-Modul | `docs/project/Tensor.md` |
+| Testkatalog | `docs/test/ProPhysics_Testkatalog.md` |
+| Build-System | `docs/build/BUILD_SCRIPT.md` |
+| Repository | https://github.com/onkel83/prophysics |
 
 ---
 

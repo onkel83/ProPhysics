@@ -2,7 +2,10 @@
 
 **Datei:** `docs/project/ARCHITECTURE.md`
 **Version:** 1.0
-**Stand:** 2026-09-25 (Kernel-Version 3.0.0, Etappe 23)
+**Kernel:** 1.23.0
+**Etappe:** 23
+**Stand:** 2026-09-26 (Kernel 1.23.0, Konsolidierungs-Serie
+1.23.1–1.23.8 abgeschlossen)
 **Zweck:** Beschreibt den Aufbau des Kernels, die Datenflüsse pro Tick
 und die Design-Entscheidungen. Komplement zu `ProPhysics_API.md`
 (was existiert) und `Project.md` (warum das Projekt existiert).
@@ -22,6 +25,7 @@ Entscheidungen getroffen wurden, liest dieses Dokument.
 - Einzelne Funktionssignaturen → `ProPhysics_API.md`
 - Testkriterien → `ProPhysics_Testkatalog.md`
 - Etappen-Historie → `Project.md` §18
+- Modul-Referenzen → `docs/project/<Modul>.md` (siehe §13)
 
 ---
 
@@ -75,15 +79,15 @@ Dirac, Tsirelson, Confinement).
 
 ### §1.3 — Modul-Landkarte
 
-13 Kernel-Module, gruppiert nach Schicht:
+**12 Kernel-Module**, gruppiert nach Schicht:
 
 | Modul | Schicht | Aufgabe |
 |---|:-:|---|
 | `ProPhysics_Core.c` | 0+1 | Lifecycle, Topologie, Tick-Orchestrierung |
 | `ProPhysics_Amp.c` | 1 | Unitäre Dynamik (Transport, Wave, Context) |
 | `ProPhysics_Gauge.c` | 1+2 | U(1)-Eichstruktur, Born-Wahrscheinlichkeit |
-| `ProPhysics_Observer.c` | 3 | Test-spezifische Diffusion |
 | `ProPhysics_EPR.c` | 3 | Paarmessungen, Kollaps |
+| `ProPhysics_Observer.c` | 3 | Test-spezifische Diffusion |
 | `ProPhysics_Shared.c` | 3 | U4-Shared-Reference (Union-Find) |
 | `ProPhysics_Dirac.c` | 2 | 4-Komponenten-Spinor |
 | `ProPhysics_SU2.c` | 2 | SU(2)-Link-Kinematik |
@@ -91,6 +95,14 @@ Dirac, Tsirelson, Confinement).
 | `ProPhysics_Tensor.c` | 3 | 2-Knoten-Verschränkung |
 | `ProPhysics_Fock.c` | 3 | 8-Moden-Fock-Raum |
 | `ProPhysics_Density.c` | 4 | Dichte-Matrizen + Lindblad |
+
+**Anmerkung zur Zählung:** Frühere Dokumente (CHANGELOG-Einträge für
+Etappe 21–22b) nummerieren die Module historisch als „11. Modul"
+(Dirac), „12. Modul" (SU2), „13. Modul" (SU2_Dynamics). Diese
+Nummerierung ist ein **Altbestand** aus einer Zeit, in der ein
+separates Spin-1/2-Modul geplant war, das dann in `Shared.c`
+integriert wurde. Die **aktuelle** Zählung ist **12 Module** — die
+Datei-Liste oben ist die verbindliche.
 
 ### §1.4 — Header-Struktur
 
@@ -101,6 +113,7 @@ ProPhysics.h              (öffentliche API, sammelt alle Includes)
 └── ProPhysics_Exports.h   (DLL-Macros)
 
 ProPhysics_Internal.h     (interne Helfer, NICHT öffentlich)
+ProPhysics_Version.h      (VERSION_MAJOR/MINOR/PATCH — semantischer Anker)
 ```
 
 `ProPhysics_Config.h` ist **self-contained** — sie inkludiert nichts
@@ -109,7 +122,10 @@ Headern verfügbar.
 
 `ProPhysics_Internal.h` enthält `static inline`-Helfer (RNG, Sättigung,
 Amplituden-Operationen, SU(2)-Arithmetik). Diese sind **modul-lokal**,
-aber header-weit sichtbar.
+aber header-weit sichtbar. Die Konsolidierungs-Serie `1.23.1`–`1.23.8`
+hat zusätzlich modul-spezifische `static`-Helfer in den Modulen
+belassen (nicht in `Internal.h` verschoben), um den Kopf schlank zu
+halten — siehe `CHANGELOG.md`.
 
 ---
 
@@ -150,12 +166,21 @@ dem Nutzer, `ProUniverse` auf dem Stack zu halten.
 | `amp_grid` | `ProAmpVector` | 64 B × N | **Fundamentaler Zustand** |
 | `amp_scratch` | `ProAmpVector` | 64 B × N | Ping-Pong-Puffer |
 
-**Gesamtgröße** für N Knoten: `(8 + 128 + 128 + 40·16 + 64 + 64) B × N`
-= **904 B × N**. Bei `dim=64` (N=4096) sind das ~3,7 MB. Bei `dim=128²`
-(N=16384) ~14,8 MB.
+**Gesamtgröße** für N Knoten:
 
-Bei `dim=64³` (N=262144) sind es ~237 MB — das ist der Speicherbedarf
-des `Running-Coupling`-Tests.
+```
+8 (ur_grid) + 128 (reg_source) + 128 (reg_target)
+  + 640 (edge_phases, 40·16) + 64 (amp_grid) + 64 (amp_scratch)
+= 1 032 B × N
+```
+
+Bei `dim=64` (N=4096) sind das ~4,2 MB. Bei `dim=128²` (N=16384)
+~16,9 MB. Bei `dim=64³` (N=262144) ~270 MB — das ist der
+Speicherbedarf des `Running-Coupling`-Tests.
+
+**Korrektur-Hinweis:** Frühere Fassungen dieses Dokuments rechneten
+mit 904 B × N — das war ein Additionsfehler: `amp_grid` und
+`amp_scratch` wurden in der Summe nicht berücksichtigt.
 
 ### §2.3 — Warum sechs Arrays?
 
@@ -192,7 +217,7 @@ Alignment vermeidet Split-Loads.
 
 ### §2.5 — Was ist fundamental, was ist Anzeige?
 
-| Zustand | Funda­mental? | Wer schreibt |
+| Zustand | Fundamental? | Wer schreibt |
 |---|:-:|---|
 | `amp_grid` | **ja** | Dynamik (U1-U5) |
 | `edge_phases.phase` | ja | `Apply_Local_Gauge` |
@@ -321,6 +346,10 @@ Erreicht durch:
 
 **Test:** Die Prio-1-Tests sind seit Etappe 9 unverändert. Sie sind
 der Regressions-Anker.
+
+**Konsolidierung `1.23.1`–`1.23.8`:** Die Serie hat die Tick-Reihenfolge
+**nicht** angetastet. Sie hat nur die Modul-internen Helfer und die
+Header-Struktur vereinheitlicht.
 
 ---
 
@@ -475,6 +504,11 @@ pu->amp_scratch = src;
   `amp_grid` — kein Konflikt.
 - SU(2)-Leapfrog: pro Link isoliert.
 
+**Konsolidierung-Hinweis:** `ProPhysics_Observer.c` hat in `1.23.4`
+einen gemeinsamen Helfer `pro_observer_ping_pong` erhalten, der den
+Tausch `amp_grid ↔ amp_scratch` kapselt. Das ist bit-identisch zur
+Vorgängerversion.
+
 ---
 
 ## §7 — R1–R7 als Architekturprinzipien
@@ -528,6 +562,10 @@ bricht die Regression unsichtbar.
 **Umsetzung:** Neue Funktionen kommen **additiv** hinzu. Alte
 Signaturen bleiben. Wenn eine Signatur sich ändern **muss**, wird der
 betroffene Test gleichzeitig angepasst.
+
+**Konsolidierung:** Die Serie `1.23.1`–`1.23.8` hat ausschließlich
+**interne** `static`-Helfer extrahiert und Header-Struktur vereinheitlicht.
+Keine Signaturänderung.
 
 ### §7.6 — R6: Jede Etappe endet mit einem Test
 
@@ -614,11 +652,19 @@ Auf verschiedenen Maschinen können sie in den letzten Stellen abweichen.
 4. **Dispatch-Check** in `Apply_Amp_Step` einfügen.
 5. **Test** in `alpha_test_main.c` registrieren.
 6. **Runner**-Eintrag in `tools/run_alpha_tests.ps1`.
-7. **Doku** in `Testkatalog.md` und `Project.md`.
+7. **Modul-Doc** in `docs/project/<Modul>.md`.
+8. **Doku** in `Testkatalog.md`, `Project.md` und `CHANGELOG.md`
+   (neuer Eintrag mit Etappe + Patch).
 
 **Beispiel SU(2):** Genau so wurde es gemacht. `ProEdge` +4 Felder,
 neues Modul `ProPhysics_SU2.c`, `su2_active`-Flag, Dispatch in
 `Apply_Amp_Step` (nur bei Dynamik), Test `alpha_test_su2.c`.
+
+**Beispiel Konsolidierung:** Die Serie `1.23.1`–`1.23.8` hat dasselbe
+Schema ohne Physik-Erweiterung durchlaufen: modul-interne
+`static`-Helfer extrahieren, Header auf `Kernel:`/`Etappe:` umstellen,
+Modul-Doc in `docs/project/<Modul>.md` anlegen, CHANGELOG-Eintrag.
+Keine Tick-Änderung, keine Flag-Änderung.
 
 ---
 
@@ -666,7 +712,7 @@ Diese sind bewusst **nicht** implementiert. Der Kernel ist ein
 - Signed Permutations statt dichte Matrizen
 - Union-Find statt Amplituden-Kopie
 - Single-threaded
-- 36 kLOC, ein Autor
+- ~36 kLOC, ein Autor
 
 ### §11.2 — Was gleich ist
 
@@ -689,15 +735,59 @@ Diese sind bewusst **nicht** implementiert. Der Kernel ist ein
 
 ## §13 — Siehe auch
 
+**Übergreifende Dokumente:**
+
 | Thema | Datei |
 |---|---|
 | API-Referenz | `docs/project/ProPhysics_API.md` |
-| SDK-API | `docs/project/SDK_API.md` |
 | Projekt-Roadmap | `docs/project/Project.md` |
+| Abgrenzung | `docs/project/ProPhysics_Differentiators.md` |
+| Versions-Register | `docs/project/ProPhysics_VersionRegistry.md` |
+| Konfiguration | `docs/project/CONFIG.md` |
+| Changelog | `CHANGELOG.md` |
+
+**Modul-Referenzen:**
+
+| Modul | Datei |
+|---|---|
+| Core | `docs/project/Core.md` |
+| Amp | `docs/project/Amp.md` |
+| Gauge | `docs/project/Gauge.md` |
+| EPR | `docs/project/EPR.md` |
+| Observer | `docs/project/Observer.md` |
+| Shared | `docs/project/Shared.md` |
+| Dirac | `docs/project/Dirac.md` |
+| SU2 | `docs/project/SU2.md` |
+| SU2_Dynamics | `docs/project/SU2_Dynamics.md` |
+| Tensor | `docs/project/Tensor.md` |
+| Fock | `docs/project/Fock.md` |
+| Density | `docs/project/Density.md` |
+
+**Test- und Build-Dokumente:**
+
+| Thema | Datei |
+|---|---|
 | Testkatalog | `docs/test/ProPhysics_Testkatalog.md` |
 | Test-Runner | `docs/test/run_alpha_tests.md` |
 | Build-System | `docs/build/BUILD_SCRIPT.md` |
 | Master-Makefile | `docs/build/main/Makefile.md` |
+| Kernel-Makefile | `docs/build/prophysics/Makefile.md` |
+| SDK-Makefile | `docs/build/sdk/Makefile.md` |
+| Test-Makefile | `docs/build/test/Makefile.md` |
+
+---
+
+## §14 — Versions-Historie dieses Dokuments
+
+| Version | Datum | Änderung |
+|---|---|---|
+| 1.0 | 2026-09-25 | Erste Fassung, Etappe 23, Kernel-Version 3.0.0 |
+| 1.0 | 2026-09-26 | Header auf Etappen-Schema umgestellt (Kernel 1.23.0, Etappe 23); §1.3 Modul-Zählung auf 12 korrigiert (Anmerkung zur historischen „13. Modul"-Zählung); §2.2 Größenrechnung korrigiert (904 → 1032 B × N — `amp_grid` und `amp_scratch` fehlten); §1.4 `ProPhysics_Version.h` ergänzt; §6.3 Konsolidierungs-Hinweis für Observer-Ping-Pong; §7.5 Konsolidierungs-Hinweis; §9.3 Empfehlung um Modul-Doc + CHANGELOG-Eintrag ergänzt; §13 alle 12 Modul-Docs verlinkt |
+
+**Hinweis zum Schema-Wechsel:** Frühere Versionen dieses Dokuments
+trugen `Kernel-Version 3.0.0` (SemVer-ähnlich). Mit der Umstellung auf
+das Etappen-Schema entspricht `3.0.0` jetzt `1.23.0`. Siehe
+`CHANGELOG.md` §2.5.
 
 ---
 
