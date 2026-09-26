@@ -1,7 +1,7 @@
 # ProPhysics License
 
 **Version 1.0**
-**Copyright (c) 2026 [DEIN NAME / ORGANISATION]**
+**Copyright (c) 2026 [Sascha Alexander Köhne / BrainAI(Inhaber Sascha Alexander Köhne)]**
 **Alle Rechte vorbehalten / All rights reserved.**
 
 ---
