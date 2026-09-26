@@ -1,0 +1,29 @@
+﻿ProPhysics Build Information
+============================
+
+Erzeugt:  2026-09-26 12:59:24
+Host:     MAIN
+User:     koehn
+Version:  1.23.0
+
+Artefakte:
+
+  bin\
+    example_alpha_test.exe                465,5 KB
+    example_test_density.exe              169,5 KB
+    example_test_tensor.exe               156,5 KB
+    pro_sdk_interface.dll                   101 KB
+    ProPhysics.dll                        277,5 KB
+
+  lib\
+    pro_sdk_interface.lib                   2,3 KB
+    ProPhysics.lib                         54,4 KB
+
+Quellen:
+  src\prophysics\   Kernel (11 Module)
+  src\sdk\          SDK Interface
+  src\test\         Alpha-Test (15 Module) + 2 Example-Tests
+
+Hinweis:
+  Diese Datei wird bei jedem erfolgreichen Build neu erzeugt.
+  Inhalt und Format sind dokumentiert in docs\build\BUILD_SCRIPT.md.
