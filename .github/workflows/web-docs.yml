@@ -68,23 +68,26 @@ jobs:
           )
           echo [OK] bin\prowb\prowb.exe existiert
 
-      #debug
       - name: Debug — Repo-Zustand
         shell: cmd
         run: |
           echo === HEAD commit ===
           git log -1 --oneline
           echo.
-          echo === docs\build Inhalt ===
-          dir docs\build
+          echo === docs\web\src ===
+          dir /b docs\web\src
           echo.
-          echo === Manifest-Zeilen mit | ===
-          find /c "|" docs\web\manifest.txt
+          echo === docs\web\src\parts ===
+          dir /b docs\web\src\parts
           echo.
-          echo === kritische Dateien ===
-          if exist docs\build\ci.md (echo ci.md OK) else (echo ci.md FEHLT!)
-          if exist docs\build\alpha-nightly.md (echo alpha-nightly.md OK) else (echo alpha-nightly.md FEHLT!)
-          if exist docs\project\README.md (echo docs\project\README.md OK) else (echo docs\project\README.md FEHLT!)
+          echo === docs\web\src\views ===
+          dir /b docs\web\src\views
+          echo.
+          echo === manifest.txt ===
+          dir docs\web\manifest.txt
+          echo.
+          echo === erste 5 Manifest-Zeilen ===
+          powershell -NoProfile -Command "Get-Content docs\web\manifest.txt -TotalCount 8"
 
       # Generiert out\web\index.html aus dem Manifest
       - name: Generate Web-Docs
