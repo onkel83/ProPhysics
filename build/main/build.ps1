@@ -9,19 +9,21 @@
     BUILD_INFO.txt-Erzeugung an write_build_info.ps1.
 
     Modi (Auswahl der zu bauenden Komponente):
-      prophysics  -- nur Kernel-DLL + Import-Lib
-      sdk         -- Kernel + SDK-Interface-DLL + Import-Lib
-      test        -- Kernel + SDK + Test-EXEs
-      all         -- identisch mit test (alles)
+      kernel / prophysics  -- nur Kernel-DLL + Import-Lib
+      sdk                  -- Kernel + SDK-Interface-DLL + Import-Lib
+      test                 -- Kernel + SDK + Test-EXEs
+      all                  -- identisch mit test (alles)  [Default]
+      info                 -- nur BUILD_INFO.txt neu erzeugen
 
     Erweiterungen:
-      -Rebuild    nmake clean + Build in einem Schritt
-      -Clean      nur clean, kein Build
-      -NoBuild    nur BUILD_INFO.txt neu erzeugen
-      -GitStamp   Git-Info in BUILD_INFO.txt (describe/branch/sha/status)
-      -GitNote    Freitext-Kommentar fuer den Notiz-Block
-      -Sign       DLLs in bin\ via signtool signieren
-      -DryRun     nur auflisten, nichts schreiben
+      -Config <release|debug>  Build-Konfiguration (Default: release)
+      -Rebuild                 nmake clean + Build
+      -Clean                   nur clean, kein Build
+      -NoBuild                 nur BUILD_INFO.txt
+      -GitStamp                Git-Info in BUILD_INFO.txt
+      -GitNote <text>          Freitext-Kommentar
+      -Sign                    DLLs via signtool signieren
+      -DryRun                  nur auflisten, nichts schreiben
 
     Ausgabe:
       bin\              DLLs und EXEs
@@ -32,27 +34,65 @@
       nmake + cl im PATH (VS-Developer-Prompt).
       git optional (nur fuer -GitStamp).
 
+.PARAMETER Mode
+    Zu bauende Komponente. 'kernel' ist Alias fuer 'prophysics'.
+
+.PARAMETER Config
+    Build-Konfiguration. Wird als CONFIG=<Wert> an nmake weitergereicht.
+
+.PARAMETER Rebuild
+    nmake clean + Build in einem Schritt.
+
+.PARAMETER Clean
+    Nur clean, kein Build.
+
+.PARAMETER NoBuild
+    Build ueberspringen, nur BUILD_INFO.txt erzeugen.
+
+.PARAMETER GitStamp
+    Git-Info (describe/branch/sha/status) in BUILD_INFO.txt aufnehmen.
+
+.PARAMETER GitNote
+    Freitext-Kommentar fuer den Notiz-Block in BUILD_INFO.txt.
+
+.PARAMETER Sign
+    DLLs in bin\ via signtool signieren.
+
+.PARAMETER DryRun
+    Nur auflisten, nichts schreiben.
+
 .EXAMPLE
     .\build.ps1
 
 .EXAMPLE
-    .\build.ps1 -Mode sdk -Rebuild -GitStamp -GitNote "SDK v3.0"
+    .\build.ps1 -Mode sdk -Config debug -Rebuild
 
 .EXAMPLE
-    .\build.ps1 -Mode prophysics -Rebuild
+    .\build.ps1 -Mode kernel -Rebuild -GitStamp -GitNote "Etappe 23"
 
 .EXAMPLE
     .\build.ps1 -Clean
 
 .EXAMPLE
     .\build.ps1 -Mode all -Sign -DryRun
+
+.EXAMPLE
+    .\build.ps1 -Mode info -GitStamp
+
+.NOTES
+    Version: 3.2 (Etappe 23)
+    -Config Parameter, 'kernel'-Alias, 'info'-Mode, CONFIG-Weitergabe
+    an nmake, kein Doppelaufruf von write_build_info.ps1.
 #>
 
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$false, Position=0)]
-    [ValidateSet('prophysics','sdk','test','all')]
+    [ValidateSet('kernel','prophysics','sdk','test','all','info')]
     [string]$Mode = 'all',
+
+    [ValidateSet('release','debug')]
+    [string]$Config = 'release',
 
     [switch]$Rebuild,
     [switch]$Clean,
@@ -103,25 +143,35 @@ function Write-Dry   ($m) { Write-Host "    [dry] $m" -ForegroundColor DarkGray 
 
 # ==========================================================================
 # nmake-Target aus Mode + Flags ableiten
+#
+# 'kernel' ist Alias fuer 'prophysics'.
+# 'info' ist ein reiner Metadaten-Target ohne Build.
 # ==========================================================================
 function Get-NmakeTarget {
+    if ($Mode -eq 'info') { return 'info' }
+
     if ($Clean -and -not $Rebuild) {
         switch ($Mode) {
+            'kernel'     { return 'clean_prophysics' }
             'prophysics' { return 'clean_prophysics' }
             'sdk'        { return 'clean_sdk' }
             'test'       { return 'clean_test' }
             'all'        { return 'clean' }
         }
     }
+
     if ($Rebuild) {
         switch ($Mode) {
+            'kernel'     { return 'rebuild_prophysics' }
             'prophysics' { return 'rebuild_prophysics' }
             'sdk'        { return 'rebuild_sdk' }
             'test'       { return 'rebuild_test' }
             'all'        { return 'rebuild' }
         }
     }
+
     switch ($Mode) {
+        'kernel'     { return 'prophysics' }
         'prophysics' { return 'prophysics' }
         'sdk'        { return 'sdk' }
         'test'       { return 'test' }
@@ -130,7 +180,31 @@ function Get-NmakeTarget {
 }
 
 # ==========================================================================
-# nmake aufrufen
+# Liste der nmake-Targets, die den info-Target bereits selbst ausfuehren.
+#
+# Master-Makefile:
+#   all                 -> ... info
+#   rebuild             -> clean all          (all enthaelt info)
+#   rebuild_prophysics  -> clean_prophysics prophysics info
+#   rebuild_sdk         -> clean_sdk sdk info
+#   rebuild_test        -> clean_test test info
+#
+# Fuer diese Targets darf build.ps1 NICHT nochmal write_build_info.ps1
+# aufrufen, sonst wird die Datei doppelt erzeugt.
+# ==========================================================================
+function Test-NmakeHandlesInfo {
+    param([string]$Target)
+    return @(
+        'all',
+        'rebuild',
+        'rebuild_prophysics',
+        'rebuild_sdk',
+        'rebuild_test'
+    ) -contains $Target
+}
+
+# ==========================================================================
+# nmake aufrufen -- mit CONFIG-Weitergabe
 # ==========================================================================
 function Invoke-Nmake {
     param([string]$Target)
@@ -142,14 +216,14 @@ function Invoke-Nmake {
     }
 
     if ($script:DryRun) {
-        Write-Dry "cd `"$BuildMain`" && nmake /NOLOGO /f Makefile.nmake $Target"
+        Write-Dry "cd `"$BuildMain`" && nmake /NOLOGO /f Makefile.nmake $Target CONFIG=$Config"
         return
     }
 
-    Write-Step "nmake $Target"
+    Write-Step "nmake $Target CONFIG=$Config"
     Push-Location $BuildMain
     try {
-        & nmake /NOLOGO /f Makefile.nmake $Target
+        & nmake /NOLOGO /f Makefile.nmake $Target "CONFIG=$Config"
         if ($LASTEXITCODE -ne 0) {
             Write-Err "nmake fehlgeschlagen (Exit $LASTEXITCODE)"
             exit $LASTEXITCODE
@@ -228,7 +302,7 @@ function Invoke-BuildInfo {
 
     if ($script:DryRun) {
         Write-Step 'BUILD_INFO.txt wuerde geschrieben werden'
-        Write-Dry "powershell -File write_build_info.ps1 -RepoRoot `"$RepoRoot`" ..."
+        Write-Dry "powershell -File write_build_info.ps1 -RepoRoot `"$RepoRoot`" -Config $Config ..."
         return
     }
 
@@ -238,6 +312,7 @@ function Invoke-BuildInfo {
         '-ExecutionPolicy','Bypass'
         '-File', $InfoScript
         '-RepoRoot', $RepoRoot
+        '-Config', $Config
     )
     if ($GitStamp) { $psArgs += '-GitStamp' }
     if ($GitNote -and $GitNote.Trim().Length -gt 0) {
@@ -256,7 +331,7 @@ function Invoke-BuildInfo {
 # ==========================================================================
 Write-Host ''
 Write-Host '============================================================' -ForegroundColor Cyan
-Write-Host "  ProPhysics Build  |  Modus: $Mode" -ForegroundColor Cyan
+Write-Host "  ProPhysics Build  |  Modus: $Mode  Config: $Config" -ForegroundColor Cyan
 Write-Host '============================================================' -ForegroundColor Cyan
 Write-Host "  Repo:   $RepoRoot"
 Write-Host "  Build:  $BuildMain"
@@ -268,6 +343,9 @@ if ($script:DryRun) {
 # Flags-Konflikt-Check
 if ($Clean -and $NoBuild -and -not $Rebuild) {
     Write-Warn2 '-Clean + -NoBuild: nur Clean wird ausgefuehrt (kein Build, keine Info)'
+}
+if ($Mode -eq 'info' -and ($Rebuild -or $Clean)) {
+    Write-Warn2 "-Mode info ignoriert -Rebuild und -Clean"
 }
 
 # Optionale Git-Vorschau
@@ -285,19 +363,23 @@ if ($GitNote -and $GitNote.Trim().Length -gt 0) {
 }
 Write-Host ''
 
-# --- 1. Clean-only (kein Build) ---
+# --- 1. Clean-only / Info-only / Build ---
 $cleanOnly = $Clean -and -not $Rebuild
-$skipBuild = $NoBuild -or $cleanOnly
+$skipBuild = $NoBuild -or $cleanOnly -or ($Mode -eq 'info')
 
-if ($cleanOnly) {
-    Write-Step "Nur Clean (kein Build)"
+if ($Mode -eq 'info') {
+    Write-Step 'Nur BUILD_INFO (kein Build)'
+}
+elseif ($cleanOnly) {
+    Write-Step 'Nur Clean (kein Build)'
     Invoke-Nmake -Target (Get-NmakeTarget)
 }
 elseif ($NoBuild) {
     Write-Step 'Build uebersprungen (-NoBuild)'
 }
 else {
-    Invoke-Nmake -Target (Get-NmakeTarget)
+    $target = Get-NmakeTarget
+    Invoke-Nmake -Target $target
 }
 
 # --- 2. Sign (nur nach erfolgreichem Build) ---
@@ -305,9 +387,28 @@ if ($Sign -and -not $skipBuild) {
     $null = Invoke-Sign
 }
 
-# --- 3. BUILD_INFO (ausser bei reinem Clean) ---
+# --- 3. BUILD_INFO ---
+#
+# Aufrufregel:
+#   - clean-only:  keine Info
+#   - Mode=info:   nur Info
+#   - -NoBuild:    nur Info (Build lief nicht, Info soll trotzdem aktuell sein)
+#   - Target all/rebuild*:  Makefile hat info schon ausgefuehrt -> nichts
+#   - Target prophysics/sdk/test:  Makefile hat info NICHT ausgefuehrt -> Info
+#
 if (-not $cleanOnly) {
-    Invoke-BuildInfo
+    if ($Mode -eq 'info' -or $NoBuild) {
+        Invoke-BuildInfo
+    }
+    else {
+        $target = Get-NmakeTarget
+        if (Test-NmakeHandlesInfo -Target $target) {
+            Write-Step "BUILD_INFO.txt bereits durch Makefile-Target '$target' erzeugt"
+        }
+        else {
+            Invoke-BuildInfo
+        }
+    }
 }
 
 # --- 4. Zusammenfassung ---

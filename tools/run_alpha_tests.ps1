@@ -9,26 +9,41 @@
 
     Ablageort: <repo>\tools\
     Ziel-EXEs: <repo>\bin\          (Default, aus $PSScriptRoot\..\bin)
-    Logs:      <repo>\bin\logs\     (Default)
+    DLLs:      <repo>\bin\          (Default, identisch mit ExeDir)
+    Logs:      <ExeDir>\logs\       (Default)
 
     Prios:
-      1  2D-Basis (Unitaer, Born, Gauge, CHSH)        12 Tests
+      1  2D-Basis (Amp, Born, Unitaer, Gauge, CHSH)   12 Tests
       2  Emergenz (Born, Lorentz, Interferenz, CHSH)  10 Tests
       3  Langlauf (Invarianten, Transport, Soliton)   10 Tests
       4  3D-Torus (Smoke, Invariance, Dispersion)      3 Tests
       5  Hydrogen + Shared-Ref + Tournament            4 Tests
       6  Spin-1/2                                      1 Test
       7  Dirac                                         1 Test
-      8  SU(2)-Eichfeld (Etappe 22)                    1 Test
-      all                                             42 Tests
+      8  SU(2)-Eichfeld + Running-Coupling             2 Tests
+      all                                             43 Tests
 
     Self-Locating: -ExeDir default = <repo>\bin (relativ zu $PSScriptRoot).
 
 .PARAMETER Prio
-    Auswahl der Prioritaetsstufe: 1..8 oder 'all'.
+    Auswahl der Prioritaeten. Erlaubt:
+      'all'         -- alle Tests (Default)
+      'N'           -- einzelne Prio (N in 1..8)
+      'N-M'         -- Range, z.B. '1-4'
+      'N,M,K'       -- Liste, z.B. '1,3,5'
+
+.PARAMETER Test
+    Einzelner Test per Name. Case-insensitive. Bindestriche und
+    Unterstriche sind austauschbar. Wenn -Test gesetzt ist, wird
+    -Prio ignoriert.
 
 .PARAMETER ExeDir
     Verzeichnis der Test-EXEs. Default: <repo>\bin.
+
+.PARAMETER DllDir
+    Verzeichnis der DLLs. Default: identisch mit -ExeDir.
+    Wenn != ExeDir, wird DllDir an $env:PATH angehaengt, damit der
+    Windows-Loader ProPhysics.dll / pro_sdk_interface.dll findet.
 
 .PARAMETER LogDir
     Zielverzeichnis fuer Logs. Default: <ExeDir>\logs.
@@ -36,21 +51,26 @@
 .EXAMPLE
     run_alpha_tests.cmd -Prio 7
     run_alpha_tests.cmd -Prio all
+    run_alpha_tests.cmd -Prio 1-4
+    run_alpha_tests.cmd -Test Running-Coupling
     run_alpha_tests.cmd -Prio 8 -LogDir H:\temp\logs
 
 .NOTES
-    Version: 3.1 (Etappe 22 + Refactoring)
-    Refactoring 22: verschoben von bin\ nach tools\. ExeDir-Default
-    zeigt jetzt auf <repo>\bin statt auf den Skript-Ablageort.
+    Version: 3.2 (Etappe 23)
+    -Prio akzeptiert Range/Liste, -Test fuer Einzelauswahl,
+    -DllDir als optionaler DLL-Pfad. Zaehlung: 43 Tests.
 #>
 
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$false, Position=0)]
-    [ValidateSet('1','2','3','4','5','6','7','8','all')]
-    [string]$Prio,
+    [string]$Prio = 'all',
+
+    [Parameter(Mandatory=$false)]
+    [string]$Test,
 
     [string]$ExeDir,
+    [string]$DllDir,
     [string]$LogDir
 )
 
@@ -67,26 +87,20 @@ try {
 try { & chcp.com 65001 > $null 2>&1 } catch { }
 
 # ==========================================================================
-# Default-Pfade (Refactoring 22: tools\ statt bin\)
-#
-# Skript liegt in <repo>\tools\.
-# ExeDir-Default: <repo>\bin\  (eine Ebene hoch, dann bin\).
-# LogDir-Default: <ExeDir>\logs\.
+# Default-Pfade (Skript liegt in <repo>\tools\)
 # ==========================================================================
 $RepoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 if (-not $ExeDir) { $ExeDir = Join-Path $RepoRoot 'bin' }
+if (-not $DllDir) { $DllDir = $ExeDir }
 if (-not $LogDir) { $LogDir = Join-Path $ExeDir 'logs' }
 
 # ==========================================================================
 # Interaktiv: Prio erfragen, falls nicht gesetzt.
 # ==========================================================================
-if (-not $Prio) {
-    Write-Host "Prio waehlen (1, 2, 3, 4, 5, 6, 7, 8, all): " -NoNewline
+if (-not $Prio -and -not $Test) {
+    Write-Host "Prio waehlen (1..8, 1-4, 1,3,5, all) oder -Test <name>: " -NoNewline
     $Prio = Read-Host
-    if ($Prio -notin @('1','2','3','4','5','6','7','8','all')) {
-        Write-Host "Ungueltige Auswahl: $Prio" -ForegroundColor Red
-        exit 2
-    }
+    if ([string]::IsNullOrWhiteSpace($Prio)) { $Prio = 'all' }
 }
 
 # ==========================================================================
@@ -272,7 +286,7 @@ $TestCatalog = [ordered]@{
         Args = @('--test-dirac'); Timeout = 300
     }
 
-    # --- Prio 8: SU(2)-Eichfeld (Etappe 22) ---
+    # --- Prio 8: SU(2)-Eichfeld + Running-Coupling ---
     'SU2-Wilson-Loop' = @{
         Prio = 8; Exe = 'example_alpha_test.exe'
         Args = @('--test-su2-wilson-loop'); Timeout = 300
@@ -284,17 +298,98 @@ $TestCatalog = [ordered]@{
 }
 
 # ==========================================================================
-# Test-Filter
+# Prio-Auswahl parsen
+#
+# Erlaubt: 'all', 'N', 'N-M', 'N,M,K'. Whitespace wird toleriert.
+# Rueckgabe: HashSet<int> oder 'all'.
 # ==========================================================================
-$selected = if ($Prio -eq 'all') {
-    $TestCatalog.Keys
-} else {
-    $prioInt = [int]$Prio
-    $TestCatalog.Keys | Where-Object { $TestCatalog[$_].Prio -eq $prioInt }
+function Resolve-PrioSelection {
+    param([string]$Spec)
+
+    if ([string]::IsNullOrWhiteSpace($Spec)) { return 'all' }
+    $spec = $Spec.Trim().ToLowerInvariant()
+    if ($spec -eq 'all') { return 'all' }
+
+    $set = New-Object 'System.Collections.Generic.HashSet[int]'
+
+    foreach ($part in ($spec -split ',')) {
+        $part = $part.Trim()
+        if ($part -eq '') { continue }
+
+        if ($part -match '^(\d+)\s*-\s*(\d+)$') {
+            $lo = [int]$Matches[1]
+            $hi = [int]$Matches[2]
+            if ($lo -gt $hi) { $t = $lo; $lo = $hi; $hi = $t }
+            for ($p = $lo; $p -le $hi; $p++) {
+                if ($p -ge 1 -and $p -le 8) { [void]$set.Add($p) }
+            }
+        }
+        elseif ($part -match '^\d+$') {
+            $p = [int]$part
+            if ($p -ge 1 -and $p -le 8) { [void]$set.Add($p) }
+        }
+        else {
+            Write-Host "Ungueltige Prio-Angabe: '$part'" -ForegroundColor Red
+            exit 2
+        }
+    }
+
+    if ($set.Count -eq 0) {
+        Write-Host "Keine gueltige Prio in '$Spec' gefunden." -ForegroundColor Red
+        exit 2
+    }
+    return $set
 }
 
-if (-not $selected -or $selected.Count -eq 0) {
-    Write-Host "Keine Tests fuer Prio '$Prio' gefunden." -ForegroundColor Yellow
+# ==========================================================================
+# Test-Auswahl
+#
+# -Test <name> : case-insensitive, '-' und '_' austauschbar.
+# sonst        : Prio-Filter.
+# ==========================================================================
+function Select-Tests {
+    param(
+        [string]$TestName,
+        $PrioSelection
+    )
+
+    if ($TestName) {
+        $needle = $TestName.Replace('_', '-').ToLowerInvariant()
+        $hit = $null
+        foreach ($key in $TestCatalog.Keys) {
+            $candidate = $key.Replace('_', '-').ToLowerInvariant()
+            if ($candidate -eq $needle) { $hit = $key; break }
+        }
+        if (-not $hit) {
+            Write-Host "Test nicht im Katalog: '$TestName'" -ForegroundColor Red
+            Write-Host "Verfuegbare Tests:" -ForegroundColor Yellow
+            foreach ($k in $TestCatalog.Keys) {
+                Write-Host "  - $k"
+            }
+            exit 2
+        }
+        return @($hit)
+    }
+
+    if ($PrioSelection -eq 'all') {
+        return @($TestCatalog.Keys)
+    }
+
+    $prioSet = $PrioSelection
+    $out = @()
+    foreach ($key in $TestCatalog.Keys) {
+        if ($prioSet.Contains([int]$TestCatalog[$key].Prio)) {
+            $out += $key
+        }
+    }
+    return $out
+}
+
+$prioSelection = Resolve-PrioSelection -Spec $Prio
+$selected = @(Select-Tests -TestName $Test -PrioSelection $prioSelection)
+
+if ($selected.Count -eq 0) {
+    Write-Host "Keine Tests ausgewaehlt." -ForegroundColor Yellow
     exit 2
 }
 
@@ -303,27 +398,48 @@ if (-not $selected -or $selected.Count -eq 0) {
 # ==========================================================================
 if (-not (Test-Path -LiteralPath $ExeDir)) {
     Write-Host "FEHLER: ExeDir nicht gefunden: $ExeDir" -ForegroundColor Red
-    Write-Host "        (Erwartet: <repo>\\bin mit den Test-EXEs.)" -ForegroundColor Red
+    Write-Host "        (Erwartet: <repo>\bin mit den Test-EXEs.)" -ForegroundColor Red
     exit 2
 }
+if (-not (Test-Path -LiteralPath $DllDir)) {
+    Write-Host "FEHLER: DllDir nicht gefunden: $DllDir" -ForegroundColor Red
+    exit 2
+}
+
+$coreDll = Join-Path $DllDir 'ProPhysics.dll'
+if (-not (Test-Path -LiteralPath $coreDll)) {
+    Write-Host "WARNUNG: ProPhysics.dll fehlt in $DllDir" -ForegroundColor Yellow
+    Write-Host "         Build zuerst ausfuehren (build.ps1) oder -DllDir korrigieren." -ForegroundColor Yellow
+}
+
+# DLL-Verzeichnis an PATH anhaengen, falls != ExeDir.
+if ((Resolve-Path -LiteralPath $DllDir).Path -ne (Resolve-Path -LiteralPath $ExeDir).Path) {
+    $env:PATH = "$DllDir;$env:PATH"
+}
+
 if (-not (Test-Path -LiteralPath $LogDir)) {
     New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
 }
 
 $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
 
+# ==========================================================================
+# Header-Ausgabe
+# ==========================================================================
+$prioLabel = if ($Test) { "Test=$Test" }
+             elseif ($prioSelection -eq 'all') { 'all' }
+             else { ($prioSelection | Sort-Object) -join ',' }
+
 Write-Host ''
 Write-Host '============================================================' -ForegroundColor Cyan
-Write-Host "  ProPhysics Alpha-Test-Runner -- Prio $Prio" -ForegroundColor Cyan
+Write-Host "  ProPhysics Alpha-Test-Runner -- $prioLabel" -ForegroundColor Cyan
 Write-Host '============================================================' -ForegroundColor Cyan
 Write-Host "  ExeDir: $ExeDir"
+Write-Host "  DllDir: $DllDir"
 Write-Host "  LogDir: $LogDir"
 Write-Host "  Tests:  $($selected.Count)"
 Write-Host ''
 
-# ==========================================================================
-# Auswertungsfunktion
-# ==========================================================================
 # ==========================================================================
 # Auswertungsfunktion: PASS/FAIL-Marker aus dem Log-Text ableiten.
 #
@@ -412,7 +528,7 @@ foreach ($name in $selected) {
     $exitCode = 0
     $timedOut = $false
 
-        try {
+    try {
         # PowerShell 5.1: -ArgumentList @() ist buggy und bricht den
         # Start-Process-Aufruf stillschweigend ab (kein Log, kein
         # Exit-Code). Bei leerer Liste den Parameter ganz weglassen.

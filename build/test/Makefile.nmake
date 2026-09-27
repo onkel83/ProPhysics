@@ -1,77 +1,113 @@
 # ==========================================================================
 # ProPhysics - Test NMAKE Build
-# File: build\test\Makefile.nmake
-# Version: 3.1 — Alpha-Test + Example-Tests
+# File:    build\test\Makefile.nmake
+# Kernel:  1.23.0
+# Etappe:  23
+# Version: 3.2 — Alpha-Test + Example-Tests
 #
-# Aufruf: aus build\test\ heraus (cd build\test && nmake /f Makefile.nmake)
+# Aufruf:  aus beliebigem CWD.
+#          Pfade werden ueber $(MAKEDIR) relativ zum Ablageort dieses
+#          Makefiles abgeleitet — kein CWD-Hardcoding.
+#
+#   nmake                        -- alle Test-EXEs
+#   nmake CONFIG=debug           -- Debug-Build (Default: release)
+#   nmake clean                  -- Artefakte entfernen
+#   nmake help                   -- Uebersicht
 #
 # Struktur:
-#   Quellen:     ..\..\src\test\*.c
-#   Test-Header: ..\..\src\test\header\alpha_test_common.h
-#   Kern-Header: ..\..\src\prophysics\header\*.h
-#   SDK-Header:  ..\..\src\sdk\header\pro_sdk_interface.h
+#   Quellen:     $(ROOT)\src\test\*.c
+#   Test-Header: $(ROOT)\src\test\header\alpha_test_common.h
+#   Kern-Header: $(ROOT)\src\prophysics\header\*.h
+#   SDK-Header:  $(ROOT)\src\sdk\header\pro_sdk_interface.h
 #
-#   Kern-Lib:    ..\..\lib\ProPhysics.lib
-#   SDK-Lib:     ..\..\lib\pro_sdk_interface.lib
+#   Kern-Lib:    $(ROOT)\lib\ProPhysics.lib
+#   SDK-Lib:     $(ROOT)\lib\pro_sdk_interface.lib
 #
-#   Ziel-EXEs:   ..\..\bin\example_alpha_test.exe
-#                ..\..\bin\example_test_density.exe
-#                ..\..\bin\example_test_tensor.exe
+#   Ziel-EXEs:   $(ROOT)\bin\example_alpha_test.exe
+#                $(ROOT)\bin\example_test_density.exe
+#                $(ROOT)\bin\example_test_tensor.exe
 #
-#   OBJ:         _obj\  (temporaer, wird nach Link geloescht)
+#   OBJ:         $(MAKEDIR)\_obj\  (temporaer, wird nach Link geloescht)
 #
 # Voraussetzung: ProPhysics.lib UND pro_sdk_interface.lib muessen
-#               bereits existieren. Reihenfolge: prophysics -> sdk -> test.
+#                bereits existieren. Reihenfolge: prophysics -> sdk -> test.
 #
 # Die EXEs liegen im selben Ordner wie die DLLs (bin\), damit der
 # Windows-Loader sie ohne PATH-Anpassung findet.
 #
 # Etappe 22-Refactoring: alpha_test_su2.c hinzugefuegt (Prio 8).
-# ==========================================================================
-
-CC = cl.exe
-LINKER = link.exe
-
-# ==========================================================================
-# COMPILER FLAGS
+# Etappe 23:             alpha_test_running_coupling.c hinzugefuegt (Prio 8).
 #
-# /I-Pfade (relativ zu build\test):
-#   ..\..\src\test\header         -- alpha_test_common.h
-#   ..\..\src\prophysics\header   -- ProPhysics.h, ProPhysics_Types.h, ...
-#   ..\..\src\sdk\header          -- pro_sdk_interface.h
-#
-# Refactoring 22: /arch:AVX2 wie im Kernel-Build, damit die Test-EXEs
-# den gleichen Befehlssatz nutzen.
+# Parameter:
+#   CONFIG   release | debug   (Default: release)
 # ==========================================================================
-CFLAGS = /nologo /O2 /Ob2 /Oi /GL /W3 /MP /arch:AVX2 \
-         /I..\..\src\test\header \
-         /I..\..\src\prophysics\header \
-         /I..\..\src\sdk\header \
-         /D_CRT_SECURE_NO_WARNINGS
 
 # --------------------------------------------------------------------------
-# Pfad-Konfiguration (relativ zu build\test)
+# Konfiguration -- validiert, damit Tippfehler frueh auffallen.
 # --------------------------------------------------------------------------
-SRC_DIR = ..\..\src\test
-TEST_HDR_DIR = ..\..\src\test\header
-OBJ_DIR = _obj
-BIN_DIR = ..\..\bin
-LIB_DIR = ..\..\lib
+!IFNDEF CONFIG
+CONFIG = release
+!ENDIF
+!IF "$(CONFIG)" != "release"
+!IF "$(CONFIG)" != "debug"
+!ERROR CONFIG muss "release" oder "debug" sein (erhalten: "$(CONFIG)")
+!ENDIF
+!ENDIF
+
+# --------------------------------------------------------------------------
+# Pfade relativ zum Ablageort dieses Makefiles.
+# --------------------------------------------------------------------------
+ROOT         = $(MAKEDIR)\..\..
+SRC_DIR      = $(ROOT)\src\test
+TEST_HDR_DIR = $(ROOT)\src\test\header
+CORE_HDR_DIR = $(ROOT)\src\prophysics\header
+SDK_HDR_DIR  = $(ROOT)\src\sdk\header
+OBJ_DIR      = $(MAKEDIR)\_obj
+BIN_DIR      = $(ROOT)\bin
+LIB_DIR      = $(ROOT)\lib
 
 # Import-Libs der Vorgaenger-Builds
-CORE_LIB = ..\..\lib\ProPhysics.lib
-SDK_LIB  = ..\..\lib\pro_sdk_interface.lib
+CORE_LIB = $(LIB_DIR)\ProPhysics.lib
+SDK_LIB  = $(LIB_DIR)\pro_sdk_interface.lib
 
 # Ziel-EXEs
 EXE_ALPHA    = $(BIN_DIR)\example_alpha_test.exe
 EXE_DENSITY  = $(BIN_DIR)\example_test_density.exe
 EXE_TENSOR   = $(BIN_DIR)\example_test_tensor.exe
 
+CC     = cl.exe
+LINKER = link.exe
+
+# --------------------------------------------------------------------------
+# Compiler-Flags pro Config
+#
+# /I-Pfade:
+#   $(TEST_HDR_DIR)  -- alpha_test_common.h
+#   $(CORE_HDR_DIR)  -- ProPhysics.h, ProPhysics_Types.h, ...
+#   $(SDK_HDR_DIR)   -- pro_sdk_interface.h
+#
+# /arch:AVX2 wie im Kernel-Build, damit die Test-EXEs den gleichen
+# Befehlssatz nutzen.
+# --------------------------------------------------------------------------
+CFLAGS_COMMON = /nologo /W3 /MP /arch:AVX2 /D_CRT_SECURE_NO_WARNINGS \
+                /I"$(TEST_HDR_DIR)" \
+                /I"$(CORE_HDR_DIR)" \
+                /I"$(SDK_HDR_DIR)"
+
+!IF "$(CONFIG)" == "release"
+CFLAGS  = $(CFLAGS_COMMON) /O2 /Ob2 /Oi /GL
+LFLAGS  = /LTCG
+!ELSE
+CFLAGS  = $(CFLAGS_COMMON) /Od /Zi /MDd
+LFLAGS  = /DEBUG
+!ENDIF
+
 # --------------------------------------------------------------------------
 # Test-Quellen: Alpha-Test (multi-file) und Example-Tests (single-file)
 #
-# Refactoring 22: alpha_test_su2.c hinzugefuegt (Etappe 22, Prio 8).
-# Damit enthaelt example_alpha_test.exe 16 Objektdateien (15 + su2).
+# Etappe 22: alpha_test_su2.c hinzugefuegt.
+# Etappe 23: alpha_test_running_coupling.c hinzugefuegt.
+# Damit enthaelt example_alpha_test.exe 17 Objektdateien.
 # --------------------------------------------------------------------------
 ALPHA_SOURCES = \
     $(SRC_DIR)\alpha_test_main.c \
@@ -102,13 +138,13 @@ EXAMPLE_SOURCES = \
 TEST_HEADERS = $(TEST_HDR_DIR)\alpha_test_common.h
 
 CORE_HEADERS = \
-    ..\..\src\prophysics\header\ProPhysics.h \
-    ..\..\src\prophysics\header\ProPhysics_Config.h \
-    ..\..\src\prophysics\header\ProPhysics_Types.h \
-    ..\..\src\prophysics\header\ProPhysics_Exports.h \
-    ..\..\src\prophysics\header\ProPhysics_Version.h
+    $(CORE_HDR_DIR)\ProPhysics.h \
+    $(CORE_HDR_DIR)\ProPhysics_Config.h \
+    $(CORE_HDR_DIR)\ProPhysics_Types.h \
+    $(CORE_HDR_DIR)\ProPhysics_Exports.h \
+    $(CORE_HDR_DIR)\ProPhysics_Version.h
 
-SDK_HEADERS = ..\..\src\sdk\header\pro_sdk_interface.h
+SDK_HEADERS = $(SDK_HDR_DIR)\pro_sdk_interface.h
 
 HEADERS_ALL = $(TEST_HEADERS) $(CORE_HEADERS) $(SDK_HEADERS)
 
@@ -133,6 +169,17 @@ setup:
 	@if not exist "$(OBJ_DIR)" mkdir "$(OBJ_DIR)"
 	@if not exist "$(BIN_DIR)" mkdir "$(BIN_DIR)"
 
+help:
+	@echo.
+	@echo ProPhysics Test-Build -- Targets:
+	@echo   all            example_alpha_test.exe + example_test_density.exe
+	@echo                  + example_test_tensor.exe (Default)
+	@echo   clean          Artefakte entfernen
+	@echo   help           diese Uebersicht
+	@echo.
+	@echo Optionen:  CONFIG=release^|debug   (Default: release)
+	@echo.
+
 # --------------------------------------------------------------------------
 # Beispiel-Tests (single-file)
 #
@@ -140,30 +187,30 @@ setup:
 # kein /c. Die OBJ-Datei landet via /Fo in _obj\.
 # --------------------------------------------------------------------------
 $(EXE_DENSITY): $(SRC_DIR)\example_test_density.c $(HEADERS_ALL) $(CORE_LIB) $(SDK_LIB)
-	@echo [CC+LINK] $(EXE_DENSITY)
-	$(CC) $(CFLAGS) $(SRC_DIR)\example_test_density.c \
-	    /Fo$(OBJ_DIR)\ /Fe$@ \
-	    /link $(SDK_LIB) $(CORE_LIB)
+	@echo [CC+LINK] $(EXE_DENSITY)  (CONFIG=$(CONFIG))
+	$(CC) $(CFLAGS) "$(SRC_DIR)\example_test_density.c" \
+	    /Fo"$(OBJ_DIR)\\" /Fe$@ \
+	    /link $(LFLAGS) $(SDK_LIB) $(CORE_LIB)
 
 $(EXE_TENSOR): $(SRC_DIR)\example_test_tensor.c $(HEADERS_ALL) $(CORE_LIB) $(SDK_LIB)
-	@echo [CC+LINK] $(EXE_TENSOR)
-	$(CC) $(CFLAGS) $(SRC_DIR)\example_test_tensor.c \
-	    /Fo$(OBJ_DIR)\ /Fe$@ \
-	    /link $(SDK_LIB) $(CORE_LIB)
+	@echo [CC+LINK] $(EXE_TENSOR)  (CONFIG=$(CONFIG))
+	$(CC) $(CFLAGS) "$(SRC_DIR)\example_test_tensor.c" \
+	    /Fo"$(OBJ_DIR)\\" /Fe$@ \
+	    /link $(LFLAGS) $(SDK_LIB) $(CORE_LIB)
 
 # --------------------------------------------------------------------------
 # Alpha-Test (multi-file)
 #
-# Alle 16 Quellen werden in EINEM cl.exe-Aufruf kompiliert und gelinkt.
+# Alle 17 Quellen werden in EINEM cl.exe-Aufruf kompiliert und gelinkt.
 # Bei /MP uebersetzt cl.exe die Dateien parallel, der Link passiert am
-# Ende des Aufrufs. /Fo$(OBJ_DIR)\ mit abschliessendem Backslash stellt
-# sicher, dass cl.exe die OBJs dort ablegt (nicht im CWD).
+# Ende des Aufrufs. /Fo"$(OBJ_DIR)\\" mit abschliessendem Backslash
+# stellt sicher, dass cl.exe die OBJs dort ablegt (nicht im CWD).
 # --------------------------------------------------------------------------
 $(EXE_ALPHA): $(ALPHA_SOURCES) $(HEADERS_ALL) $(CORE_LIB) $(SDK_LIB)
-	@echo [CC+LINK] $(EXE_ALPHA) (16 Quellen)
+	@echo [CC+LINK] $(EXE_ALPHA)  (17 Quellen, CONFIG=$(CONFIG))
 	$(CC) $(CFLAGS) $(ALPHA_SOURCES) \
-	    /Fo$(OBJ_DIR)\ /Fe$@ \
-	    /link $(SDK_LIB) $(CORE_LIB)
+	    /Fo"$(OBJ_DIR)\\" /Fe$@ \
+	    /link $(LFLAGS) $(SDK_LIB) $(CORE_LIB)
 
 # --------------------------------------------------------------------------
 # Aufraeumen der OBJ-Reste nach jedem erfolgreichen Link

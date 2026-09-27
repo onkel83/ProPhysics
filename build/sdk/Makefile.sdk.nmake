@@ -1,55 +1,87 @@
 # ==========================================================================
 # ProPhysics - SDK Interface NMAKE Build
-# File: build\sdk\Makefile.sdk.nmake
-# Version: 3.0 — SDK-Interface (Single .c)
+# File:    build\sdk\Makefile.sdk.nmake
+# Kernel:  1.23.0
+# Etappe:  23
+# Version: 3.2 — SDK-Interface (Single .c)
 #
-# Aufruf: aus build\sdk\ heraus (cd build\sdk && nmake /f Makefile.sdk.nmake)
+# Aufruf:  aus beliebigem CWD.
+#          Pfade werden ueber $(MAKEDIR) relativ zum Ablageort dieses
+#          Makefiles abgeleitet — kein CWD-Hardcoding.
 #
-# Struktur (Etappe 21, neue Ordnerorganisation):
-#   Quelle:      ..\..\src\sdk\pro_sdk_interface.c
-#   SDK-Header:  ..\..\src\sdk\header\pro_sdk_interface.h
-#   Kern-Header: ..\..\src\prophysics\header\*.h    (ProPhysics.h etc.)
-#   Kern-Lib:    ..\..\lib\ProPhysics.lib          (aus prophysics-Build)
-#   Ziel DLL:    ..\..\bin\pro_sdk_interface.dll
-#   Ziel LIB:    ..\..\lib\pro_sdk_interface.lib
-#   OBJ:         _obj\  (temporaer, wird nach Link geloescht)
+#   nmake                        -- pro_sdk_interface.dll + .lib
+#   nmake CONFIG=debug           -- Debug-Build (Default: release)
+#   nmake clean                  -- Artefakte entfernen
+#   nmake help                   -- Uebersicht
+#
+# Struktur:
+#   Quelle:      $(ROOT)\src\sdk\pro_sdk_interface.c
+#   SDK-Header:  $(ROOT)\src\sdk\header\pro_sdk_interface.h
+#   Kern-Header: $(ROOT)\src\prophysics\header\*.h
+#   Kern-Lib:    $(ROOT)\lib\ProPhysics.lib          (aus prophysics-Build)
+#   Ziel DLL:    $(ROOT)\bin\pro_sdk_interface.dll
+#   Ziel LIB:    $(ROOT)\lib\pro_sdk_interface.lib
+#   OBJ:         $(MAKEDIR)\_obj\  (temporaer, wird nach Link geloescht)
 #
 # Voraussetzung: ProPhysics.lib muss bereits existieren.
-#               Reihenfolge: prophysics -> sdk -> test.
-# ==========================================================================
-
-CC = cl.exe
-LINKER = link.exe
-
-# ==========================================================================
-# COMPILER FLAGS
+#                Reihenfolge: prophysics -> sdk -> test.
 #
-# /I-Pfade (relativ zu build\sdk):
-#   ..\..\src\sdk\header         -- pro_sdk_interface.h
-#   ..\..\src\prophysics\header  -- ProPhysics.h, ProPhysics_Types.h, ...
+# Parameter:
+#   CONFIG   release | debug   (Default: release)
 # ==========================================================================
-CFLAGS = /nologo /O2 /Ob2 /Oi /GL /W3 /MP \
-         /I..\..\src\sdk\header \
-         /I..\..\src\prophysics\header \
-         /D_CRT_SECURE_NO_WARNINGS
-
-# DLL-spezifisches Export-Macro
-DLL_FLAGS = /DPRO_SDK_EXPORTS
 
 # --------------------------------------------------------------------------
-# Pfad-Konfiguration (relativ zu build\sdk)
+# Konfiguration -- validiert, damit Tippfehler frueh auffallen.
 # --------------------------------------------------------------------------
-SRC_DIR = ..\..\src\sdk
-HDR_DIR = ..\..\src\sdk\header
-OBJ_DIR = _obj
-BIN_DIR = ..\..\bin
-LIB_DIR = ..\..\lib
+!IFNDEF CONFIG
+CONFIG = release
+!ENDIF
+!IF "$(CONFIG)" != "release"
+!IF "$(CONFIG)" != "debug"
+!ERROR CONFIG muss "release" oder "debug" sein (erhalten: "$(CONFIG)")
+!ENDIF
+!ENDIF
+
+# --------------------------------------------------------------------------
+# Pfade relativ zum Ablageort dieses Makefiles.
+# --------------------------------------------------------------------------
+ROOT      = $(MAKEDIR)\..\..
+SRC_DIR   = $(ROOT)\src\sdk
+HDR_DIR   = $(ROOT)\src\sdk\header
+CORE_HDR  = $(ROOT)\src\prophysics\header
+OBJ_DIR   = $(MAKEDIR)\_obj
+BIN_DIR   = $(ROOT)\bin
+LIB_DIR   = $(ROOT)\lib
 
 DLL_TARGET = $(BIN_DIR)\pro_sdk_interface.dll
 LIB_TARGET = $(LIB_DIR)\pro_sdk_interface.lib
 
-# Import-Lib des Kernels
-CORE_LIB = ..\..\lib\ProPhysics.lib
+# Import-Lib des Kernels (aus vorherigem Build-Schritt)
+CORE_LIB = $(LIB_DIR)\ProPhysics.lib
+
+CC     = cl.exe
+LINKER = link.exe
+
+# --------------------------------------------------------------------------
+# Compiler-Flags pro Config
+#
+# /I-Pfade:
+#   $(HDR_DIR)   -- pro_sdk_interface.h
+#   $(CORE_HDR)  -- ProPhysics.h, ProPhysics_Types.h, ...
+# --------------------------------------------------------------------------
+CFLAGS_COMMON = /nologo /W3 /MP /D_CRT_SECURE_NO_WARNINGS \
+                /I"$(HDR_DIR)" /I"$(CORE_HDR)"
+
+!IF "$(CONFIG)" == "release"
+CFLAGS  = $(CFLAGS_COMMON) /O2 /Ob2 /Oi /GL
+LFLAGS  = /LTCG
+!ELSE
+CFLAGS  = $(CFLAGS_COMMON) /Od /Zi /MDd
+LFLAGS  = /DEBUG
+!ENDIF
+
+# DLL-spezifisches Export-Macro
+DLL_FLAGS = /DPRO_SDK_EXPORTS
 
 # --------------------------------------------------------------------------
 # Modul (Single Source)
@@ -59,18 +91,18 @@ OBJ_SDK = $(OBJ_DIR)\pro_sdk_interface.obj
 # --------------------------------------------------------------------------
 # Header als Dependency
 #
-# Zwei Sätze:
+# Zwei Saetze:
 #   SDK-Header  -- pro_sdk_interface.h
 #   Kern-Header -- ProPhysics.h etc. (fuer die API-Deklarationen)
 # --------------------------------------------------------------------------
 HEADERS_SDK = $(HDR_DIR)\pro_sdk_interface.h
 
 HEADERS_CORE = \
-    ..\..\src\prophysics\header\ProPhysics.h \
-    ..\..\src\prophysics\header\ProPhysics_Config.h \
-    ..\..\src\prophysics\header\ProPhysics_Types.h \
-    ..\..\src\prophysics\header\ProPhysics_Exports.h \
-    ..\..\src\prophysics\header\ProPhysics_Version.h
+    $(CORE_HDR)\ProPhysics.h \
+    $(CORE_HDR)\ProPhysics_Config.h \
+    $(CORE_HDR)\ProPhysics_Types.h \
+    $(CORE_HDR)\ProPhysics_Exports.h \
+    $(CORE_HDR)\ProPhysics_Version.h
 
 HEADERS_ALL = $(HEADERS_SDK) $(HEADERS_CORE)
 
@@ -91,25 +123,35 @@ setup:
 	@if not exist "$(BIN_DIR)" mkdir "$(BIN_DIR)"
 	@if not exist "$(LIB_DIR)" mkdir "$(LIB_DIR)"
 
+help:
+	@echo.
+	@echo ProPhysics SDK-Build -- Targets:
+	@echo   all            pro_sdk_interface.dll + .lib (Default)
+	@echo   clean          Artefakte entfernen
+	@echo   help           diese Uebersicht
+	@echo.
+	@echo Optionen:  CONFIG=release^|debug   (Default: release)
+	@echo.
+
 # --------------------------------------------------------------------------
 # Modul-Regel
 # --------------------------------------------------------------------------
 $(OBJ_SDK): $(SRC_DIR)\pro_sdk_interface.c $(HEADERS_ALL)
-	$(CC) $(CFLAGS) $(DLL_FLAGS) /c $(SRC_DIR)\pro_sdk_interface.c /Fo$@
+	$(CC) $(CFLAGS) $(DLL_FLAGS) /c "$(SRC_DIR)\pro_sdk_interface.c" /Fo$@
 
 # --------------------------------------------------------------------------
 # Link
 #
 # /LTCG wie im Kernel.
-# /OUT  -> bin\pro_sdk_interface.dll
+# /OUT    -> bin\pro_sdk_interface.dll
 # /IMPLIB -> lib\pro_sdk_interface.lib
 # CORE_LIB -> lib\ProPhysics.lib (Import-Lib des Kernels)
 #
 # Nach dem Link: OBJ und EXP weg.
 # --------------------------------------------------------------------------
 $(DLL_TARGET): $(OBJ_SDK) $(CORE_LIB)
-	@echo [LINKING] $(DLL_TARGET)
-	$(LINKER) /nologo /DLL /LTCG \
+	@echo [LINKING] $(DLL_TARGET)  (CONFIG=$(CONFIG))
+	$(LINKER) /nologo /DLL $(LFLAGS) \
 	    /OUT:$(DLL_TARGET) \
 	    /IMPLIB:$(LIB_TARGET) \
 	    $(OBJ_SDK) $(CORE_LIB)

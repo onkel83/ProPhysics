@@ -1,9 +1,11 @@
 # ==========================================================================
 # ProPhysics - BUILD_INFO.txt Generator
 # File: build\main\write_build_info.ps1
+# Version: 3.2 (Etappe 23)
 #
 # Erzeugt <RepoRoot>\BUILD_INFO.txt mit:
-#   - Zeitstempel, Version (aus ProPhysics_Version.h), Host/User
+#   - Zeitstempel, Version + Etappe (aus ProPhysics_Version.h), Host/User
+#   - Config (release/debug) bei -Config
 #   - optional Git-Info (describe/branch/sha/status) bei -GitStamp
 #   - optional Freitext-Notiz bei -GitNote
 #   - Liste der Artefakte in bin\ und lib\
@@ -12,15 +14,25 @@
 #   powershell -NoProfile -ExecutionPolicy Bypass `
 #       -File write_build_info.ps1 `
 #       -RepoRoot "H:\...\ProPhysics" `
+#       -Config release `
 #       -GitStamp `
-#       -GitNote "Etappe 21 abgeschlossen"
+#       -GitNote "Etappe 23 abgeschlossen"
+#
+# Self-Locating: -RepoRoot Default = $PSScriptRoot\..\..
 #
 # Ohne git oder ohne -GitStamp laeuft das Skript ohne Git-Block durch.
 # ==========================================================================
 
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory=$true)][string]$RepoRoot,
+    [string]$RepoRoot,
+
+    [ValidateSet('release','debug')]
+    [string]$Config = '',
+
+    [string]$Version = '',
+    [string]$OutFile = '',
+
     [switch]$GitStamp,
     [string]$GitNote = ''
 )
@@ -36,24 +48,45 @@ try {
 } catch { }
 
 # --------------------------------------------------------------------------
+# RepoRoot: Default aus Skript-Ablageort
+#
+# Skript liegt in <repo>\build\main\. RepoRoot ist zwei Ebenen hoeher.
+# --------------------------------------------------------------------------
+if (-not $RepoRoot) {
+    $RepoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
+}
+else {
+    $RepoRoot = (Resolve-Path -LiteralPath $RepoRoot).Path
+}
+
+# --------------------------------------------------------------------------
 # Pfade
 # --------------------------------------------------------------------------
 $binDir  = Join-Path $RepoRoot 'bin'
 $libDir  = Join-Path $RepoRoot 'lib'
-$outFile = Join-Path $RepoRoot 'BUILD_INFO.txt'
+if (-not $OutFile) { $OutFile = Join-Path $RepoRoot 'BUILD_INFO.txt' }
 $vhPath  = Join-Path $RepoRoot 'src\prophysics\header\ProPhysics_Version.h'
 
 # --------------------------------------------------------------------------
-# Version aus ProPhysics_Version.h lesen
+# Version + Etappe aus ProPhysics_Version.h lesen
 # --------------------------------------------------------------------------
 function Get-ProVersion {
     param([string]$Path)
-    if (-not (Test-Path -LiteralPath $Path)) { return 'unknown' }
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return @{ Version = 'unknown'; Etappe = 'unknown' }
+    }
     $txt = Get-Content -LiteralPath $Path -Raw
+
     $maj = if ($txt -match 'VERSION_MAJOR\s+(\d+)') { $Matches[1] } else { '?' }
     $min = if ($txt -match 'VERSION_MINOR\s+(\d+)') { $Matches[1] } else { '?' }
     $pat = if ($txt -match 'VERSION_PATCH\s+(\d+)') { $Matches[1] } else { '?' }
-    return "$maj.$min.$pat"
+
+    $etappe = if ($txt -match 'PROPHYSICS_ETAPPE\s+(\d+)') { $Matches[1] } else { '?' }
+
+    return @{
+        Version = "$maj.$min.$pat"
+        Etappe  = $etappe
+    }
 }
 
 # --------------------------------------------------------------------------
@@ -118,7 +151,9 @@ function Get-ArtifactLines {
 # --------------------------------------------------------------------------
 # Inhalt aufbauen
 # --------------------------------------------------------------------------
-$version = Get-ProVersion -Path $vhPath
+$vinfo   = Get-ProVersion -Path $vhPath
+$version = if ($Version) { $Version } else { $vinfo.Version }
+$etappe  = $vinfo.Etappe
 $now     = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
 
 $lines = New-Object System.Collections.Generic.List[string]
@@ -129,6 +164,10 @@ $lines.Add("Erzeugt:  $now")
 $lines.Add("Host:     $env:COMPUTERNAME")
 $lines.Add("User:     $env:USERNAME")
 $lines.Add("Version:  $version")
+$lines.Add("Etappe:   $etappe")
+if ($Config) {
+    $lines.Add("Config:   $Config")
+}
 $lines.Add("")
 
 # --- Git-Block (optional) ---
@@ -170,9 +209,9 @@ foreach ($l in (Get-ArtifactLines -Dir $libDir -Label "lib\" -Filters @('*.lib')
 # --- Quellen-Info ---
 $lines.Add("")
 $lines.Add("Quellen:")
-$lines.Add("  src\prophysics\   Kernel (11 Module)")
-$lines.Add("  src\sdk\          SDK Interface")
-$lines.Add("  src\test\         Alpha-Test (15 Module) + 2 Example-Tests")
+$lines.Add("  src\prophysics\   Kernel (12 Module)")
+$lines.Add("  src\sdk\          SDK Interface (1 Modul)")
+$lines.Add("  src\test\         Alpha-Test (17 Module) + 2 Example-Tests")
 $lines.Add("")
 $lines.Add("Hinweis:")
 $lines.Add("  Diese Datei wird bei jedem erfolgreichen Build neu erzeugt.")
@@ -181,10 +220,14 @@ $lines.Add("  Inhalt und Format sind dokumentiert in docs\build\BUILD_SCRIPT.md.
 # --------------------------------------------------------------------------
 # Schreiben
 # --------------------------------------------------------------------------
-if (Test-Path -LiteralPath $outFile) {
-    Remove-Item -LiteralPath $outFile -Force
+$outDir = Split-Path $OutFile -Parent
+if ($outDir -and -not (Test-Path -LiteralPath $outDir)) {
+    New-Item -ItemType Directory -Path $outDir -Force | Out-Null
+}
+if (Test-Path -LiteralPath $OutFile) {
+    Remove-Item -LiteralPath $OutFile -Force
 }
 $lines -join [Environment]::NewLine |
-    Out-File -LiteralPath $outFile -Encoding utf8
+    Out-File -LiteralPath $OutFile -Encoding utf8
 
-Write-Host "    OK  $outFile"
+Write-Host "    OK  $OutFile"

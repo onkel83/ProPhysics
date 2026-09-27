@@ -1,49 +1,71 @@
 # ==========================================================================
 # ProPhysics - Master Build
-# File: build\main\Makefile.nmake
-# Version: 3.0
+# File:    build\main\Makefile.nmake
+# Kernel:  1.23.0
+# Etappe:  23
+# Version: 3.1
 #
-# Aufruf: aus build\main\ heraus
-#   nmake                    -- baut Kernel + SDK + Tests, schreibt BUILD_INFO
-#   nmake all                -- identisch
+# Aufruf:  aus beliebigem CWD.
+#          Alle Pfade werden ueber $(MAKEDIR) relativ zum Ablageort
+#          dieses Makefiles abgeleitet -- kein Hardcoding von CWD.
+#
+#   nmake                     -- Kernel + SDK + Tests + BUILD_INFO (== all)
+#   nmake CONFIG=debug ...    -- Debug-Build (Default: release)
 #
 # Einzel-Targets:
-#   nmake prophysics         -- nur Kernel
-#   nmake sdk                -- Kernel + SDK
-#   nmake test               -- Kernel + SDK + Tests
-#   nmake info               -- nur BUILD_INFO.txt neu erzeugen
+#   nmake prophysics          -- nur Kernel
+#   nmake sdk                 -- Kernel + SDK
+#   nmake test                -- Kernel + SDK + Tests
+#   nmake info                -- nur BUILD_INFO.txt neu erzeugen
+#   nmake help                -- diese Uebersicht
 #
 # Rebuild (clean + build):
-#   nmake rebuild            -- alles neu
-#   nmake rebuild_prophysics -- Kernel neu
-#   nmake rebuild_sdk        -- SDK neu (Kernel bleibt)
-#   nmake rebuild_test       -- Tests neu (Kernel + SDK bleiben)
+#   nmake rebuild             -- alles neu
+#   nmake rebuild_prophysics  -- Kernel neu
+#   nmake rebuild_sdk         -- SDK neu (Kernel bleibt)
+#   nmake rebuild_test        -- Tests neu (Kernel + SDK bleiben)
 #
 # Clean:
-#   nmake clean              -- bin\ und lib\ vollstaendig leeren
-#   nmake clean_prophysics   -- nur Kernel-Artefakte weg
-#   nmake clean_sdk          -- nur SDK-Artefakte weg
-#   nmake clean_test         -- nur Test-Artefakte weg
+#   nmake clean               -- bin\ + lib\ + BUILD_INFO.txt
+#   nmake clean_prophysics    -- nur Kernel-Artefakte
+#   nmake clean_sdk           -- nur SDK-Artefakte
+#   nmake clean_test          -- nur Test-Artefakte
 #
 # Ausgabe:
-#   bin\   -- alle DLLs und EXEs
-#   lib\   -- alle Import-Libs
-#   \      -- BUILD_INFO.txt
+#   $(ROOT)\bin\              -- alle DLLs und EXEs
+#   $(ROOT)\lib\              -- alle Import-Libs
+#   $(ROOT)\BUILD_INFO.txt
+#
+# Parameter:
+#   CONFIG   release | debug   (Default: release)
 # ==========================================================================
 
 # --------------------------------------------------------------------------
-# Pfade relativ zum Ablageort dieses Makefiles.
-# $(MAKEDIR) wird von NMAKE auf das Verzeichnis gesetzt, aus dem dieses
-# Makefile geladen wurde. So funktioniert der Aufruf unabhaengig vom CWD.
+# Konfiguration -- validiert, damit Tippfehler frueh auffallen.
 # --------------------------------------------------------------------------
-ROOT       = $(MAKEDIR)\..\..
-BIN_DIR    = $(ROOT)\bin
-LIB_DIR    = $(ROOT)\lib
-BUILD_PP   = $(ROOT)\build\prophysics
-BUILD_SDK  = $(ROOT)\build\sdk
-BUILD_TST  = $(ROOT)\build\test
-INFO_FILE  = $(ROOT)\BUILD_INFO.txt
-INFO_SCRIPT= $(MAKEDIR)\write_build_info.ps1
+!IFNDEF CONFIG
+CONFIG = release
+!ENDIF
+!IF "$(CONFIG)" != "release"
+!IF "$(CONFIG)" != "debug"
+!ERROR CONFIG muss "release" oder "debug" sein (erhalten: "$(CONFIG)")
+!ENDIF
+!ENDIF
+
+# --------------------------------------------------------------------------
+# Pfade relativ zum Ablageort dieses Makefiles.
+# --------------------------------------------------------------------------
+ROOT        = $(MAKEDIR)\..\..
+BIN_DIR     = $(ROOT)\bin
+LIB_DIR     = $(ROOT)\lib
+BUILD_PP    = $(ROOT)\build\prophysics
+BUILD_SDK   = $(ROOT)\build\sdk
+BUILD_TST   = $(ROOT)\build\test
+INFO_FILE   = $(ROOT)\BUILD_INFO.txt
+INFO_SCRIPT = $(MAKEDIR)\write_build_info.ps1
+
+# NMAKE-Aufruf an Sub-Makefiles (CONFIG wird durchgereicht).
+SUB_NMAKE   = nmake /NOLOGO /f
 
 # --------------------------------------------------------------------------
 # Default-Target
@@ -51,7 +73,25 @@ INFO_SCRIPT= $(MAKEDIR)\write_build_info.ps1
 all: setup prophysics sdk test info
 
 # --------------------------------------------------------------------------
-# Setup: bin\ und lib\ anlegen falls noetig
+# Hilfe
+# --------------------------------------------------------------------------
+help:
+	@echo.
+	@echo ProPhysics Master-Build -- Targets:
+	@echo   all                Kernel + SDK + Tests + BUILD_INFO
+	@echo   prophysics         nur Kernel
+	@echo   sdk                Kernel + SDK
+	@echo   test               Kernel + SDK + Tests
+	@echo   info               nur BUILD_INFO.txt
+	@echo   rebuild[_xxx]      clean + build
+	@echo   clean[_xxx]        Artefakte entfernen
+	@echo   help               diese Uebersicht
+	@echo.
+	@echo Optionen:  CONFIG=release^|debug   (Default: release)
+	@echo.
+
+# --------------------------------------------------------------------------
+# Setup: Ausgabe-Verzeichnisse anlegen
 # --------------------------------------------------------------------------
 setup:
 	@if not exist "$(BIN_DIR)" ( \
@@ -68,24 +108,24 @@ setup:
 # --------------------------------------------------------------------------
 prophysics: setup
 	@echo.
-	@echo [MASTER] === ProPhysics Kernel ===
-	cd /d "$(BUILD_PP)" && nmake /NOLOGO /f Makefile.nmake
+	@echo [MASTER] === ProPhysics Kernel (CONFIG=$(CONFIG)) ===
+	cd /d "$(BUILD_PP)" && $(SUB_NMAKE) Makefile.nmake CONFIG=$(CONFIG)
 
 # --------------------------------------------------------------------------
-# SDK (Kernel wird vorausgesetzt, Kettenabhaengigkeit)
+# SDK (Kernel wird vorausgesetzt)
 # --------------------------------------------------------------------------
 sdk: prophysics
 	@echo.
-	@echo [MASTER] === SDK Interface ===
-	cd /d "$(BUILD_SDK)" && nmake /NOLOGO /f Makefile.sdk.nmake
+	@echo [MASTER] === SDK Interface (CONFIG=$(CONFIG)) ===
+	cd /d "$(BUILD_SDK)" && $(SUB_NMAKE) Makefile.sdk.nmake CONFIG=$(CONFIG)
 
 # --------------------------------------------------------------------------
-# Tests (SDK wird vorausgesetzt, Kettenabhaengigkeit)
+# Tests (SDK wird vorausgesetzt)
 # --------------------------------------------------------------------------
 test: sdk
 	@echo.
-	@echo [MASTER] === Tests ===
-	cd /d "$(BUILD_TST)" && nmake /NOLOGO /f Makefile.nmake
+	@echo [MASTER] === Tests (CONFIG=$(CONFIG)) ===
+	cd /d "$(BUILD_TST)" && $(SUB_NMAKE) Makefile.nmake CONFIG=$(CONFIG)
 
 # --------------------------------------------------------------------------
 # BUILD_INFO.txt
@@ -98,41 +138,37 @@ info:
 # --------------------------------------------------------------------------
 # Rebuild-Targets
 # --------------------------------------------------------------------------
-rebuild: clean all
-
-rebuild_prophysics: clean_prophysics prophysics info
-
-rebuild_sdk: clean_sdk sdk info
-
-rebuild_test: clean_test test info
+rebuild:             clean all
+rebuild_prophysics:  clean_prophysics prophysics info
+rebuild_sdk:         clean_sdk        sdk        info
+rebuild_test:        clean_test       test       info
 
 # --------------------------------------------------------------------------
 # Clean-Targets
 #
-# clean = bin\ und lib\ leer + BUILD_INFO.txt weg.
-# clean_<modul> = nur die Artefakte des jeweiligen Moduls.
+# Alle Loeschungen laufen ueber Wildcards, damit Umbenennungen von
+# Artefakten nicht zu Waisen im bin\ / lib\ fuehren.
 # --------------------------------------------------------------------------
 clean: clean_test clean_sdk clean_prophysics
 	@if exist "$(BIN_DIR)\*" del /Q "$(BIN_DIR)\*" 2>nul
 	@if exist "$(LIB_DIR)\*" del /Q "$(LIB_DIR)\*" 2>nul
-	@if exist "$(INFO_FILE)" del /Q "$(INFO_FILE)" 2>nul
+	@if exist "$(INFO_FILE)"  del /Q "$(INFO_FILE)"  2>nul
 	@echo [MASTER] Alle Artefakte entfernt.
 
 clean_prophysics:
 	@echo [MASTER] Clean ProPhysics...
-	@if exist "$(BUILD_PP)" cd /d "$(BUILD_PP)" && nmake /NOLOGO /f Makefile.nmake clean
-	@if exist "$(BIN_DIR)\ProPhysics.dll" del /Q "$(BIN_DIR)\ProPhysics.dll" 2>nul
-	@if exist "$(LIB_DIR)\ProPhysics.lib" del /Q "$(LIB_DIR)\ProPhysics.lib" 2>nul
+	@if exist "$(BUILD_PP)\Makefile.nmake" cd /d "$(BUILD_PP)" && $(SUB_NMAKE) Makefile.nmake clean
+	@if exist "$(BIN_DIR)\ProPhysics*.dll" del /Q "$(BIN_DIR)\ProPhysics*.dll" 2>nul
+	@if exist "$(LIB_DIR)\ProPhysics*.lib" del /Q "$(LIB_DIR)\ProPhysics*.lib" 2>nul
 
 clean_sdk:
 	@echo [MASTER] Clean SDK...
-	@if exist "$(BUILD_SDK)" cd /d "$(BUILD_SDK)" && nmake /NOLOGO /f Makefile.sdk.nmake clean
-	@if exist "$(BIN_DIR)\pro_sdk_interface.dll" del /Q "$(BIN_DIR)\pro_sdk_interface.dll" 2>nul
-	@if exist "$(LIB_DIR)\pro_sdk_interface.lib" del /Q "$(LIB_DIR)\pro_sdk_interface.lib" 2>nul
+	@if exist "$(BUILD_SDK)\Makefile.sdk.nmake" cd /d "$(BUILD_SDK)" && $(SUB_NMAKE) Makefile.sdk.nmake clean
+	@if exist "$(BIN_DIR)\pro_sdk_interface*.dll" del /Q "$(BIN_DIR)\pro_sdk_interface*.dll" 2>nul
+	@if exist "$(LIB_DIR)\pro_sdk_interface*.lib" del /Q "$(LIB_DIR)\pro_sdk_interface*.lib" 2>nul
 
 clean_test:
 	@echo [MASTER] Clean Tests...
-	@if exist "$(BUILD_TST)" cd /d "$(BUILD_TST)" && nmake /NOLOGO /f Makefile.nmake clean
-	@if exist "$(BIN_DIR)\example_alpha_test.exe"  del /Q "$(BIN_DIR)\example_alpha_test.exe"  2>nul
-	@if exist "$(BIN_DIR)\example_test_density.exe" del /Q "$(BIN_DIR)\example_test_density.exe" 2>nul
-	@if exist "$(BIN_DIR)\example_test_tensor.exe"  del /Q "$(BIN_DIR)\example_test_tensor.exe"  2>nul
+	@if exist "$(BUILD_TST)\Makefile.nmake" cd /d "$(BUILD_TST)" && $(SUB_NMAKE) Makefile.nmake clean
+	@if exist "$(BIN_DIR)\example_*_test.exe"      del /Q "$(BIN_DIR)\example_*_test.exe"      2>nul
+	@if exist "$(BIN_DIR)\example_test_*.exe"      del /Q "$(BIN_DIR)\example_test_*.exe"      2>nul
