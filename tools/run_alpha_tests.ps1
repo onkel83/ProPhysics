@@ -56,9 +56,20 @@
     run_alpha_tests.cmd -Prio 8 -LogDir H:\temp\logs
 
 .NOTES
-    Version: 3.2 (Etappe 23)
+    Kernel: 1.23.0
+    Etappe: 23
+    Version: 1.0.1 (Etappe 23)
     -Prio akzeptiert Range/Liste, -Test fuer Einzelauswahl,
     -DllDir als optionaler DLL-Pfad. Zaehlung: 43 Tests.
+
+    Fix in 1.0.1: Resolve-PrioSelection gibt den HashSet jetzt mit
+    fuehrendem Komma zurueck (return ,$set). Ohne Komma entpackt
+    PowerShell einen HashSet mit 1 Element zum Int32-Skalar, was
+    in Select-Tests zu "Method invocation failed because
+    [System.Int32] does not contain a method named 'Contains'."
+    fuehrte. Bei 2+ Elementen blieb es ein Object[], auf dem
+    .Contains() als LINQ-Extension funktioniert -- deshalb lief
+    "-Prio 1,6,7" lokal, "-Prio 1" in der CI aber nicht.
 #>
 
 [CmdletBinding()]
@@ -301,7 +312,7 @@ $TestCatalog = [ordered]@{
 # Prio-Auswahl parsen
 #
 # Erlaubt: 'all', 'N', 'N-M', 'N,M,K'. Whitespace wird toleriert.
-# Rueckgabe: HashSet<int> oder 'all'.
+# Rueckgabe: 'all' (String) oder HashSet<int>.
 # ==========================================================================
 function Resolve-PrioSelection {
     param([string]$Spec)
@@ -338,7 +349,17 @@ function Resolve-PrioSelection {
         Write-Host "Keine gueltige Prio in '$Spec' gefunden." -ForegroundColor Red
         exit 2
     }
-    return $set
+
+    # FIX (1.0.1): Fuehrendes Komma verhindert, dass PowerShell den
+    # HashSet beim Zurueckgeben entpackt. Ohne Komma wird ein HashSet
+    # mit 1 Element zu einem Int32-Skalar; der spaetere Aufruf
+    # $prioSet.Contains(...) schlaegt dann fehl mit
+    # "Method invocation failed because [System.Int32] does not
+    #  contain a method named 'Contains'."
+    # Bei 2+ Elementen entpackt PowerShell den Set zu Object[]; der
+    # .Contains-Aufruf funktioniert dann ueber die LINQ-Extension,
+    # ist aber semantisch anders (Wert-Vergleich statt Set-Lookup).
+    return ,$set
 }
 
 # ==========================================================================
