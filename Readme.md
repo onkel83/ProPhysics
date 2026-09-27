@@ -4,9 +4,11 @@ Ein topologischer Graph-Kernel in C99, der Quantenmechanik
 **emergieren** lässt — aus signed permutations, 8-dimensionaler
 Amplituden-Basis und einer einzigen shared-reference-Regel.
 
-**Version:** 1.23.0
-**Stand:** 2026-09-25 (Etappe 23 abgeschlossen, 43/43 Tests)
-**Lizenz:** (siehe LICENSE)
+**Version:** 1.0
+**Kernel:** 1.23.0
+**Etappe:** 23
+**Stand:** 2026-09-27 (Konsolidierungs-Serie 1.23.1–1.23.8 abgeschlossen)
+**Lizenz:** siehe `LICENSE.md`
 **Status:** validierter Forschungs-Prototyp
 
 ---

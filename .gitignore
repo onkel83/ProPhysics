@@ -427,3 +427,46 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+#eigene Regeln
+# Build-Artefakte
+bin/
+lib/
+out/
+_obj/
+*.obj
+*.lib
+*.exp
+*.pdb
+*.ilk
+*.idb
+
+# Logs
+bin/logs/
+*.log
+
+# Build-Info (auto-generiert)
+#BUILD_INFO.txt
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.sln.docstates
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Temporary
+*.tmp
+*.bak
+*~

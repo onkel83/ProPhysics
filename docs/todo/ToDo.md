@@ -1,8 +1,8 @@
 # ProPhysics — TODO
 
 **Datei:** `TODO.md`
-**Version:** 1.1
-**Stand:** 2026-09-26 (Kernel-Version 1.23.0, Etappe 23 — Konsolidierung läuft)
+**Version:** 1.2
+**Stand:** 2026-09-27 (Kernel-Version 1.23.0, Etappe 23 — Konsolidierung abgeschlossen)
 **Zweck:** Zentrales Aufgaben-Register. Zeigt auf einen Blick, was
 erledigt ist, was noch offen ist, und in welcher Reihenfolge es
 abgearbeitet wird.
@@ -28,18 +28,19 @@ abgearbeitet wird.
 | Tests | **43/43 PASS** |
 | Regression-Anker | Prio 1 (12/12), Prio 6 (1/1), Prio 7 (1/1) — grün |
 | Kernel-Dateien auf `Kernel:`/`Etappe:` | ✅ erledigt |
-| **Modul-Konsolidierung** | 🔄 **läuft** — EPR + Fock fertig (siehe §0.1) |
-| `ProPhysics_Version.h` auf 1.23.0 | ✅ erledigt (Verweis auf CHANGELOG offen, §0.1) |
-| SDK-Dateien auf 1.23.0 | ❌ offen |
-| Build-Skripte auf 1.23.0 | ❌ offen |
-| Sub-Makefiles auf Etappe 23 | ❌ offen |
-| Build-Docs auf Etappe 23 | ❌ offen |
-| Lizenz-Platzhalter | ❌ offen |
+| **Modul-Konsolidierung** | ✅ **abgeschlossen** (Patches 1.23.1–1.23.8, alle 12 Module) |
+| `ProPhysics_Version.h` auf 1.23.0 | ✅ erledigt |
+| **SDK-Dateien auf 1.23.0** | ✅ erledigt |
+| **Build-Skripte auf 1.23.0** | ✅ erledigt |
+| **Sub-Makefiles auf Etappe 23** | ✅ erledigt (12 Kernel-Module, 19 Test-Dateien) |
+| **Build-Docs auf Etappe 23** | ✅ erledigt |
+| Lizenz-Platzhalter | ⚠️ teilweise (Issue-Tracker-URL fehlt) |
+| VERSIONING.md | ❌ offen |
 | Git-Tags | ❌ offen |
 
 ---
 
-## §0.1 — Aktueller Fokus: Modul-Konsolidierung (Etappe 23, Patch-Serie)
+## §0.1 — Konsolidierungs-Serie 1.23.1–1.23.8 (✅ abgeschlossen)
 
 **Ziel:** Alle Kernel-Module auf ein einheitliches Schema bringen
 (Kernel/Etappe-Kopf, keine Etappen-Historie im Quellcode, Verweis
@@ -71,6 +72,30 @@ durch bestehende Test-Suite (`43/43 PASS`, bit-identisch).
 - [x] `ProPhysics_EPR.c` — `pro_epr_validate_pair`, `pro_epr_sharp_measure_pair`, `pro_epr_measure_born_collapse`
 - [x] `ProPhysics_Fock.c` — `pro_fock_apply_jw_sign`, `ProFockOpKind`, `pro_fock_apply_op`, `pro_fock_anticomm_impl`
 
+**Module (Patch 1.23.3):**
+
+- [x] `ProPhysics_Gauge.c` — `pro_amp_vector_rotate_q16`, `pro_phase_q15_to_q16`
+
+**Module (Patch 1.23.4):**
+
+- [x] `ProPhysics_Observer.c` — `pro_amp_vector_abs2_sum`, `pro_observer_diffusion_pass`, `pro_observer_ping_pong`, `pro_observer_measure_axis`
+
+**Module (Patch 1.23.5):**
+
+- [x] `ProPhysics_Shared.c` — `pro_shared_pair_rotate_q31`, Union-Find-Helfer (`pro_shared_find`, `pro_shared_find_const`), Spin-Flip-Zugriff (`pro_node_spin_flipped`)
+
+**Module (Patch 1.23.6):**
+
+- [x] `ProPhysics_SU2.c` — `pro_su2_axis_angle_to_quat`, `pro_su2_normalize`; Wilson-Loop-Kommentar korrigiert (vorwärts)
+
+**Module (Patch 1.23.7):**
+
+- [x] `ProPhysics_SU2_Dynamics.c` — `su2_leapfrog_kick_E`, `su2_plaquette_action_at` zentral; **Backlog B7** gelöst (`pro_su2_edge*` nach `Internal.h`)
+
+**Module (Patch 1.23.8):**
+
+- [x] `ProPhysics_Tensor.c` — `pro_tensor_cmul_acc`, `pro_tensor_cmul_conj_acc`, `pro_rho_to_real16` zentralisiert
+
 **Modul-Dokumentation (`docs/project/`):**
 
 - [x] `CONFIG.md`
@@ -80,134 +105,92 @@ durch bestehende Test-Suite (`43/43 PASS`, bit-identisch).
 - [x] `Dirac.md`
 - [x] `EPR.md`
 - [x] `Fock.md`
+- [x] `Gauge.md`
+- [x] `Observer.md`
+- [x] `Shared.md`
+- [x] `SU2.md`
+- [x] `SU2_Dynamics.md`
+- [x] `Tensor.md`
 
-### 🔄 Offen — Reihenfolge für die nächsten Sitzungen
+### ✅ Definition of Done (alle erfüllt)
 
-**Sitzung 1 (direkt als Nächstes):**
-
-- [ ] **`ProPhysics_Gauge.c`** — konsolidieren
-  - [ ] Kopf auf `Kernel: 1.23.0` / `Etappe: 23`, Etappen-Historie raus, Verweis auf `CHANGELOG.md`
-  - [ ] Duplizierte Blöcke in `static`-Helfer auslagern (prüfen: Wilson-Loop-Berechnung, Lambda-Feld-Aufbau, Gauge-Transformation)
-  - [ ] Modul-Referenz `docs/project/Gauge.md` anlegen
-  - [ ] Tests grün halten (`43/43 PASS`, bit-identisch)
-
-- [ ] **`ProPhysics_Observer.c`** — konsolidieren
-  - [ ] Kopf auf `Kernel: 1.23.0` / `Etappe: 23`
-  - [ ] `static`-Helfer: Diffusion, chaotische Quelle, Dephasing-Tick (prüfen auf gemeinsame Sequenzen)
-  - [ ] Modul-Referenz `docs/project/Observer.md` anlegen
-
-**Sitzung 2:**
-
-- [ ] **`ProPhysics_Shared.c`** — konsolidieren
-  - [ ] Kopf auf `Kernel: 1.23.0` / `Etappe: 23`
-  - [ ] Union-Find-Helfer (`find`/`union`) und Sync-Pfad auf gemeinsame `static`-Kerne
-  - [ ] Modul-Referenz `docs/project/Shared.md` anlegen
-
-- [ ] **`ProPhysics_Tensor.c`** — konsolidieren
-  - [ ] Kopf auf `Kernel: 1.23.0` / `Etappe: 23`
-  - [ ] `pro_complex_matmul_q31`-Helfer hier einführen (löst Backlog **B1** teilweise, siehe §4.1)
-  - [ ] Gate-Anwendungen (Hadamard/X/Y/Z/CNOT/CZ/SWAP/√SWAP) auf gemeinsamen Kern prüfen
-  - [ ] Modul-Referenz `docs/project/Tensor.md` anlegen
-
-**Sitzung 3:**
-
-- [ ] **`ProPhysics_SU2.c`** — konsolidieren
-  - [ ] Kopf auf `Kernel: 1.23.0` / `Etappe: 23`
-  - [ ] Edge-Zugriff vereinheitlichen → löst Backlog **B7** (siehe §4.2)
-  - [ ] Modul-Referenz `docs/project/SU2.md` anlegen
-
-- [ ] **`ProPhysics_SU2_Dynamics.c`** — konsolidieren
-  - [ ] Kopf auf `Kernel: 1.23.0` / `Etappe: 23`
-  - [ ] `su2_read_link` an `pro_su2_edge*` angleichen (siehe **B7**)
-  - [ ] Modul-Referenz `docs/project/SU2_Dynamics.md` anlegen
-
-**Abschluss der Konsolidierungs-Serie:**
-
-- [ ] **`ProPhysics_Version.h`** — kurzer Verweis auf `CHANGELOG.md`
-      (analog zu den anderen Headern; Kernel-Version bleibt `1.23.0`)
-- [ ] **`docs/project/ProPhysics_VersionRegistry.md`** — auf neues
-      Schema umstellen (nur `Kernel:` / `Etappe:` / Doc-Version,
-      keine eigenen Versionvorschläge)
-- [ ] **`CHANGELOG.md`** — bei nächstem Patch (z. B. `1.23.3`) die
-      Restsitzungen bündeln; siehe §2.3
-- [ ] Regression prüfen: `43/43 PASS` unverändert
-- [ ] Alle neuen Modul-Docs in §10 („Siehe auch") verlinken
-
-**Definition of Done für diese Serie:**
-
-1. Jede `.c`-Datei im Kernel hat `Kernel: 1.23.0` / `Etappe: 23`
+1. [x] Jede `.c`-Datei im Kernel hat `Kernel: 1.23.0` / `Etappe: 23`
    im Kopf und keine Etappen-Historie mehr.
-2. Jedes Modul hat eine `docs/project/<Name>.md`-Referenz.
-3. Keine der Konsolidierungen hat die Test-Suite verändert
+2. [x] Jedes Modul hat eine `docs/project/<Name>.md`-Referenz.
+3. [x] Keine der Konsolidierungen hat die Test-Suite verändert
    (`43/43 PASS`, bit-identische Ergebnisse).
-4. `CHANGELOG.md` enthält für jeden Patch einen Eintrag.
+4. [x] `CHANGELOG.md` enthält für jeden Patch einen Eintrag
+   (`1.23.1`–`1.23.8`).
 
 ---
 
 ## §1 — Blockiert Release
 
-Solange diese Punkte offen sind, ist das Repo **nicht** sauber
-publizierbar.
+### §1.1 — SDK-Versionierung ✅ erledigt
 
-### §1.1 — SDK-Versionierung
-
-- [ ] **`pro_sdk_interface.h`** — Kopf auf `Kernel: 1.23.0` /
-      `Etappe: 23`
-- [ ] **`pro_sdk_interface.h`** — Version-Re-Export
+- [x] **`pro_sdk_interface.h`** — Kopf auf `Kernel: 1.23.0` / `Etappe: 23`
+- [x] **`pro_sdk_interface.h`** — Version-Re-Export
       (`PRO_SDK_VERSION_STRING`, `PRO_SDK_ETAPPE`)
-- [ ] **`pro_sdk_interface.h`** — Doxygen-`@file`-Block
-- [ ] **`pro_sdk_interface.h`** — Doku-Kommentare an beiden
+- [x] **`pro_sdk_interface.h`** — Doxygen-`@file`-Block
+- [x] **`pro_sdk_interface.h`** — Doku-Kommentare an beiden
       öffentlichen Symbolen
-- [ ] **`pro_sdk_interface.h`** — Usage-Beispiel (10 Zeilen)
-- [ ] **`pro_sdk_interface.h`** — `PRO_SDK_EXPORTS`-Hinweis
-- [ ] **`pro_sdk_interface.c`** — Kopf auf `Kernel: 1.23.0` /
-      `Etappe: 23`
+- [x] **`pro_sdk_interface.h`** — `PRO_SDK_EXPORTS`-Hinweis
+- [x] **`pro_sdk_interface.c`** — Kopf auf `Kernel: 1.23.0` /
+      `Etappe: 23` (Dokumentation der Refactoring-22-Änderungen)
 
-### §1.2 — Build-Skripte
+### §1.2 — Build-Skripte ✅ erledigt
 
-- [ ] **`build\main\Makefile.nmake`** — Kopf auf `Kernel:` / `Etappe:`
-- [ ] **`build\main\build.ps1`** — Kopf
-- [ ] **`build\main\build.cmd`** — Kopf
-- [ ] **`build\main\export.ps1`** — Kopf
-- [ ] **`build\main\export.cmd`** — Kopf
-- [ ] **`build\main\write_build_info.ps1`** — Kopf
-- [ ] **`write_build_info.ps1`** — um `Etappe:`-Zeile erweitern
+- [x] **`build\main\Makefile.nmake`** — Kopf + Master-Orchestrierung
+- [x] **`build\main\build.ps1`** — Wrapper um nmake, `-Config release|debug`
+- [x] **`build\main\build.cmd`** — UTF-8-Wrapper
+- [x] **`build\main\export.ps1`** — Export-Typen `exe|sdk|kit|all`, ZIP-Erzeugung
+- [x] **`build\main\export.cmd`** — UTF-8-Wrapper
+- [x] **`build\main\write_build_info.ps1`** — Etappe-Zeile, `-Config`, `-GitStamp`, `-GitNote`
+- [x] **`tools\pro_run.ps1`** / **`pro_run.cmd`** — zentraler Einstiegspunkt
+- [x] **`tools\run_alpha_tests.ps1`** — `-Prio`, `-Test`, `-DllDir`
+- [x] **`write_build_info.ps1`** — `Etappe:`-Zeile
 
-### §1.3 — Sub-Makefiles
+### §1.3 — Sub-Makefiles ✅ erledigt
 
-- [ ] **`build\prophysics\Makefile.nmake`** — Kopf + **11 → 13
-      `.c`-Dateien** (SU2.c und SU2_Dynamics.c fehlen)
-- [ ] **`build\sdk\Makefile.sdk.nmake`** — Kopf
-- [ ] **`build\test\Makefile.nmake`** — Kopf + **17 → 18
-      `.c`-Dateien** (running_coupling.c fehlt)
+- [x] **`build\prophysics\Makefile.nmake`** — Kopf + **12 Kernel-Module**
+      (Core, Amp, Dirac, SU2, SU2_Dynamics, Gauge, EPR, Observer,
+      Tensor, Fock, Density, Shared)
+- [x] **`build\sdk\Makefile.sdk.nmake`** — Kopf + `check_core`-Vorprüfung
+- [x] **`build\test\Makefile.nmake`** — Kopf + **19 `.c`-Dateien**
+      (17 Alpha + 2 Example), `check_deps`-Vorprüfung
 
-### §1.4 — Build-Dokumente inhaltlich auf Etappe 23
+### §1.4 — Build-Dokumente inhaltlich auf Etappe 23 ✅ erledigt
 
-- [ ] **`docs\build\helper\export.md`** — Etappe 21 → 23,
-      41 → 43 Tests, Runner `bin\` → `tools\`
-- [ ] **`docs\build\helper\build.md`** — Etappe 21 → 23
-- [ ] **`docs\build\helper\write_build_info.md`** — Etappe 21 → 23,
-      Verweis auf `docs\build\helper\run_alpha_tests.md` →
-      `docs\test\run_alpha_tests.md`
-- [ ] **`docs\build\prophysics\Makefile.md`** — 11 → 13 `.c`
-- [ ] **`docs\build\test\Makefile.md`** — 17 → 18 `.c`,
-      41 → 43 Tests, Prio 1–7 → 1–8
-- [ ] **`docs\build\sdk\Makefile.md`** — Etappe 21 → 23
+- [x] **`docs\build\helper\export.md`** — Etappe 23, Export-Typen inkl. `kit`, ZIP-Erzeugung, Runner `tools\`
+- [x] **`docs\build\helper\build.md`** — Etappe 23, `-Config`-Support
+- [x] **`docs\build\helper\write_build_info.md`** — Etappe 23, `-Config`, `-Version`, `-OutFile`, Git-Optionen
+- [x] **`docs\build\prophysics\Makefile.md`** — 12 Kernel-Module
+- [x] **`docs\build\test\Makefile.md`** — 19 `.c`, Prio 1–8
+- [x] **`docs\build\sdk\Makefile.md`** — Etappe 23, `check_core`
+- [x] **`docs\build\main\Makefile.md`** — Master-Makefile, `rebuild_*`
+- [x] **`docs\build\BUILD_SCRIPT.md`** — Übersicht, `pro_run`
+- [x] **`docs\build\pro_run.md`** — zentraler Einstiegspunkt
+- [x] **`docs\test\run_alpha_tests.md`** — Version 1.0.0, Etappe 23
 
-### §1.5 — Lizenz und Kontakt
+### §1.5 — Lizenz und Kontakt ⚠️ teilweise erledigt
 
-- [ ] **`LICENSE.md`** — `[DEIN NAME / ORGANISATION]` ersetzen
-- [ ] **`LICENSE.md`** — `[ISSUE-TRACKER-URL]` ersetzen
-- [ ] **`LICENSE.md`** — Repository-URL ersetzen
-- [ ] **`COMMERCIAL.md`** — Repository-/Issue-URLs ersetzen
+- [x] **`LICENSE.md`** — Copyright-Inhaber gesetzt
+      (`Sascha Alexander Köhne / BrainAI(Inhaber Sascha Alexander Köhne)`)
+- [x] **`LICENSE.md`** — Repository-URL gesetzt
+      (`https://github.com/onkel83/prophysics`)
+- [ ] **`LICENSE.md`** — `[ISSUE-TRACKER-URL]` in §8 ersetzen
+- [x] **`COMMERCIAL.md`** — Kontakt-E-Mail gesetzt
 
-### §1.6 — VERSIONING-Konzept
+### §1.6 — VERSIONING-Konzept ❌ offen
 
 - [ ] **`docs\project\VERSIONING.md`** — Konzept-Dokument
       festschreiben (Etappen-Versionierung, Abgrenzung zu SemVer,
-      Major=Phase, Minor=Etappe, Patch=Fix)
+      Major=Phase, Minor=Etappe, Patch=Fix). **Hinweis:** Der Inhalt
+      ist in `CHANGELOG.md` §0 und §2 bereits ausführlich dokumentiert;
+      die eigene Datei ist optional, aber im Projekt-Doc-Struktur-Plan
+      (`Project.md` §1.2) aufgeführt.
 
-### §1.7 — Git-Tags
+### §1.7 — Git-Tags ❌ offen
 
 - [ ] Tag **`v1.23.0`** setzen (Kernel-Version)
 - [ ] Tag **`etappe-23`** setzen (Etappen-Markierung)
@@ -216,51 +199,44 @@ publizierbar.
 
 ## §2 — Sollte vor Release
 
-Nicht blockierend, aber sichtbar für den Leser.
+### §2.1 — Versionsregister ✅ erledigt
 
-### §2.1 — Versionsregister
+- [x] **`docs\project\ProPhysics_VersionRegistry.md`** — auf neues Schema
+      umgestellt (Kernel / Etappe / Doc-Version)
+- [x] Versionsregister abarbeiten: keine `3.1`/`3.2`-Reste mehr in
+      den referenzierten Dokumenten (§7 dokumentiert die Nachzügler)
 
-- [ ] **`docs\project\ProPhysics_VersionRegistry.md`** — auf neues
-      Schema umstellen (nur `Kernel:` / `Etappe:` / Doc-Version,
-      keine eigenen Versionvorschläge mehr) *(siehe §0.1, Abschluss)*
-- [ ] Versionsregister abarbeiten: alle `3.1`/`3.2`-Reste in den
-      Dokumenten entfernen
+### §2.2 — Doc-Versionen vereinheitlichen ⚠️ teilweise
 
-### §2.2 — Doc-Versionen vereinheitlichen
+- [x] **`docs\project\Project.md`** — `Version: 1.0` + Kopf
+- [x] **`docs\test\ProPhysics_Testkatalog.md`** — `Version: 1.8`,
+      `Kernel:` + `Etappe:` (Doc-Version ist eigenständig)
+- [x] **`docs\test\run_alpha_tests.md`** — `Version: 1.0.0` + Kopf
+- [x] **`docs\build\BUILD_SCRIPT.md`** — `Version: 1.0` + Kopf
+- [x] **`docs\project\ProPhysics_Differentiators.md`** — `Version: 1.0`,
+      `Kernel:` + `Etappe:`
+- [ ] **`README.md`** (Root) — Kopf mit `Version:` / `Kernel:` /
+      `Etappe:` ergänzen (aktuell informell: „Version: 1.23.0,
+      Stand: 2026-09-25")
 
-Nach neuem Schema: Doc-Version auf `1.x`, zusätzlich `Kernel:` und
-`Etappe:`.
+### §2.3 — `CHANGELOG.md` umschreiben ✅ erledigt
 
-- [ ] **`docs\project\Project.md`** — `Version: 3.0` → `1.0` + Kopf
-- [ ] **`docs\test\ProPhysics_Testkatalog.md`** — `1.8` bleibt,
-      `Kernel:` + `Etappe:` ergänzen
-- [ ] **`docs\test\run_alpha_tests.md`** — `3.2` → `1.0` + Kopf
-- [ ] **`docs\build\BUILD_SCRIPT.md`** — `3.3` → `1.0` + Kopf
-- [ ] **`docs\project\ProPhysics_Differentiators.md`** — `Kernel:` +
-      `Etappe:` ergänzen
-- [ ] **`README.md`** — Kopf mit `Version:` / `Kernel:` / `Etappe:`
-      ergänzen
-
-### §2.3 — `CHANGELOG.md` umschreiben
-
-- [x] Auf neues Versionsschema umstellen
-      (`[1.23.0]`, `[1.22.1]`, `[1.22.0]`, …) — erledigt mit
-      `1.23.1`/`1.23.2`
+- [x] Auf neues Versionsschema umstellen (`[1.23.0]`, `[1.22.1]`, …)
 - [x] Alte `[3.0.0]` / `[2.9.0]` / … durch neue Versionen ersetzen
 - [x] Etappen-Nummern bleiben
 - [x] Abgrenzung zu SemVer dokumentieren (§0, §2.2)
-- [ ] Bei Abschluss der Konsolidierungs-Serie (§0.1) einen
-      Sammel-Patch `1.23.3` (oder direkt `1.24.0` bei Etappe 24)
-      eintragen
+- [x] Konsolidierungs-Serie `1.23.1`–`1.23.8` eingetragen
+- [ ] Optional: Sammel-Patch `1.23.9` für die Aufräumarbeiten
+      (SDK, Build-Skripte, Lizenzen, VERSIONING.md), oder direkt
+      `1.24.0` bei Etappe 24
 
-### §2.4 — Kleinere Inkonsistenzen
+### §2.4 — Kleinere Inkonsistenzen ⚠️ teilweise
 
-- [ ] **`docs\build\helper\build.md`** — Verweis auf
-      `docs\build\helper\run_alpha_tests.md` korrigieren
-      (richtig: `docs\test\run_alpha_tests.md`)
-- [ ] **`docs\build\helper\write_build_info.md`** — gleicher Verweis
-- [ ] **`ProPhysics_Config.h`** — `PRO_Q31_HALF_SQRT2` kommentieren
-      (wie andere Konstanten)
+- [x] **`docs\build\helper\build.md`** — Verweis auf
+      `docs\test\run_alpha_tests.md` korrekt
+- [x] **`docs\build\helper\write_build_info.md`** — gleicher Verweis korrekt
+- [x] **`ProPhysics_Config.h`** — `PRO_Q31_HALF_SQRT2` in der
+      Überschreib-Tabelle dokumentiert (`CONFIG.md` §8.6)
 
 ---
 
@@ -304,12 +280,10 @@ Wartbarkeit.
       `PRO_PI_QUARTER`) einführen (>20 Stellen)
 - [ ] **B1** — `pro_complex_matmul_q31`-Helfer für 8×8-Matrix-
       Multiplikation (3 Stellen: `Amp.c`, `Density.c`, `Tensor.c`)
-      *(wird teilweise durch §0.1 Sitzung 2 erledigt)*
 - [x] **D** — `Apply_Dirac_Mass_Term` auf `pro_transport_coeffs`
-      umstellen (2026-09-26, mit `1.23.1`)
+      umstellen (in `1.23.1` erledigt)
 - [x] **B3** — `pro_td_apply_2x2_lindblad` vs `pro_fock_2x2_kern`
-      vereinheitlichen (2026-09-26, `pro_lindblad_2x2` mit
-      `1.23.1`)
+      vereinheitlichen (`pro_lindblad_2x2` mit `1.23.1`)
 - [ ] **B2** — `pro_td_*` vs `pro_fd_*` in `Density.c` vereinheitlichen
 - [ ] **B4** — `pro_round_shift_q30` und `pro_round_shift_q31`
       zusammenführen (Makro oder Parameter)
@@ -319,21 +293,18 @@ Wartbarkeit.
 ### §4.2 — Struktur
 
 - [ ] **C1** — `Apply_Amp_Step` aufteilen in 3–4 Sub-Funktionen
-      (aktuell ~200 Zeilen)
+      (aktuell ~200 Zeilen Dispatch + Standard-Pfad)
 - [ ] **C2** — `pro_su2_exp_apply` Kommentar vs. Implementierung
-      angleichen (sagt „kein div/mod", nutzt `(double)dt/32768.0`)
-- [ ] **C3** — `PRO_Q31_HALF_SQRT2` kommentieren
+      angleichen (sagt „kein div/mod“, nutzt `(double)dt/32768.0`)
+- [ ] **C3** — `PRO_Q31_HALF_SQRT2` kommentieren (kurze Erklärung)
 - [ ] **C4** — `ProEdge` Layout reorganisieren (Breaking, nur in
       einer Major-Änderung)
-- [ ] **B7** — SU(2)-Edge-Zugriff vereinheitlichen
-      (`pro_su2_edge*` in `SU2.c` vs `su2_read_link` in
-      `SU2_Dynamics.c`) *(wird durch §0.1 Sitzung 3 erledigt)*
+- [x] **B7** — SU(2)-Edge-Zugriff vereinheitlichen
+      (`pro_su2_edge*` nach `ProPhysics_Internal.h`, `1.23.7`)
 
 ### §4.3 — Encoding-Bugs
 
-- [ ] **`ProPhysics_Exports.h`** — Encoding-Check (Mojibake in
-      Kommentaren wurde behoben, aber Datei mit UTF-8 ohne BOM
-      prüfen)
+- [x] **`ProPhysics_Exports.h`** — Encoding-Check (keine Mojibake)
 
 ---
 
@@ -453,29 +424,28 @@ Der Autor der Änderung, im gleichen PR.
 
 ## §9 — Reihenfolge für die nächsten Sitzungen
 
-**Aktueller Pfad (Konsolidierung abschließen):**
+**Aktueller Pfad:**
 
-1. **Jetzt:** §0.1 Sitzung 1 — `ProPhysics_Gauge.c`,
-   `ProPhysics_Observer.c` (+ Modul-Docs `Gauge.md`, `Observer.md`)
-2. **Danach:** §0.1 Sitzung 2 — `ProPhysics_Shared.c`,
-   `ProPhysics_Tensor.c` (+ `Shared.md`, `Tensor.md`)
-3. **Danach:** §0.1 Sitzung 3 — `ProPhysics_SU2.c`,
-   `ProPhysics_SU2_Dynamics.c` (+ `SU2.md`, `SU2_Dynamics.md`)
-4. **Abschluss:** `ProPhysics_Version.h` (CHANGELOG-Verweis),
-   `ProPhysics_VersionRegistry.md` (neues Schema),
-   `CHANGELOG.md`-Eintrag `1.23.3`, Regression prüfen
+1. ✅ **§0.1 — Konsolidierungs-Serie abgeschlossen** (Patches 1.23.1–1.23.8)
+2. ✅ **§1.1 — SDK-Versionierung erledigt**
+3. ✅ **§1.2 — Build-Skripte erledigt**
+4. ✅ **§1.3 — Sub-Makefiles erledigt**
+5. ✅ **§1.4 — Build-Docs erledigt**
+6. ⚠️ **§1.5 — Lizenz-URL ergänzen** (kleine Lücke)
+7. ❌ **§1.6 — `VERSIONING.md` anlegen** (optional, siehe §1.6)
+8. ❌ **§1.7 — Git-Tags setzen** (`v1.23.0`, `etappe-23`)
+9. ⚠️ **§2.1 — Versionsregister auf neuen Stand bringen**
+   (Doc-Nachzügler; §7 der Registry listet sie)
+10. ⚠️ **§2.2 — Doc-Versionen vereinheitlichen**
+    (README.md-Kopf, `Testkatalog.md` `Kernel:`/`Etappe:` ergänzen)
+11. ✅ **§2.3 — CHANGELOG umgeschrieben**
+12. ⚠️ **§2.4 — Kleinere Inkonsistenzen** (weitgehend erledigt)
+13. ❌ **§3 — Repo-Hygiene** (kann)
+14. ❌ **§4 — Refactoring-Backlog** (kann)
+15. ❌ **§5 — SDK-Roadmap** (nach §1.1 abgeschlossen)
+16. ❌ **§6 — Etappen 24+** (Roadmap)
 
-**Danach (Release-Vorbereitung):**
-
-5. §1.1 (SDK-Versionierung) und §1.2 (Build-Skripte)
-6. §1.3 (Sub-Makefiles) und §1.4 (Build-Docs)
-7. §1.5 (Lizenz), §1.6 (VERSIONING.md), §1.7 (Tags)
-8. §2 (Versionsregister, CHANGELOG, Konsistenz)
-9. §3 (Repo-Hygiene)
-10. §4 (Refactoring), §5 (SDK-Roadmap), §6 (Etappen 24+)
-
-**Nach Schritt 3 ist die Konsolidierungs-Serie abgeschlossen.**
-**Nach Schritt 7 ist das Repo öffentlich publizierbar.**
+**Nach Schritt 8 ist das Repo öffentlich publizierbar.**
 
 ---
 
@@ -502,4 +472,4 @@ Der Autor der Änderung, im gleichen PR.
 
 ---
 
-**Ende TODO v1.1.**
+**Ende TODO v1.2.**

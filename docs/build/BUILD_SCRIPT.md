@@ -1,6 +1,6 @@
 # ProPhysics Build & Package — Übersicht
 
-**Stand:** 2026-09-25 (Etappe 23)
+**Stand:** 2026-09-27 (Etappe 23, Kernel 1.23.0)
 **Zweck:** Einstiegspunkt in das Build-System. Erklärt die Struktur,
 die Komponenten und ihre Wechselwirkungen. Verweist auf die
 Detail-Dokumente.
@@ -19,8 +19,11 @@ Das Build-System erzeugt aus dem Quellcode unter `src\` drei Artefakte:
 
 Zusätzlich:
 - **Test-Runner** in `tools\` — startet die Alpha-Suite.
-- **Export-Funktionen** — kopieren Artefakte in `out\` für externe Weitergabe.
+- **Export-Funktionen** — kopieren Artefakte in `out\` und packen sie
+  als ZIP-Archive (`prophysics-<kind>-<version>.zip`).
 - **BUILD_INFO.txt** — Metadaten im Projekt-Root.
+- **Einheitlicher Einstiegspunkt `pro_run`** — dispatcht auf die
+  bestehenden Build-, Export- und Test-Skripte.
 
 Die Build-Kette ist strikt sequenziell:
 
@@ -53,17 +56,19 @@ ProPhysics\
 │
 ├── src\                        # Quellcode
 │   ├── prophysics\
-│   │   ├── *.c                 (13 Module)
+│   │   ├── *.c                 (12 Module)
 │   │   └── header\*.h
 │   ├── sdk\
-│   │   ├── pro_sdk_interface.c
+│   │   ├── pro_sdk_interface.c (1 Modul)
 │   │   └── header\pro_sdk_interface.h
 │   └── test\
-│       ├── alpha_test_*.c      (18 Module)
+│       ├── alpha_test_*.c      (17 Module)
 │       ├── example_test_*.c    (2 Module)
 │       └── header\alpha_test_common.h
 │
-├── tools\                      # Test-Runner (nicht Teil des Kernel-Builds)
+├── tools\                      # Build-/Test-Werkzeuge (nicht Teil des Kernel-Builds)
+│   ├── pro_run.cmd             # zentraler Einstiegspunkt
+│   ├── pro_run.ps1
 │   ├── run_alpha_tests.cmd
 │   └── run_alpha_tests.ps1
 │
@@ -82,9 +87,12 @@ ProPhysics\
 │   └── analysis.py
 │
 └── out\                        # Export-Ziel (runtime erzeugt)
-    ├── exe\
+    ├── exe\                                  # entpackter Inhalt
     ├── sdk\
-    └── src\<name>\
+    ├── kit\
+    ├── prophysics-exe-<version>.zip          # ZIP-Archive
+    ├── prophysics-sdk-<version>.zip
+    └── prophysics-kit-<version>.zip
 ```
 
 **Prinzipien:**
@@ -98,7 +106,10 @@ ProPhysics\
 - **Keine OBJ-Reste.** Alle Zwischendateien landen in lokalen `_obj\`-
   Ordnern und werden nach dem Link gelöscht.
 - **`tools\` ist separat.** Skripte, die nicht zum Kernel-Build gehören
-  (Test-Runner), liegen nicht in `bin\`, sondern in `tools\` (Refactoring 22).
+  (Test-Runner, `pro_run`), liegen nicht in `bin\`, sondern in `tools\`.
+- **`$(MAKEDIR)` statt CWD.** Alle Sub-Makefiles leiten ihre Pfade
+  relativ zu ihrem eigenen Ablageort ab. Der Aufruf ist damit
+  unabhängig vom aktuellen Arbeitsverzeichnis.
 
 ---
 
@@ -115,10 +126,11 @@ Drei Module, jeweils ein eigenes Makefile:
 | `build\test\Makefile.nmake` | drei Test-EXEs | `docs\build\test\Makefile.md` |
 
 Jedes Sub-Makefile:
-- Wird aus seinem eigenen Ablageort ausgeführt (`cd build\<modul>`).
-- Verwendet relative Pfade `..\..\src\<modul>\` und `..\..\bin\`.
-- Legt seine Zwischendateien in `_obj\` ab.
+- Leitet seine Pfade über `$(MAKEDIR)\..\..` ab und ist CWD-unabhängig.
+- Akzeptiert `CONFIG=release|debug` (Default: `release`).
+- Legt seine Zwischendateien in `$(MAKEDIR)\_obj\` ab.
 - Hat ein `clean`-Target, das nur seine eigenen Artefakte entfernt.
+- Hat ein `help`-Target, das Targets und Optionen auflistet.
 
 ### 3.2 Master-Makefile
 
@@ -133,6 +145,7 @@ Jedes Sub-Makefile:
 | `sdk` | Kernel + SDK (Kettenabhängigkeit) |
 | `test` | Kernel + SDK + Tests |
 | `info` | nur `BUILD_INFO.txt` |
+| `help` | Übersicht |
 | `rebuild` | `clean` + `all` |
 | `rebuild_prophysics` | `clean_prophysics` + `prophysics` + `info` |
 | `rebuild_sdk` | `clean_sdk` + `sdk` + `info` |
@@ -144,78 +157,117 @@ Jedes Sub-Makefile:
 
 **Setup:** Legt `bin\` und `lib\` an, falls sie nicht existieren.
 
+**CONFIG-Weitergabe:** `CONFIG=release|debug` wird an alle Sub-Makefiles
+durchgereicht.
+
 **Doku:** `docs\build\main\Makefile.md`
 
 ### 3.3 PowerShell-Wrapper
 
 Drei Skripte in `build\main\`, die nmake-Aufrufe kapseln und zusätzliche
-Funktionen bieten.
+Funktionen bieten. Sie werden im Normalfall **nicht mehr direkt**
+aufgerufen, sondern über `pro_run` dispatcht.
 
 | Skript | Rolle | Doku |
 |---|---|---|
 | `build.ps1` + `build.cmd` | Build-Wrapper mit Modus/Flags | `docs\build\helper\build.md` |
-| `export.ps1` + `export.cmd` | Build + Export in `out\` | `docs\build\helper\export.md` |
+| `export.ps1` + `export.cmd` | Build + Export + ZIP | `docs\build\helper\export.md` |
 | `write_build_info.ps1` | BUILD_INFO.txt-Generator | `docs\build\helper\write_build_info.md` |
 
 ### 3.4 Test-Runner
 
-Liegt seit Refactoring 22 in `tools\`, nicht mehr in `bin\`. Self-Locating,
-nimmt alle 43 Tests in den Prios 1–8.
+Liegt in `tools\`. Self-Locating, nimmt alle 43 Tests in den Prios 1–8.
 
 | Datei | Rolle | Doku |
 |---|---|---|
 | `tools\run_alpha_tests.ps1` + `.cmd` | Test-Runner | `docs\test\run_alpha_tests.md` |
 
 Der Runner ist self-locating: `-ExeDir` Default = `<repo>\bin`,
-`-LogDir` Default = `<ExeDir>\logs`.
+`-DllDir` Default = `<repo>\bin`, `-LogDir` Default = `<ExeDir>\logs`.
 
-**Neu in Etappe 23:** Prio 8 enthält jetzt zwei Tests
-(`SU2-Wilson-Loop` und `Running-Coupling`). Der zweite läuft ~23 min
-und ist nicht CI-tauglich. Siehe `docs\test\run_alpha_tests.md` §16
-für CI-Empfehlungen.
+**Prio 8 enthält zwei Tests** (`SU2-Wilson-Loop` und `Running-Coupling`).
+Der zweite läuft ~23 min und ist nicht CI-tauglich. Siehe
+`docs\test\run_alpha_tests.md` §16 für CI-Empfehlungen.
+
+### 3.5 `pro_run` — zentraler Einstiegspunkt
+
+`tools\pro_run.ps1` + `tools\pro_run.cmd`. Dispatcht auf die Skripte
+aus §3.3 und §3.4.
+
+| Aktion | Ruft auf |
+|---|---|
+| `pro_run build` | `build\main\build.ps1` |
+| `pro_run export` | `build\main\export.ps1` |
+| `pro_run test` | `tools\run_alpha_tests.ps1` |
+| `pro_run all` | build → test → export (Abbruch bei Fehlschlag) |
+| `pro_run help` | Übersicht / `pro_run help <aktion>` |
+
+**Doku:** `docs\build\pro_run.md`
 
 ---
 
 ## 4. Typische Aufrufe
 
-### 4.1 Vom Projekt-Root
+### 4.1 Über `pro_run` (empfohlen)
 
 ```cmd
-:: Kompletter Build + BUILD_INFO
+:: Kompletter Durchlauf: bauen, testen, als SDK-ZIP exportieren
+pro_run all
+
+:: Nur Kernel bauen, Debug-Konfiguration, vorher clean
+pro_run build -Mode kernel -Config debug -Rebuild
+
+:: SDK + Kit als ZIP nach D:\sdk-kit
+pro_run export -Export all -OutDir D:\sdk-kit -Version 1.23.0
+
+:: Tests Prio 1-4 (schnelle Regression)
+pro_run test -Prio 1-4
+
+:: Einzelner Test mit eigenem Log-Verzeichnis
+pro_run test -Test Running-Coupling -LogDir C:\logs
+
+:: Nur Test, ohne vorher zu bauen (Build existiert bereits)
+pro_run all -NoBuild -NoExport -Prio 8
+
+:: Hilfe
+pro_run help
+pro_run help export
+```
+
+### 4.2 Direkte Aufrufe (Legacy / Debug)
+
+Die bestehenden Wrapper bleiben erhalten und rufen dieselben Skripte
+auf. Nuetzlich, wenn nur eine einzelne Komponente gebaut werden soll,
+ohne die `pro_run`-Dispatch-Schicht.
+
+```cmd
+:: Build direkt
 build\main\build.cmd
-
-:: Nur Kernel
-build\main\build.cmd -Mode prophysics
-
-:: Rebuild + Git-Info
-build\main\build.cmd -Mode all -Rebuild -GitStamp -GitNote "Release v3.3"
-
-:: Alles weg
+build\main\build.cmd -Mode prophysics -Config debug
+build\main\build.cmd -Mode all -Rebuild -GitStamp -GitNote "Release 1.23.0"
 build\main\build.cmd -Clean
 
-:: Export als SDK-Paket
+:: Export direkt
 build\main\export.cmd sdk -Scope all -Clean
+build\main\export.cmd kit -Version 1.23.0
+
+:: Test direkt
+tools\run_alpha_tests.cmd -Prio 8
+tools\run_alpha_tests.cmd -Prio all
+tools\run_alpha_tests.cmd -Prio 1,3,5
 ```
 
-### 4.2 Test
-
-```cmd
-cd tools
-run_alpha_tests.cmd -Prio 8         :: beide SU(2)-Tests (~24 min)
-run_alpha_tests.cmd -Prio all       :: alle 43 Tests (~74 min)
-```
-
-### 4.3 Direkt im Sub-Ordner (Debug)
+### 4.3 Direkt im Sub-Ordner (nur nmake)
 
 ```cmd
 cd build\prophysics
-nmake /NOLOGO /f Makefile.nmake
+nmake /NOLOGO /f Makefile.nmake CONFIG=release
 
 cd ..\sdk
-nmake /NOLOGO /f Makefile.sdk.nmake
+nmake /NOLOGO /f Makefile.sdk.nmake CONFIG=release
 
 cd ..\test
-nmake /NOLOGO /f Makefile.nmake
+nmake /NOLOGO /f Makefile.nmake CONFIG=release
 ```
 
 ---
@@ -255,10 +307,9 @@ automatisch mit.
 ## 6. Was die Build-Skripte **nicht** tun
 
 - **Kein Signing** im Sub-Makefile. Nur `build.ps1 -Sign` ruft `signtool`.
-- **Kein Zip.** Nur `export.ps1 -Zip` (geplant) archiviert.
 - **Kein Header-Export.** Header bleiben am Pflegeort.
 - **Kein Deployment.** Kein Push in Repos oder Verzeichnisse.
-- **Keine Test-Ausführung.** Nur `run_alpha_tests.ps1`.
+- **Keine Test-Ausführung.** Nur `run_alpha_tests.ps1` / `pro_run test`.
 - **Keine inkrementelle Header-Analyse.** Ein Header-Update rebuildet
   alle Module eines Sub-Makefiles (bewusst grob).
 
@@ -268,17 +319,23 @@ automatisch mit.
 
 ### 7.1 Compiler-Flags
 
-Pro Sub-Makefile definiert. Kernel nutzt `/W4 /GL /LTCG /arch:AVX2`, SDK
-und Tests `/W3` (bewusst milder wegen Test-Harness), Tests ebenfalls
-`/arch:AVX2`.
+Pro Sub-Makefile definiert. Alle Sub-Makefiles kennen `CONFIG=release|debug`:
+
+| Modul | Release | Debug |
+|---|---|---|
+| Kernel | `/W4 /O2 /Ob2 /Oi /GL /MP /arch:AVX2` + `/LTCG` | `/W4 /Od /Zi /MDd /MP` + `/DEBUG` |
+| SDK | `/W3 /O2 /Ob2 /Oi /GL /MP` + `/LTCG` | `/W3 /Od /Zi /MDd /MP` + `/DEBUG` |
+| Test | `/W3 /O2 /Ob2 /Oi /GL /MP /arch:AVX2` + `/LTCG` | `/W3 /Od /Zi /MDd /MP /arch:AVX2` + `/DEBUG` |
 
 ### 7.2 Pfade
 
-Alle Sub-Makefiles verwenden ausschließlich **relative Pfade** zu ihrem
-eigenen Ablageort. Damit ist der Aufruf unabhängig vom CWD.
+Alle Sub-Makefiles verwenden **`$(MAKEDIR)`**-basierte Pfade relativ zu
+ihrem eigenen Ablageort. Der Aufruf ist damit unabhängig vom CWD —
+egal ob über den Master, über `pro_run`, oder direkt aufgerufen.
 
-**Ausnahme:** Der Master-Makefile nutzt `$(MAKEDIR)` für den Repo-Root
-und wechselt mit `cd /d` in die Sub-Ordner, bevor er deren nmake aufruft.
+Der Master-Makefile leitet seinen Repo-Root ebenfalls über `$(MAKEDIR)`
+ab und wechselt beim Sub-Aufruf mit `cd /d` in das jeweilige
+Modulverzeichnis.
 
 ### 7.3 `dim`-Regel
 
@@ -291,6 +348,17 @@ Der Kernel arbeitet mit **Q31** für Amplituden (Skala `INT32_MAX`) und
 **Q30** für SU(2)-Links (Skala `2^30`, um int64-Overflow in der
 Quaternion-Multiplikation zu vermeiden). Diese Dualität ist stabil und
 in `ProPhysics_Config.h` dokumentiert.
+
+### 7.5 `CONFIG`-Support
+
+`CONFIG=release|debug` ist der einzige Build-Parameter, der durch alle
+Makefile-Ebenen gereicht wird:
+
+- Master: `nmake /f Makefile.nmake all CONFIG=debug`
+- Sub: `nmake /f Makefile.nmake CONFIG=debug`
+- PowerShell-Wrapper: `build.ps1 -Config debug` → ruft nmake mit `CONFIG=debug`
+
+Ungültige Werte brechen den Build mit `!ERROR` ab.
 
 ---
 
@@ -307,15 +375,19 @@ in `ProPhysics_Config.h` dokumentiert.
 | `bin\example_test_tensor.exe` | Tensor-/Fock-Regression |
 | `lib\ProPhysics.lib` | Kernel-Import-Lib |
 | `lib\pro_sdk_interface.lib` | SDK-Import-Lib |
-| `BUILD_INFO.txt` | Metadaten (Zeitstempel, Version, Dateiliste) |
+| `BUILD_INFO.txt` | Metadaten (Zeitstempel, Version, Etappe, Dateiliste) |
 
-### 8.2 Nach `export.ps1` (Modi)
+### 8.2 Nach `pro_run export` / `export.ps1` (Modi)
 
-| Modus | Ziel |
-|---|---|
-| `exe` | `out\exe\` — DLLs + EXEs flach, mit Runner aus `tools\` |
-| `sdk` | `out\sdk\libs\` — DLLs + LIBs + Header |
-| `src` | `out\src\<name>\` — Quellcode-Snapshot inkl. `tools\` |
+| Modus | Ordner | ZIP |
+|---|---|---|
+| `exe` | `out\exe\` — DLLs + EXEs flach, mit Runner aus `tools\` | `out\prophysics-exe-<version>.zip` |
+| `sdk` | `out\sdk\libs\` — DLLs + LIBs + Header | `out\prophysics-sdk-<version>.zip` |
+| `kit` | `out\kit\` — SDK + Beispiele + erweiterte Docs | `out\prophysics-kit-<version>.zip` |
+| `all` | alle drei nacheinander | alle drei ZIPs |
+
+`<version>` ist `MAJOR.MINOR.PATCH` aus `ProPhysics_Version.h`, ohne
+`v`-Präfix. Aktuell: `1.23.0`.
 
 Details siehe `docs\build\helper\export.md`.
 
@@ -325,19 +397,23 @@ Details siehe `docs\build\helper\export.md`.
 
 | Symptom | Wahrscheinliche Ursache | Erster Blick |
 |---|---|---|
+| `pro_run nicht gefunden` | `tools\` nicht im PATH oder falscher CWD | `tools\pro_run.cmd` direkt aufrufen |
 | `nmake nicht im PATH` | VS-Developer-Prompt fehlt | `vcvars64.bat` aufrufen |
-| `ProPhysics.lib fehlt` | Kernel nicht gebaut | `build\prophysics` ausführen |
-| `pro_sdk_interface.lib fehlt` | SDK nicht gebaut | `build\sdk` ausführen |
+| `ProPhysics.lib fehlt` | Kernel nicht gebaut | `pro_run build -Mode kernel` |
+| `pro_sdk_interface.lib fehlt` | SDK nicht gebaut | `pro_run build -Mode sdk` |
 | `*.h not found` | Header am falschen Ort | `src\<modul>\header\` prüfen |
 | `unresolved external symbol ProPhysics_...` | Kernel-Lib fehlt oder Link-Reihenfolge falsch | SDK-Lib **vor** Kernel-Lib in Link-Zeile |
-| `unresolved external symbol ProPhysics_SU2_...` | SU2_Dynamics.c nicht im `OBJ_KERNEL` | `build\prophysics\Makefile.nmake` prüfen |
-| `unresolved external symbol ProPhysics_SU2_Link_Plaquette_Sum` | Neue Funktion nicht in `ProPhysics_SU2_Dynamics.c` oder nicht ins `.obj` eingebunden | Kernel-Neubau: `nmake rebuild_prophysics` |
+| `unresolved external symbol ProPhysics_SU2_...` | `SU2_Dynamics.c` nicht im `OBJ_KERNEL` | `build\prophysics\Makefile.nmake` prüfen |
+| `unresolved external symbol ProPhysics_SU2_Link_Plaquette_Sum` | Neue Funktion nicht im Kernel-`.obj` | `pro_run build -Mode kernel -Rebuild` |
 | Test-EXE startet nicht | DLL nicht in `bin\` | Kernel + SDK zuerst bauen |
 | Test-EXE „DLL nicht gefunden" | EXE und DLL in verschiedenen Ordnern | beide müssen in `bin\` liegen |
 | Umlaute kaputt in Konsole | `chcp` fehlt | `*.cmd`-Wrapper statt direkt aufrufen |
 | `BUILD_INFO.txt fehlt` | `-Clean` gesetzt | `build.cmd -NoBuild` erneut laufen |
+| `CONFIG muss "release" oder "debug" sein` | Tippfehler bei `-Config` | Groß-/Kleinschreibung prüfen |
 | Runner findet Test-EXE nicht | `-ExeDir` falsch | Default ist `<repo>\bin`, prüfen |
-| `Running-Coupling TIMEOUT` | Rechner zu langsam oder Creutz-Ratio dazugekommen | Timeout auf 3600 s erhöhen (`run_alpha_tests.ps1`) |
+| Runner lädt falsche DLL | `-DllDir != -ExeDir` | beide auf `<repo>\bin` zeigen lassen |
+| `Running-Coupling TIMEOUT` | Rechner zu langsam | Timeout in `run_alpha_tests.ps1` erhöhen |
+| `ZIP konnte nicht erzeugt werden` | `OutDir` voll oder gesperrt | `Compress-Archive`-Fehler prüfen |
 
 **Detail-Diagnose** pro Sub-Makefile: siehe jeweilige Doku-Seite.
 
@@ -348,6 +424,7 @@ Details siehe `docs\build\helper\export.md`.
 ```
 docs\build\
 ├── BUILD_SCRIPT.md                # diese Datei
+├── pro_run.md                     # NEU: zentraler Einstiegspunkt
 ├── main\
 │   └── Makefile.md                # Master-Makefile
 ├── prophysics\
@@ -381,27 +458,28 @@ docs\project\
 
 1. Diese Datei (Überblick).
 2. `docs\project\Project.md` — was das Projekt ist.
-3. `docs\build\<modul>\Makefile.md` — je nachdem, welches Modul dich interessiert.
-4. `docs\build\helper\build.md` — wie man den Build benutzt.
-5. `docs\test\ProPhysics_Testkatalog.md` — was getestet wird.
-6. `docs\test\run_alpha_tests.md` — wie man die Tests fährt.
+3. `docs\build\pro_run.md` — wie man den Build bedient.
+4. `docs\build\<modul>\Makefile.md` — je nach Modul-Interesse.
+5. `docs\build\helper\build.md` — Details zu `build.ps1`.
+6. `docs\test\ProPhysics_Testkatalog.md` — was getestet wird.
+7. `docs\test\run_alpha_tests.md` — wie man die Tests fährt.
 
 ---
 
 ## 11. Was passiert nach dem Build
 
-Nach erfolgreichem `build.cmd` (Default-Modus `all`):
+Nach erfolgreichem `pro_run all` (Default) oder `build.cmd` (Default-Modus `all`):
 
 1. `bin\` enthält 2 DLLs + 3 EXEs.
 2. `lib\` enthält 2 LIBs.
-3. `BUILD_INFO.txt` im Root ist aktuell.
-4. Test-Runner sind einsatzbereit in `tools\`.
+3. `BUILD_INFO.txt` im Root ist aktuell (mit Version `1.23.0`, Etappe `23`).
+4. Test-Runner und `pro_run` sind einsatzbereit in `tools\`.
+5. `out\` enthält die angeforderten ZIP-Pakete.
 
 **Nächster Schritt:**
 
 ```cmd
-cd tools
-run_alpha_tests.cmd -Prio all
+pro_run test -Prio all
 ```
 
 **Erwartung:** 43/43 PASS, ~4 421 s (~74 min).
@@ -417,7 +495,7 @@ run_alpha_tests.cmd -Prio all
 
 - **`ProEdge`** — um 4 × int32 (`su2_a_re/ai`, `su2_b_re/bi`) erweitert.
   `sizeof(ProEdge)` wächst von 12 auf 24 Bytes.
-- **Neue Kernel-Datei** `ProPhysics_SU2.c` (12. Modul).
+- **Neue Kernel-Datei** `ProPhysics_SU2.c` (Kernel-Modul 4/12).
 - **Neue public API:** `Set_Edge_SU2`, `Set_Edge_SU2_AxisAngle`,
   `Get_Edge_SU2`, `Wilson_Loop_SU2`, `Wilson_Loop_SU2_Trace`,
   `Apply_Local_SU2_Gauge`, `Verify_SU2_Quaternion`.
@@ -438,7 +516,7 @@ run_alpha_tests.cmd -Prio all
 
 - **`ProEdge`** — um 4 × int32 (`su2_E_a_re/ai`, `su2_E_b_re/bi`) erweitert.
   `sizeof(ProEdge)` wächst von 24 auf 40 Bytes.
-- **Neue Kernel-Datei** `ProPhysics_SU2_Dynamics.c` (13. Modul).
+- **Neue Kernel-Datei** `ProPhysics_SU2_Dynamics.c` (Kernel-Modul 5/12).
 - **Neue public API:** `Enable_SU2_Dynamics`, `Disable_SU2_Dynamics`,
   `Is_SU2_Dynamics_Active`, `Set_SU2_Yang_Mills`, `Apply_SU2_Tick`,
   `SU2_Plaquette_Action`, `SU2_Total_Energy`, `SU2_Link_Plaquette_Sum`.
@@ -448,27 +526,39 @@ run_alpha_tests.cmd -Prio all
 - **`Internal.h`** — `pro_su2_mul/conj/norm_sq` zentral; neue
   `pro_su2_exp_apply`.
 - **Master-Makefile** — `ProPhysics_SU2_Dynamics.obj` in `OBJ_KERNEL`.
-- **Test-Makefile** — keine neue Datei, aber `alpha_test_running_coupling.c`
-  als Vorbereitung für Etappe 23 (bereits registriert, ggf. inaktiv).
-- **Test-Runner** — Prio 8 um T15–T18 erweitert; neuer Test
-  `--test-running-coupling` vorgesehen.
 
 ### 12.3 — Etappe 23: SU(2)-Metropolis / Wilson-Action-Validierung
 
 - **Neue Kernel-Funktion:** `ProPhysics_SU2_Link_Plaquette_Sum` (read-only).
   Kein Struct-Change, kein neues Modul, keine Config-Erweiterung.
-- **Neuer Test:** `alpha_test_running_coupling.c` (18. Test-Modul).
+- **Neuer Test:** `alpha_test_running_coupling.c` (Test-Modul 17/17).
 - **Test-Makefile** — `alpha_test_running_coupling.c` in `ALPHA_SOURCES`.
 - **Test-Runner** — Prio 8 enthält beide Tests; Timeout für
-  Running-Coupling auf 2400 s.
+  Running-Coupling auf 1800 s.
 - **Backward-Staple-Fix in 22b** (in Etappe 23 verifiziert):
   T16 von 8,06e-03 auf 2,44e-03, T15 von 2,02e-08 auf 1,80e-08.
 - **V&V-Anker (NEU):** Erste absolute Validierung gegen externe
   Lattice-QCD-Physik. ⟨P⟩(β=2) = 0,43346 vs. Referenz I₂(2)/I₁(2) =
   0,43313, Abweichung **0,08 %**.
 
+### 12.4 — Skript-Vereinheitlichung (Etappe 23, Konsolidierung)
+
+- **`pro_run.ps1` + `pro_run.cmd`** — neuer zentraler Einstiegspunkt in
+  `tools\`. Dispatcht auf `build.ps1`, `export.ps1`, `run_alpha_tests.ps1`.
+  Aktion `all` führt build → test → export aus.
+- **`-Config <release|debug>`** für alle Sub-Makefiles und Wrapper.
+- **`$(MAKEDIR)`-basierte Pfade** in allen Sub-Makefiles (CWD-unabhängig).
+- **`export.ps1`** um Export-Typ `kit` erweitert, ZIP-Erzeugung
+  (`prophysics-<kind>-<version>.zip`), `-Version` Parameter.
+- **`run_alpha_tests.ps1`** akzeptiert `-Prio` mit Range/Liste,
+  `-Test <name>`, `-DllDir`.
+- **`write_build_info.ps1`** um Etappe-Zeile und Config-Feld erweitert.
+- **Konsistenz-Fixes:** Kernel-Modul-Zahl überall **12**, Test-Modul-Zahl
+  überall **17**, Test-Anzahl überall **43**.
+
 Die Build-Kette selbst bleibt unverändert (`prophysics → sdk → test`).
-Nur die Sub-Makefiles bekommen zusätzliche Einträge.
+Nur die Sub-Makefiles bekommen zusätzliche Einträge und die Wrapper
+eine neue Dispatch-Schicht.
 
 ---
 
@@ -476,6 +566,7 @@ Nur die Sub-Makefiles bekommen zusätzliche Einträge.
 
 | Thema | Datei |
 |---|---|
+| Zentraler Einstiegspunkt | `docs\build\pro_run.md` |
 | Master-Makefile | `docs\build\main\Makefile.md` |
 | Kernel-Build | `docs\build\prophysics\Makefile.md` |
 | SDK-Build | `docs\build\sdk\Makefile.md` |
@@ -489,4 +580,4 @@ Nur die Sub-Makefiles bekommen zusätzliche Einträge.
 
 ---
 
-**Ende Build-System-Übersicht v3.3.**
+**Ende Build-System-Übersicht v1.0.**

@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  quick-regression:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Build
+        shell: cmd
+        run: |
+          cd build\main
+          build.cmd -Mode all -Rebuild
+
+      - name: Prio 1 — 2D-Basis
+        shell: cmd
+        run: |
+          cd tools
+          run_alpha_tests.cmd -Prio 1
+          if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
+
+      - name: Prio 6 — Spin-1/2
+        shell: cmd
+        run: |
+          cd tools
+          run_alpha_tests.cmd -Prio 6
+          if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
+
+      - name: Prio 7 — Dirac
+        shell: cmd
+        run: |
+          cd tools
+          run_alpha_tests.cmd -Prio 7
+          if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
+
+      - name: SU(2)-Wilson-Loop
+        shell: cmd
+        run: |
+          cd tools
+          run_alpha_tests.cmd -Test SU2-Wilson-Loop
+          if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: bin/logs/
+          retention-days: 7

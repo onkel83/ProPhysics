@@ -232,6 +232,8 @@
 #define PRO_INV_127          0.00787401574803149606299212598425
 #endif
 
+		  /* 1/sqrt(2) in Q31-Skala (INT32_MAX * 0.7071067811865476 = 1518500249).
+		   * Verwendung: Hadamard-Gate, Superpositions-Aufbau. */
 #ifndef PRO_Q31_HALF_SQRT2
 #define PRO_Q31_HALF_SQRT2   1518500249
 #endif

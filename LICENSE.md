@@ -93,7 +93,7 @@ ist **ausdrücklich gestattet und erwünscht**, sofern:
 **Empfohlene Zitierweise:**
 
 > Sascha A. Köhne. ProPhysics: A topological graph kernel for emergent
-quantum mechanics. Version 3.0.0. (2026). [https://github.com/onkel83/prophysics].
+> quantum mechanics. Version 1.23.0. (2026). [https://github.com/onkel83/prophysics].
 
 ---
 
@@ -155,7 +155,7 @@ Nichtigkeit einzelner Bestimmungen (Salvatorische Klausel).
 
 - **Kommerzielle Lizenzierung:** siehe `COMMERCIAL.md`
 - **Allgemeine Fragen:** koehne83 at googlemail.com
-- **Bug-Reports / Beiträge:** [ISSUE-TRACKER-URL]
+- **Bug-Reports / Beiträge:** https://github.com/onkel83/prophysics/issues
 
 ---
 

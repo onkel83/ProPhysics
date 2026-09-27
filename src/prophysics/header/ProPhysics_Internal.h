@@ -371,7 +371,9 @@ extern "C" {
      *   exp(i*dt*E) = (cos(theta) - i*sin(theta)*n_z,
      *                  -sin(theta)*(n_y + i*n_x))
      *
-     * Skala PRO_SU2_SCALE, dt in Q15 (1.0 = 32768). Kein div/mod.
+     * Skala PRO_SU2_SCALE, dt in Q15 (1.0 = 32768). Kein div/mod
+     * im Hotpath-Kern; die Q15->double-Normalisierung ist eine
+     * Multiplikation mit der Compile-Time-Konstante 1/32768.
      * ========================================================================== */
 
     static inline void pro_su2_exp_apply(

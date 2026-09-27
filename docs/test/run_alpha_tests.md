@@ -1,40 +1,41 @@
 # ProPhysics Alpha-Test-Runner
 
 **Dateien:** `tools\run_alpha_tests.ps1` + `tools\run_alpha_tests.cmd`
-
-**Version:** 3.2 (Etappe 23 + V&V-Anker)
-
-**Zweck:** Führt die Alpha-Test-Suite sequenziell aus, schreibt pro Test
+**Version:** 1.0.0 (Build-System)
+**Kernel:** 1.23.0 (Etappe 23)
+**Zweck:** Fuehrt die Alpha-Test-Suite sequenziell aus, schreibt pro Test
 ein Log und liefert eine PASS/FAIL-Bilanz mit Exit-Code.
 
 ---
 
 ## 1. Was das Skript tut
 
-Für eine gewählte Prioritätsstufe (Prio 1–8 oder `all`):
+Fuer eine gewaehlte Prioritaetsstufe (Prio 1–8, Range, Liste oder `all`):
 
-1. **Test für Test** starten (als separater Prozess)
+1. **Test fuer Test** starten (als separater Prozess)
 2. **Ausgabe sammeln** (stdout + stderr, UTF-8)
 3. **Ergebnis auswerten** per Regex auf PASS/FAIL-Marker
 4. **Log schreiben** pro Test nach `<LogDir>\<timestamp>_<name>.log`
 5. **Zusammenfassung** als Tabelle ausgeben
-6. **Exit-Code** zurückgeben: `0` bei allen PASS, `1` sonst
+6. **Exit-Code** zurueckgeben: `0` bei allen PASS, `1` sonst
 
-Der Runner führt Tests **nicht** parallel aus. Sequenziell ist Absicht:
+Der Runner fuehrt Tests **nicht** parallel aus. Sequenziell ist Absicht:
 Test-Ausgaben sind nicht thread-safe, und einzelne Tests brauchen
->30 min (Hydrogen-48), was parallele Läufe unübersichtlich machen
-würde.
+>30 min (Hydrogen-48), was parallele Laeufe unuebersichtlich machen
+wuerde.
+
+**Empfohlener Aufruf:** ueber `pro_run test …` in `tools\`. Der
+Runner bleibt auch direkt aufrufbar.
 
 ---
 
 ## 2. Ablageort
 
-Seit **Refactoring 22** liegt der Runner in `tools\`, nicht mehr in
-`bin\`. Die EXEs bleiben in `bin\`; das Skript ist self-locating und
-zeigt automatisch auf das Schwester-Verzeichnis `..\bin`.
+Der Runner liegt in `tools\`. Die EXEs bleiben in `bin\`; das Skript
+ist self-locating und zeigt automatisch auf `<repo>\bin`.
 
 ```
-H:\ProPhysics_SDK\ProPhysics\
+<repo>\
 ├── bin\
 │   ├── example_alpha_test.exe
 │   ├── example_test_density.exe
@@ -43,14 +44,15 @@ H:\ProPhysics_SDK\ProPhysics\
 │   ├── pro_sdk_interface.dll
 │   └── logs\                       <- Ziel der Logs (Default)
 ├── tools\
-│   ├── run_alpha_tests.cmd         <- Wrapper für cmd.exe
+│   ├── pro_run.cmd / .ps1          <- zentraler Einstiegspunkt
+│   ├── run_alpha_tests.cmd         <- Wrapper fuer cmd.exe
 │   └── run_alpha_tests.ps1         <- dieses Skript
 └── docs\
     └── test\
         └── run_alpha_tests.md      <- diese Datei
 ```
 
-**Self-Locating:** Das Skript findet seinen Ablageort über
+**Self-Locating:** Das Skript findet seinen Ablageort ueber
 `$PSScriptRoot`. Der Default `-ExeDir` ist `$PSScriptRoot\..\bin`.
 Damit funktioniert der Aufruf aus jedem CWD.
 
@@ -58,36 +60,50 @@ Damit funktioniert der Aufruf aus jedem CWD.
 
 ## 3. Aufruf
 
-### 3.1 Über `run_alpha_tests.cmd` (empfohlen für cmd.exe)
+### 3.1 Ueber `pro_run` (empfohlen)
+
+```cmd
+pro_run test
+pro_run test -Prio 1-4
+pro_run test -Prio 8
+pro_run test -Test Running-Coupling -LogDir C:\logs
+```
+
+Details siehe `docs\build\pro_run.md`.
+
+### 3.2 Ueber `run_alpha_tests.cmd` (direkt)
 
 ```cmd
 cd tools
 run_alpha_tests.cmd -Prio 8
 run_alpha_tests.cmd -Prio all
+run_alpha_tests.cmd -Prio 1-4
+run_alpha_tests.cmd -Test Dirac
 ```
 
-### 3.2 Direkt über PowerShell
+### 3.3 Direkt ueber PowerShell
 
 ```powershell
 cd tools
 .\run_alpha_tests.ps1 -Prio 8
 .\run_alpha_tests.ps1 -Prio all
+.\run_alpha_tests.ps1 -Test Running-Coupling
 ```
 
-### 3.3 Aus jedem anderen CWD
+### 3.4 Aus jedem anderen CWD
 
 ```cmd
 cd C:\Temp
 H:\ProPhysics_SDK\ProPhysics\tools\run_alpha_tests.cmd -Prio all
 ```
 
-### 3.4 Interaktiv (ohne Argumente)
+### 3.5 Interaktiv (ohne Argumente)
 
 ```powershell
 .\run_alpha_tests.ps1
 ```
 
-PowerShell fragt nach dem `-Prio`-Wert. Nützlich beim Debuggen.
+PowerShell fragt nach `-Prio`. Nuetzlich beim Debuggen.
 
 ---
 
@@ -95,19 +111,38 @@ PowerShell fragt nach dem `-Prio`-Wert. Nützlich beim Debuggen.
 
 | Parameter | Typ | Default | Beschreibung |
 |---|---|---|---|
-| `-Prio` | Choice: `1`,`2`,`3`,`4`,`5`,`6`,`7`,`8`,`all` | *(mandatory)* | Prioritätsstufe |
+| `-Prio` | String | `all` | `all` \| `N` \| `N-M` \| `N,M,K` (N in 1..8) |
+| `-Test` | String | (leer) | Einzelner Test nach Name (statt Prio) |
 | `-ExeDir` | Pfad | `$PSScriptRoot\..\bin` | Wo die EXEs liegen |
+| `-DllDir` | Pfad | identisch mit `-ExeDir` | Wo die DLLs liegen |
 | `-LogDir` | Pfad | `<ExeDir>\logs` | Ziel der Logs |
 
-**`-ExeDir`** ist selten nötig. Es wird nur verwendet, wenn du den
-Runner aus einem anderen Verzeichnis heraus auf eine Kopie der EXEs
-richten willst (z.B. Export-Paket in `out\exe\`).
+**`-Prio`** akzeptiert drei Syntax-Formen:
+
+| Form | Beispiel | Bedeutung |
+|---|---|---|
+| Einzelwert | `-Prio 8` | nur Prio 8 |
+| Range | `-Prio 1-4` | Prios 1,2,3,4 |
+| Liste | `-Prio 1,3,5` | Prios 1,3,5 |
+| `all` | `-Prio all` | alle 8 Prios, 43 Tests |
+
+**`-Test`** waehlt einen einzelnen Test per Name. Wenn `-Test` gesetzt
+ist, wird `-Prio` ignoriert. Der Name ist case-insensitive, `-` und `_`
+sind austauschbar: `Running-Coupling`, `running_coupling` und
+`RUNNING-COUPLING` sind aequivalent.
+
+**`-ExeDir`** ist selten noetig. Es wird verwendet, wenn der Runner aus
+einem Export-Paket heraus aufgerufen wird (z.B. `out\exe\`).
+
+**`-DllDir`** ist relevant, wenn EXEs und DLLs in verschiedenen
+Verzeichnissen liegen. In dem Fall haengt der Runner `-DllDir` an
+`$env:PATH` an, damit der Windows-Loader `ProPhysics.dll` findet.
 
 **`-LogDir`** wird angelegt, falls nicht vorhanden.
 
 ---
 
-## 5. Prios im Überblick
+## 5. Prios im Ueberblick
 
 | Prio | Thema | Tests | Typische Dauer |
 |:-:|---|:-:|---:|
@@ -118,18 +153,19 @@ richten willst (z.B. Export-Paket in `out\exe\`).
 | 5 | Hydrogen + Shared-Ref + Tournament | 4 | ~41 min |
 | 6 | Spin-1/2 | 1 | < 1 s |
 | 7 | Dirac | 1 | ~15 s |
-| 8 | SU(2)-Eichfeld + Link-Dynamik + Running-Coupling | 2 | **~24 min** |
+| 8 | SU(2)-Eichfeld + Running-Coupling | 2 | **~24 min** |
 | **all** | **alle** | **43** | **~74 min** |
 
 Die Laufzeit-Dominanz verteilt sich auf zwei Tests:
 - **Hydrogen-48** (Prio 5, ~2 280 s = 51,6 %)
 - **Running-Coupling** (Prio 8, ~1 400 s = 31,6 %)
 
-Für schnelle Regressionen im CI sind die Prios 1–4, 6, 7 und der
+Fuer schnelle Regressionen im CI sind die Prios 1–4, 6, 7 und der
 `SU2-Wilson-Loop`-Test aus Prio 8 empfohlen (~1,5 min zusammen).
 
-**Achtung:** Prio 8 enthält seit Etappe 23 **zwei** Tests. Für CI
-sollte `Running-Coupling` explizit ausgenommen werden (siehe §16).
+**Achtung:** Prio 8 enthaelt zwei Tests. Fuer CI kann mit
+`-Test SU2-Wilson-Loop` gezielt nur der kurze Test gefahren werden
+(siehe §16).
 
 ---
 
@@ -140,97 +176,97 @@ hinterlegt. Pro Eintrag: Name, EXE, Argumente, Timeout.
 
 ### Prio 1 — 2D-Basis (12)
 
-| Test | EXE | Args |
-|---|---|---|
-| Amp-Smoke | `example_alpha_test.exe` | `--test-amp` |
-| Born-Regel | `example_alpha_test.exe` | `--test-born` |
-| Unitary-Tick | `example_alpha_test.exe` | `--test-unitary` |
-| Context-Perm | `example_alpha_test.exe` | `--test-context` |
-| Wilson-Loop | `example_alpha_test.exe` | `--test-wilson` |
-| Local-Gauge | `example_alpha_test.exe` | `--test-gauge` |
-| Triangle-Corr | `example_alpha_test.exe` | `--test-triangle` |
-| CHSH-Native | `example_alpha_test.exe` | `--test-chsh` |
-| CHSH-Collapse | `example_alpha_test.exe` | `--test-chsh-collapse` |
-| CHSH-Graph | `example_alpha_test.exe` | `--test-chsh-graph` |
-| Density-Regression | `example_test_density.exe` | *(keine)* |
-| Tensor-Regression | `example_test_tensor.exe` | *(keine)* |
+| Test | EXE | Args | Timeout |
+|---|---|---|---|
+| Amp-Smoke | `example_alpha_test.exe` | `--test-amp` | 60 s |
+| Born-Regel | `example_alpha_test.exe` | `--test-born` | 60 s |
+| Unitary-Tick | `example_alpha_test.exe` | `--test-unitary` | 60 s |
+| Context-Perm | `example_alpha_test.exe` | `--test-context` | 60 s |
+| Wilson-Loop | `example_alpha_test.exe` | `--test-wilson` | 60 s |
+| Local-Gauge | `example_alpha_test.exe` | `--test-gauge` | 60 s |
+| Triangle-Corr | `example_alpha_test.exe` | `--test-triangle` | 120 s |
+| CHSH-Native | `example_alpha_test.exe` | `--test-chsh` | 120 s |
+| CHSH-Collapse | `example_alpha_test.exe` | `--test-chsh-collapse` | 120 s |
+| CHSH-Graph | `example_alpha_test.exe` | `--test-chsh-graph` | 120 s |
+| Density-Regression | `example_test_density.exe` | *(keine)* | 180 s |
+| Tensor-Regression | `example_test_tensor.exe` | *(keine)* | 180 s |
 
 ### Prio 2 — Emergenz (10)
 
-| Test | Args |
-|---|---|
-| Superdet | `--test-superdet` |
-| Observer-CHSH | `--test-observer-chsh` |
-| CHSH-Diffusion | `--test-chsh-diffusion` |
-| CHSH-Wave | `--test-chsh-wave` |
-| Born-Emergent | `--test-born-emergent` |
-| Born-Local | `--test-born-local` |
-| Born-Equiv | `--test-born-equiv` |
-| QM-Basics | `--test-qm-basics` |
-| QM-Advanced | `--test-qm-advanced` |
-| QM-Emergent | `--test-qm-emergent` |
+| Test | Args | Timeout |
+|---|---|---|
+| Superdet | `--test-superdet` | 300 s |
+| Observer-CHSH | `--test-observer-chsh` | 300 s |
+| CHSH-Diffusion | `--test-chsh-diffusion` | 600 s |
+| CHSH-Wave | `--test-chsh-wave` | 600 s |
+| Born-Emergent | `--test-born-emergent` | 900 s |
+| Born-Local | `--test-born-local` | 900 s |
+| Born-Equiv | `--test-born-equiv` | 600 s |
+| QM-Basics | `--test-qm-basics` | 300 s |
+| QM-Advanced | `--test-qm-advanced` | 600 s |
+| QM-Emergent | `--test-qm-emergent` | 600 s |
 
 ### Prio 3 — Langlauf (10)
 
-| Test | Args |
-|---|---|
-| Amp-Invariant | `--test-amp-invariant` |
-| Amp-Inv-Colored | `--test-amp-invariant-colored` |
-| Amp-Inv-Bisect | `--test-amp-invariant-bisect` |
-| Edge-Transport | `--test-edge-transport` |
-| Edge-Trans-Colored | `--test-edge-transport-colored` |
-| Edge-Trans-Scaling | `--test-edge-transport-scaling` |
-| Wave-Packet | `--test-wave-packet` |
-| Soliton | `--test-soliton` |
-| Lorentz | `--test-lorentz` |
-| No-Signaling | `--test-no-signaling` |
+| Test | Args | Timeout |
+|---|---|---|
+| Amp-Invariant | `--test-amp-invariant` | 300 s |
+| Amp-Inv-Colored | `--test-amp-invariant-colored` | 300 s |
+| Amp-Inv-Bisect | `--test-amp-invariant-bisect` | 600 s |
+| Edge-Transport | `--test-edge-transport` | 300 s |
+| Edge-Trans-Colored | `--test-edge-transport-colored` | 300 s |
+| Edge-Trans-Scaling | `--test-edge-transport-scaling` | 600 s |
+| Wave-Packet | `--test-wave-packet` | 300 s |
+| Soliton | `--test-soliton` | 1200 s |
+| Lorentz | `--test-lorentz` | 600 s |
+| No-Signaling | `--test-no-signaling` | 900 s |
 
 ### Prio 4 — 3D-Torus (3)
 
-| Test | Args |
-|---|---|
-| 3D-Smoke | `--test-3d-smoke` |
-| 3D-Invariance | `--test-3d-invariance` |
-| 3D-Dispersion | `--test-3d-dispersion` |
+| Test | Args | Timeout |
+|---|---|---|
+| 3D-Smoke | `--test-3d-smoke` | 300 s |
+| 3D-Invariance | `--test-3d-invariance` | 900 s |
+| 3D-Dispersion | `--test-3d-dispersion` | 900 s |
 
 ### Prio 5 — Hydrogen + Shared-Ref (4)
 
-| Test | Args |
-|---|---|
-| Hydrogen | `--test-hydrogen` |
-| Hydrogen-48 | `--test-hydrogen-48` |
-| Shared-Reference | `--test-shared-reference` |
-| Shared-Formula-Tourn | `--test-shared-formula-tournament` |
+| Test | Args | Timeout |
+|---|---|---|
+| Hydrogen | `--test-hydrogen` | 1800 s |
+| Hydrogen-48 | `--test-hydrogen-48` | **7200 s** |
+| Shared-Reference | `--test-shared-reference` | 600 s |
+| Shared-Formula-Tourn | `--test-shared-formula-tournament` | 300 s |
 
 ### Prio 6 — Spin-1/2 (1)
 
-| Test | Args |
-|---|---|
-| Spin-Half | `--test-spin-half` |
+| Test | Args | Timeout |
+|---|---|---|
+| Spin-Half | `--test-spin-half` | 120 s |
 
 ### Prio 7 — Dirac (1)
 
-| Test | Args |
-|---|---|
-| Dirac | `--test-dirac` |
+| Test | Args | Timeout |
+|---|---|---|
+| Dirac | `--test-dirac` | 300 s |
 
-### Prio 8 — SU(2)-Eichfeld + Link-Dynamik + Running-Coupling (2)
+### Prio 8 — SU(2)-Eichfeld + Running-Coupling (2)
 
 | Test | Args | Timeout | Bemerkung |
 |---|---|---|---|
 | SU2-Wilson-Loop | `--test-su2-wilson-loop` | 300 s | 18 + KA = 19 Einzelchecks |
-| Running-Coupling | `--test-running-coupling` | **2400 s** | 16 Werte + V&V-Anker; CI-untauglich |
+| Running-Coupling | `--test-running-coupling` | **1800 s** | CI-untauglich |
 
-**Empfehlung:** In normalen CI-Läufen `Running-Coupling` auslassen.
-Nur `SU2-Wilson-Loop` fahren (~2 s). `Running-Coupling` als
-Nightly-Job.
+**Empfehlung:** In normalen CI-Laeufen `Running-Coupling` auslassen,
+indem `-Test SU2-Wilson-Loop` gefahren wird (~2 s). `Running-Coupling`
+als Nightly-Job.
 
 ---
 
 ## 7. Test-Auswertung — wie PASS/FAIL erkannt wird
 
 Der Runner wertet die Test-Ausgabe per Regex aus. Verschiedene Tests
-nutzen unterschiedliche Marker. Die Erkennung läuft in dieser
+nutzen unterschiedliche Marker. Die Erkennung laeuft in dieser
 Reihenfolge:
 
 ### 7.1 Sammeltests mit Nummer
@@ -250,14 +286,14 @@ Muster: `Ergebnis: HELD` oder `Ergebnis: BROKEN`
 
 ### 7.3 Einzel-Check-Marker
 
-Muster: zählt `[PASS]` und `[FAIL]` in der Ausgabe.
+Muster: zaehlt `[PASS]` und `[FAIL]` in der Ausgabe.
 
 Wenn mindestens ein `[FAIL]` vorhanden ist: FAIL.
 Sonst bei mindestens einem `[PASS]`: PASS.
 
 Verwendet von: Density, Tensor.
 
-### 7.4 Führende Ergebniszeile
+### 7.4 Fuehrende Ergebniszeile
 
 Muster: `Ergebnis: PASSED` oder `Ergebnis: FAILED`.
 
@@ -278,13 +314,9 @@ SU2-Wilson-Loop, **Running-Coupling**.
 | `KEIN Bell-Bruch` | PASS | CHSH-Chaotic |
 | `Signalverlust` | PASS | CHSH-Chaotic |
 | `[Bisect] Fertig` | PASS | Amp-Inv-Bisect |
-| `[SR] -> PASSED` | PASS | Shared-Reference |
-| `[SR] -> FAILED` | FAIL | Shared-Reference |
 | `[Amp-Test] OK` | PASS | Amp-Smoke |
 | `# Gesamt : PASS` | PASS | QM-Basics, QM-Advanced |
 | `# Gesamt : FAIL` | FAIL | QM-Basics, QM-Advanced |
-| **`[RC] -> PASSED`** | **PASS** | **Running-Coupling** |
-| **`[RC] -> FAILED`** | **FAIL** | **Running-Coupling** |
 
 ### 7.7 Superdet-Sonderfall
 
@@ -295,7 +327,7 @@ getrennte Quelle: S = 2.0073
 geteilte Quelle:  S = 4.0000
 ```
 
-Prüft: `|S_sep − 2.0| < 0.20` UND `|S_shr − 4.0| < 0.20`.
+Prueft: `|S_sep − 2.0| < 0.20` UND `|S_shr − 4.0| < 0.20`.
 
 ### 7.8 Fallback
 
@@ -315,15 +347,15 @@ Format pro Datei: `<timestamp>_<name>.log`
 Beispiel:
 
 ```
-20260925_150634_Amp-Smoke.log
-20260925_150634_Born-Regel.log
-20260925_150634_Dirac.log
-20260925_150634_SU2-Wilson-Loop.log
-20260925_150634_Running-Coupling.log
+20260927_150634_Amp-Smoke.log
+20260927_150634_Born-Regel.log
+20260927_150634_Dirac.log
+20260927_150634_SU2-Wilson-Loop.log
+20260927_150634_Running-Coupling.log
 ...
 ```
 
-Jede Log enthält:
+Jede Log enthaelt:
 
 1. Die komplette stdout des Test-Prozesses (UTF-8)
 2. Bei stderr-Ausgabe: einen `--- STDERR ---`-Trenner und den stderr-Inhalt
@@ -336,36 +368,36 @@ Umlaute) werden zu `_`. Der Regex im Skript ist `[^\w\-]` → `_`.
 
 ## 9. Timeouts
 
-Jeder Test hat einen individuellen Timeout:
+Jeder Test hat einen individuellen Timeout. Zusammenfassung der
+Extremwerte:
 
-| Kategorie | Timeout |
+| Kategorie | Timeout-Bereich |
 |---|---|
 | Smoke-Tests | 60 s |
 | Einzelkorrelation | 120 s |
 | Statistik-Tests (klein) | 180–300 s |
-| Statistik-Tests (groß) | 600–900 s |
+| Statistik-Tests (gross) | 600–900 s |
 | Langlauf | 900–1800 s |
 | Soliton | 1200 s |
-| **Hydrogen-48** | **7200 s** |
+| Hydrogen-48 | **7200 s** |
 | Spin-Half | 120 s |
 | Dirac | 300 s |
 | SU2-Wilson-Loop | 300 s |
-| **Running-Coupling** | **2400 s** |
+| Running-Coupling | **1800 s** |
 
-Bei Timeout: Prozess wird via `Kill()` beendet, Log enthält die
+Bei Timeout: Prozess wird via `Kill()` beendet, Log enthaelt die
 bis dahin gesammelte Ausgabe, Ergebnis ist `TIMEOUT`. Timeout wird
 als Fehler gewertet (Exit-Code 1).
 
-**Warum 7200 s für Hydrogen-48?** Der Test dauert typisch ~2 280 s.
-Der Timeout ist ~3,2× größer, damit auch ein langsamerer Rechner
-(~1,5× langsamer) noch durchläuft.
+**Warum 7200 s fuer Hydrogen-48?** Der Test dauert typisch ~2 280 s.
+Der Timeout ist ~3,2× groesser, damit auch ein langsamerer Rechner
+(~1,5× langsamer) noch durchlaeuft.
 
-**Warum 2400 s für Running-Coupling?** Der Test dauert typisch
-~1 400 s (dim=64 dominiert). Der Timeout ist ~1,7× größer. Bei
-einem langsamen Rechner kann er auf 2 000 s oder mehr laufen;
-2400 s ist Reserve. Wenn du in Etappe 23b die Creutz-Ratio
-hinzufügst, wird die Laufzeit weiter steigen — dann Timeout auf
-3600 s erhöhen.
+**Warum 1800 s fuer Running-Coupling?** Der Test dauert typisch
+~1 400 s (dim=64 dominiert). Der Timeout ist ~1,3× groesser. Bei
+einem langsamen Rechner kann er an die 1700 s laufen; 1800 s ist
+knapp. Wenn er in deiner Umgebung TIMEOUT-t, Timeout im Skript auf
+2400 s erhoehen.
 
 ---
 
@@ -375,10 +407,11 @@ hinzufügst, wird die Laufzeit weiter steigen — dann Timeout auf
 
 ```
 ============================================================
-  ProPhysics Alpha-Test-Runner -- Prio all
+  ProPhysics Alpha-Test-Runner -- all
 ============================================================
-  ExeDir: H:\ProPhysics_SDK\Test\bin
-  LogDir: H:\ProPhysics_SDK\Test\bin\logs
+  ExeDir: <repo>\bin
+  DllDir: <repo>\bin
+  LogDir: <repo>\bin\logs
   Tests:  43
 ```
 
@@ -397,7 +430,7 @@ Farbcodierung:
 
 | Ergebnis | Farbe |
 |---|---|
-| `PASS` | Grün |
+| `PASS` | Gruen |
 | `FAIL` | Rot |
 | `TIMEOUT` | Gelb |
 | `MISSING` | Magenta |
@@ -412,11 +445,11 @@ Farbcodierung:
 
 Test                     Ergebnis      Sek. Log
 ----                     --------      ---- ---
-Amp-Smoke                PASS           0,5 20260925_150634_Amp-Smoke.log
-Born-Regel               PASS           0,1 20260925_150634_Born-Regel.log
+Amp-Smoke                PASS           0,5 20260927_150634_Amp-Smoke.log
+Born-Regel               PASS           0,1 20260927_150634_Born-Regel.log
 ...
-SU2-Wilson-Loop          PASS           1,1 20260925_150634_SU2-Wilson-Loop.log
-Running-Coupling         PASS       1.398,3 20260925_150634_Running-Coupling.log
+SU2-Wilson-Loop          PASS           1,1 20260927_150634_SU2-Wilson-Loop.log
+Running-Coupling         PASS       1.398,3 20260927_150634_Running-Coupling.log
 
 PASS: 43   FAIL: 0   TIMEOUT: 0   MISSING: 0   UNKNOWN: 0   | Gesamt: 43
 Dauer gesamt: 4420,6s
@@ -426,14 +459,14 @@ Alle Tests erfolgreich.
 
 ### 10.4 Fehlerfall
 
-Wenn ein Test fehlschlägt:
+Wenn ein Test fehlschlaegt:
 
 ```
 PASS: 42   FAIL: 1   TIMEOUT: 0   MISSING: 0   UNKNOWN: 0   | Gesamt: 43
 Dauer gesamt: 4421,0s
 
 Nicht-bestandene Tests:
-  - Running-Coupling       FAIL     H:\...\logs\20260925_150634_Running-Coupling.log
+  - Running-Coupling       FAIL     <repo>\bin\logs\20260927_150634_Running-Coupling.log
 ```
 
 Die Zeile wird in Rot ausgegeben, Exit-Code ist 1.
@@ -446,6 +479,7 @@ Die Zeile wird in Rot ausgegeben, Exit-Code ist 1.
 |---|---|
 | `0` | alle Tests PASS |
 | `1` | mindestens ein FAIL, TIMEOUT, MISSING oder UNKNOWN |
+| `2` | Aufbaufehler: `-Prio` ungueltig, `-Test` nicht gefunden, `ExeDir`/`DllDir` fehlt |
 
 Exit-Code `1` reicht nicht zwischen FAIL und TIMEOUT — die
 Unterscheidung steht in der Konsolenausgabe und im Log-Verzeichnis.
@@ -456,7 +490,7 @@ Unterscheidung steht in der Konsolenausgabe und im Log-Verzeichnis.
 
 ### 12.1 SU2-Wilson-Loop (T1–T18 + KA)
 
-`20260925_150634_SU2-Wilson-Loop.log` (gekürzt):
+`20260927_150634_SU2-Wilson-Loop.log` (gekuerzt):
 
 ```
 ========================================================================
@@ -493,7 +527,7 @@ Unterscheidung steht in der Konsolenausgabe und im Log-Verzeichnis.
 
 ### 12.2 Running-Coupling (Etappe 23)
 
-`20260925_150634_Running-Coupling.log` (gekürzt):
+`20260927_150634_Running-Coupling.log` (gekuerzt):
 
 ```
 ========================================================================
@@ -525,9 +559,9 @@ Der Runner erkennt entweder `[RC] -> PASSED` oder
 
 ---
 
-## 13. Wie ein einzelner Test manuell läuft
+## 13. Wie ein einzelner Test manuell laeuft
 
-Ohne den Runner, für Debug-Zwecke:
+Ohne den Runner, fuer Debug-Zwecke:
 
 ```cmd
 cd bin
@@ -542,33 +576,51 @@ aber stdout/stderr in eine Datei um und wertet den Marker aus.
 **Hinweis:** `--test-running-coupling` dauert ~23 min. Nicht
 versehentlich im Debug-Modus starten.
 
+Alternativ per Runner:
+
+```cmd
+cd tools
+run_alpha_tests.cmd -Test Dirac
+run_alpha_tests.cmd -Test Running-Coupling
+```
+
 ---
 
 ## 14. Aufruf-Matrix
 
-| CWD | Aufruf | `ExeDir` | `LogDir` |
-|---|---|---|---|
-| `tools\` | `run_alpha_tests.cmd -Prio 8` | `<repo>\bin` | `<repo>\bin\logs` |
-| `tools\` | `run_alpha_tests.cmd -Prio all -LogDir H:\temp\logs` | `<repo>\bin` | `H:\temp\logs` |
-| Repo-Root | `tools\run_alpha_tests.cmd -Prio 8` | `<repo>\bin` | `<repo>\bin\logs` |
-| `C:\Temp` | `H:\...\tools\run_alpha_tests.cmd -Prio all` | `<repo>\bin` | `<repo>\bin\logs` |
-| `tools\` | `run_alpha_tests.cmd -Prio 8 -ExeDir ..\bin -LogDir ..\bin\logs` | `<repo>\bin` | `<repo>\bin\logs` |
+| CWD | Aufruf | `ExeDir` | `DllDir` | `LogDir` |
+|---|---|---|---|---|
+| `tools\` | `run_alpha_tests.cmd -Prio 8` | `<repo>\bin` | `<repo>\bin` | `<repo>\bin\logs` |
+| `tools\` | `run_alpha_tests.cmd -Prio all -LogDir H:\temp\logs` | `<repo>\bin` | `<repo>\bin` | `H:\temp\logs` |
+| `tools\` | `run_alpha_tests.cmd -Test Dirac` | `<repo>\bin` | `<repo>\bin` | `<repo>\bin\logs` |
+| Repo-Root | `tools\run_alpha_tests.cmd -Prio 8` | `<repo>\bin` | `<repo>\bin` | `<repo>\bin\logs` |
+| `C:\Temp` | `H:\...\tools\run_alpha_tests.cmd -Prio all` | `<repo>\bin` | `<repo>\bin` | `<repo>\bin\logs` |
+| Export | `out\exe\run_alpha_tests.cmd -Prio all` | `out\exe` | `out\exe` | `out\exe\logs` |
 
-Default `ExeDir = $PSScriptRoot\..\bin` sorgt dafür, dass der Aufruf
-**immer** auf die richtige EXE-Lage zeigt, unabhängig vom CWD.
+Default `ExeDir = $PSScriptRoot\..\bin` sorgt dafuer, dass der Aufruf
+**immer** auf die richtige EXE-Lage zeigt, unabhaengig vom CWD.
 
 ---
 
-## 15. Integration mit `build.ps1`
+## 15. Integration mit `build.ps1` / `pro_run`
 
 Der Build-Wrapper ruft den Runner **nicht** auf. Das ist Absicht:
 
-- **Build ≠ Test.** Der Build produziert die EXEs, der Runner führt
+- **Build ≠ Test.** Der Build produziert die EXEs, der Runner fuehrt
   sie aus.
 - **Der Nutzer entscheidet.** Nach einem Build kann er `-Prio 6`
   laufen lassen, ohne die vollen 74 Minuten zu investieren.
 
-Nach einem Build:
+**Empfohlen:** ueber `pro_run all`, das build → test → export in
+einem Aufruf macht:
+
+```cmd
+pro_run all
+pro_run all -Prio 1-4
+pro_run all -NoBuild -Prio 8
+```
+
+Oder klassisch:
 
 ```cmd
 cd build\main
@@ -582,52 +634,13 @@ run_alpha_tests.cmd -Prio 8
 ## 16. Integration mit CI / GitHub Actions
 
 Seit Etappe 23 hat Prio 8 einen **langen** Test (Running-Coupling).
-Der läuft ~23 min und ist damit **nicht CI-tauglich**. Zwei
+Der laeuft ~23 min und ist damit **nicht CI-tauglich**. Zwei
 Empfehlungen:
 
 ### 16.1 Standard-CI (Prios 1–4, 6, 7 + SU2-Wilson-Loop)
 
-Aktuell läuft `Prio 8` immer beide Tests. Für CI brauchst du einen
-Modus, der nur `SU2-Wilson-Loop` fährt. Zwei Möglichkeiten:
-
-**Variante A (empfohlen): Der Runner bekommt einen optionalen
-Parameter `-Exclude <Testname>`.**
-
-```powershell
-# In run_alpha_tests.ps1:
-param(
-    [Parameter(Mandatory=$false)]
-    [string[]]$Exclude = @()
-)
-
-# In der Hauptschleife:
-foreach ($name in $selected) {
-    if ($Exclude -contains $name) { continue }
-    ...
-}
-```
-
-Dann in CI:
-
-```yaml
-- name: Alpha-Suite (Prios 1-4, 6, 7, SU2)
-  shell: pwsh
-  working-directory: tools
-  run: |
-    $prios = @('1','2','3','4','6','7','8')
-    $failed = @()
-    foreach ($p in $prios) {
-        & cmd /c "run_alpha_tests.cmd -Prio $p -ExeDir ..\bin -LogDir ..\bin\logs -Exclude Running-Coupling"
-        if ($LASTEXITCODE -ne 0) { $failed += $p }
-    }
-    if ($failed.Count -gt 0) {
-        Write-Host "Failed: $($failed -join ', ')" -ForegroundColor Red
-        exit 1
-    }
-```
-
-**Variante B (einfacher, ohne Skriptänderung): Prio 8 in CI
-überspringen, nur Prio 1–4, 6, 7.**
+Mit dem `-Test`-Parameter kann gezielt nur der kurze SU2-Test
+gefahren werden:
 
 ```yaml
 - name: Alpha-Suite (Prios 1-4, 6, 7)
@@ -637,19 +650,23 @@ Dann in CI:
     $prios = @('1','2','3','4','6','7')
     $failed = @()
     foreach ($p in $prios) {
-        & cmd /c "run_alpha_tests.cmd -Prio $p -ExeDir ..\bin -LogDir ..\bin\logs"
+        & cmd /c "run_alpha_tests.cmd -Prio $p -LogDir ..\bin\logs"
         if ($LASTEXITCODE -ne 0) { $failed += $p }
     }
     if ($failed.Count -gt 0) {
         Write-Host "Failed: $($failed -join ', ')" -ForegroundColor Red
         exit 1
     }
+
+- name: SU(2) Kinematik
+  shell: pwsh
+  working-directory: tools
+  run: |
+    & cmd /c "run_alpha_tests.cmd -Test SU2-Wilson-Loop -LogDir ..\bin\logs"
+    if ($LASTEXITCODE -ne 0) { exit 1 }
 ```
 
-Dann ist `SU2-Wilson-Loop` (2 s) nicht in CI, sondern nur im
-Nightly-Job. Das ist akzeptabel, weil SU2-Wilson-Loop alle
-SU(2)-Kinematik-Checks enthält, die sich nicht mit jedem Commit
-ändern.
+Laufzeit: ~1,5 min.
 
 ### 16.2 Nightly-Job (Prio 5 + Running-Coupling)
 
@@ -658,9 +675,9 @@ SU(2)-Kinematik-Checks enthält, die sich nicht mit jedem Commit
   shell: pwsh
   working-directory: tools
   run: |
-    & cmd /c "run_alpha_tests.cmd -Prio 5 -ExeDir ..\bin -LogDir ..\bin\logs"
+    & cmd /c "run_alpha_tests.cmd -Prio 5 -LogDir ..\bin\logs"
     if ($LASTEXITCODE -ne 0) { exit 1 }
-    & cmd /c "run_alpha_tests.cmd -Prio 8 -ExeDir ..\bin -LogDir ..\bin\logs"
+    & cmd /c "run_alpha_tests.cmd -Test Running-Coupling -LogDir ..\bin\logs"
     if ($LASTEXITCODE -ne 0) { exit 1 }
 ```
 
@@ -668,16 +685,16 @@ Laufzeit: ~65 min. Einmal pro Nacht akzeptabel.
 
 ### 16.3 Was jeder Testlauf sicherstellt
 
-| Prio | Was geprüft wird |
+| Prio | Was geprueft wird |
 |---|---|
-| 1 | Grundmechanik (Born, Unitariät, Gauge U(1), CHSH) |
+| 1 | Grundmechanik (Born, Unitritaet, Gauge U(1), CHSH) |
 | 2 | Emergenz (Born, Lorentz, Interferenz, CHSH-Varianten) |
 | 3 | Langlauf (Invarianten, Transport, Soliton) |
 | 4 | 3D-Torus (Smoke, Invariance, Bloch) |
 | 5 | Wasserstoff + U4 Shared-Reference |
 | 6 | Spin-1/2 aus SU(2) |
 | 7 | Dirac-Struktur |
-| 8 | SU(2)-Eichfeld (kinematisch + dynamisch + V&V-Anker) |
+| 8 | SU(2)-Eichfeld (kinematisch + dynamisch + Running-Coupling) |
 
 ---
 
@@ -685,57 +702,64 @@ Laufzeit: ~65 min. Einmal pro Nacht akzeptabel.
 
 | Symptom | Ursache | Fix |
 |---|---|---|
-| `FEHLER: ExeDir nicht gefunden` | `-ExeDir` zeigt auf falschen Pfad | Pfad prüfen oder ohne `-ExeDir` aufrufen |
-| alle Tests `MISSING` | `ExeDir` enthält keine EXEs | erst `build.cmd` laufen |
-| `Dirac FAIL` | Kernel nicht neu gebaut | `nmake` in `build\prophysics` |
-| `SU2-Wilson-Loop FAIL` | Kernel nicht neu gebaut oder `ProPhysics_SU2_Dynamics.c` fehlt in `OBJ_KERNEL` | `build\prophysics\Makefile.nmake` prüfen, dann `nmake rebuild` |
-| `Running-Coupling FAIL` | `Link_Plaquette_Sum` fehlt oder `alpha_test_running_coupling.c` nicht in Test-Makefile | `build\prophysics` und `build\test` prüfen |
-| `Running-Coupling TIMEOUT` | Rechner sehr langsam; oder Creutz-Ratio dazugekommen | Timeout auf 3600 s erhöhen (Prio 8) |
-| `Hydrogen-48 TIMEOUT` | Rechner sehr langsam | Timeout im Skript erhöhen (Prio 5) |
-| `UNKNOWN`-Ergebnis | unbekannter Test-Marker | Ausgabe im Log prüfen, Regex erweitern |
-| Logs leer | EXE stürzte beim Start | DLL fehlt in `bin\` |
-| Umlaute in Logs kaputt | EXE ohne UTF-8 | Konsolen-Encoding prüfen |
-| `cmd` fragt nach Parameter | interaktiv gestartet | `-Prio <wert>` übergeben |
+| `FEHLER: ExeDir nicht gefunden` | `-ExeDir` zeigt auf falschen Pfad | Pfad pruefen oder ohne `-ExeDir` aufrufen |
+| `FEHLER: DllDir nicht gefunden` | `-DllDir` falsch | Pfad pruefen |
+| `ProPhysics.dll fehlt in <DllDir>` | Build nicht gelaufen | `pro_run build` |
+| `Test nicht im Katalog: <name>` | `-Test` Tippfehler | Liste der verfuegbaren Tests wird ausgegeben |
+| `Ungueltige Prio-Angabe` | `-Prio` Syntax falsch | `1`, `1-4`, `1,3,5` oder `all` |
+| alle Tests `MISSING` | `ExeDir` enthaelt keine EXEs | erst `pro_run build` laufen |
+| `Dirac FAIL` | Kernel nicht neu gebaut | `pro_run build -Mode kernel` |
+| `SU2-Wilson-Loop FAIL` | Kernel nicht neu gebaut oder `ProPhysics_SU2_Dynamics.c` fehlt in `OBJ_KERNEL` | `build\prophysics\Makefile.nmake` pruefen, dann `-Rebuild` |
+| `Running-Coupling FAIL` | `SU2_Link_Plaquette_Sum` fehlt | `pro_run build -Mode kernel -Rebuild` |
+| `Running-Coupling TIMEOUT` | Rechner sehr langsam | Timeout auf 2400 s erhoehen (Prio 8) |
+| `Hydrogen-48 TIMEOUT` | Rechner sehr langsam | Timeout im Skript erhoehen (Prio 5) |
+| `UNKNOWN`-Ergebnis | unbekannter Test-Marker | Ausgabe im Log pruefen, Regex erweitern |
+| Logs leer | EXE stuerzte beim Start | DLL fehlt in `bin\` |
+| Umlaute in Logs kaputt | EXE ohne UTF-8 | Konsolen-Encoding pruefen |
 
 ---
 
 ## 18. Was das Skript nicht tut
 
 - **Kein Build.** Setzt voraus, dass die EXEs in `bin\` liegen.
-- **Keine parallele Ausführung.** Alle Tests laufen sequenziell.
+- **Keine parallele Ausfuehrung.** Alle Tests laufen sequenziell.
 - **Kein Retry.** Ein fehlgeschlagener Test wird nicht wiederholt.
-- **Keine Trend-Analyse.** Kein Vergleich mit vorherigen Läufen.
+- **Keine Trend-Analyse.** Kein Vergleich mit vorherigen Laeufen.
 - **Kein Parsen von Zahlen.** Nur PASS/FAIL-Marker werden erkannt.
 - **Kein Push in Datenbank.** Logs bleiben im Dateisystem.
-- **Kein Exclude-Mechanismus** (in v3.2 noch nicht eingebaut).
 
 ---
 
 ## 19. Parameter-Referenz (kompakt)
 
 ```
-run_alpha_tests.cmd -Prio <1|2|3|4|5|6|7|8|all>
-                    [-ExeDir <pfad>] [-LogDir <pfad>]
+run_alpha_tests.cmd [-Prio <all|N|N-M|N,M,K>]
+                    [-Test <name>]
+                    [-ExeDir <pfad>]
+                    [-DllDir <pfad>]
+                    [-LogDir <pfad>]
 ```
 
 | Parameter | Typ | Default | Pflicht |
 |---|---|---|---|
-| `-Prio` | Choice | — | ja |
+| `-Prio` | String | `all` | nein |
+| `-Test` | String | (leer) | nein |
 | `-ExeDir` | Pfad | `$PSScriptRoot\..\bin` | nein |
+| `-DllDir` | Pfad | identisch mit `-ExeDir` | nein |
 | `-LogDir` | Pfad | `<ExeDir>\logs` | nein |
-| `-Exclude` | String[] | `@()` | nein (geplant für v3.3) |
 
 ---
 
 ## 20. Siehe auch
 
-- `docs\test\ProPhysics_Testkatalog.md` — Test-Übersicht mit Kriterien
+- `docs\build\pro_run.md` — zentraler Einstiegspunkt
+- `docs\test\ProPhysics_Testkatalog.md` — Test-Uebersicht mit Kriterien
 - `docs\build\helper\build.md` — Build-Wrapper
 - `docs\build\helper\export.md` — Export-Wrapper
-- `docs\build\BUILD_SCRIPT.md` — Übersicht des Build-Systems
+- `docs\build\BUILD_SCRIPT.md` — Uebersicht des Build-Systems
 - `src\test\alpha_test_main.c` — CLI-Parser der EXE
 - `src\test\alpha_test_running_coupling.c` — Running-Coupling-Test
 
 ---
 
-**Ende Test-Runner-Dokumentation v3.2.**
+**Ende Test-Runner-Dokumentation (v1.0.0).**

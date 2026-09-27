@@ -1,47 +1,58 @@
-# ProPhysics Export — Artefakt-Export mit Dokumentation
+# ProPhysics Export — Artefakt-Export mit ZIP-Archivierung
 
 **Dateien:** `build\main\export.ps1` + `build\main\export.cmd`
-**Version:** 3.1 (Etappe 21)
-**Zweck:** Baut (optional) via Master-Makefile und kopiert die
-Artefakte plus passende Dokumentation in eine saubere Zielstruktur.
+**Version:** 1.0.0 (Build-System)
+**Kernel:** 1.23.0 (Etappe 23)
+**Zweck:** Baut (optional) via Master-Makefile, kopiert die Artefakte
+plus passende Dokumentation in eine Zielstruktur und packt jede
+Variante als ZIP-Archiv.
 
 ---
 
 ## 1. Was das Skript tut
 
-Vier Aufgaben in einem Aufruf:
+Fuenf Aufgaben in einem Aufruf:
 
 1. **Optional Build** — ruft `build\main\Makefile.nmake` mit dem
    passenden Target auf.
-2. **Artefakte kopieren** — legt DLLs, LIBs, EXEs, Header in eine
-   Zielstruktur unter `out\`.
-3. **Dokumentation kopieren** — kopiert die für den Modus passenden
-   MD-Dateien nach `<Paket>\docs\`.
+2. **Artefakte kopieren** — legt DLLs, LIBs, EXEs, Header und ggf.
+   Beispiel-Quellen in eine Zielstruktur unter `out\`.
+3. **Dokumentation kopieren** — kopiert die fuer den Export-Typ
+   passenden MD-Dateien nach `<Paket>\docs\`.
 4. **`README.md` + `BUILD_INFO.txt`** — erzeugt ein paket-spezifisches
    README und legt die Build-Metadaten bei.
+5. **ZIP-Archivierung** — packt den Zielordner als
+   `prophysics-<kind>-<version>.zip` neben den Ordner.
 
-Der Export-Modus (`exe` / `sdk` / `src`) bestimmt die Zielstruktur. Der
-Scope (`prophysics` / `sdk` / `test` / `all`) bestimmt, welche
-Komponenten einbezogen werden.
+Der Export-Typ (`exe` / `sdk` / `kit` / `all`) bestimmt die
+Zielstruktur. Der Scope (`kernel` / `prophysics` / `sdk` / `test` /
+`all`) bestimmt, welche Komponenten einbezogen werden.
+
+**Empfohlener Aufruf:** ueber `pro_run export …` in `tools\`. Siehe
+`docs\build\pro_run.md`. Direkte Aufrufe ueber `export.cmd` bleiben
+gueltig, wenn nur die Export-Komponente ohne Dispatch-Schicht
+gebraucht wird.
 
 ---
 
 ## 2. Ablageort
 
 ```
-H:\ProPhysics_SDK\ProPhysics\
+<repo>\
 ├── build\
 │   └── main\
 │       ├── export.ps1       <- dieses Skript
-│       ├── export.cmd       <- Wrapper für cmd.exe
+│       ├── export.cmd       <- Wrapper fuer cmd.exe
 │       └── Makefile.nmake   <- Master-Build
-├── bin\                     <- Quelle für exe/sdk-Export
-├── lib\                     <- Quelle für sdk-Export
-├── src\                     <- Quelle für src-Export
+├── tools\
+│   └── pro_run.ps1 / .cmd   <- zentraler Einstiegspunkt
+├── bin\                     <- Quelle fuer exe/sdk/kit-Export
+├── lib\                     <- Quelle fuer sdk/kit-Export
+├── src\                     <- Quelle fuer kit-Export (Beispiele)
 │   ├── prophysics\
 │   ├── sdk\
 │   └── test\
-├── docs\                    <- Quelle für den Doku-Export
+├── docs\                    <- Quelle fuer den Doku-Export
 │   ├── build\
 │   ├── project\
 │   └── test\
@@ -49,33 +60,59 @@ H:\ProPhysics_SDK\ProPhysics\
 └── out\                     <- Ziel (Default)
     ├── exe\
     ├── sdk\
-    └── src\<name>\
+    ├── kit\
+    ├── prophysics-exe-1.23.0.zip
+    ├── prophysics-sdk-1.23.0.zip
+    └── prophysics-kit-1.23.0.zip
 ```
 
-Der Repo-Root wird über `$PSScriptRoot\..\..` ermittelt. Aufruf
+Der Repo-Root wird ueber `$PSScriptRoot\..\..` ermittelt. Aufruf
 funktioniert aus jedem CWD.
 
 ---
 
 ## 3. Aufruf
 
-### 3.1 Über `export.cmd`
+### 3.1 Ueber `pro_run` (empfohlen)
+
+```cmd
+:: SDK-Paket exportieren (Default-Export-Typ)
+pro_run export
+
+:: KIT-Paket nach D:\sdk-kit
+pro_run export -Export kit -OutDir D:\sdk-kit
+
+:: alle drei Pakete mit Rebuild
+pro_run export -Export all -Rebuild -Clean
+
+:: mit explizitem Version-Tag
+pro_run export -Export sdk -Version 1.23.0
+```
+
+Details siehe `docs\build\pro_run.md`.
+
+### 3.2 Ueber `export.cmd` (direkt)
 
 ```cmd
 export.cmd exe
 export.cmd sdk -Scope sdk
-export.cmd src -Name v3.0-etappe21
+export.cmd kit -Version 1.23.0 -OutDir D:\dist
+export.cmd all -Rebuild -Clean
 ```
 
-### 3.2 Direkt über PowerShell
+Der `.cmd`-Wrapper setzt `chcp 65001` und reicht alle Argumente an
+PowerShell weiter.
+
+### 3.3 Direkt ueber PowerShell
 
 ```powershell
 .\export.ps1 exe
 .\export.ps1 sdk -Rebuild -Clean
-.\export.ps1 src -Scope all
+.\export.ps1 kit -Scope all -Version 1.0.0
+.\export.ps1 all -NoBuild -OutDir D:\release
 ```
 
-### 3.3 Aus jedem CWD
+### 3.4 Aus jedem CWD
 
 ```cmd
 cd C:\Temp
@@ -84,13 +121,13 @@ H:\ProPhysics_SDK\ProPhysics\build\main\export.cmd sdk
 
 ---
 
-## 4. Die drei Modi
+## 4. Die Export-Typen
 
 ### 4.1 `exe` — Runtime-Paket
 
-**Zweck:** Weitergabe an Anwender, die nur die Tests ausführen wollen.
+**Zweck:** Weitergabe an Anwender, die nur die Tests ausfuehren wollen.
 
-**Ziel:** `out\exe\` (oder `-OutRoot <pfad>\exe\`)
+**Ziel:** `out\exe\` (oder `-OutDir <pfad>\exe\`)
 
 **Struktur:**
 
@@ -111,17 +148,17 @@ out\exe\
     └── run_alpha_tests.md
 ```
 
-**Enthält nicht:** Header, LIB-Dateien, Test-Quellcode, Python.
+**Enthaelt nicht:** Header, LIB-Dateien, Test-Quellcode, Python.
 
-**Build:** Ruft `nmake <target>` im Master auf, wo `<target>` aus
-`Scope` abgeleitet wird.
+**ZIP:** `out\prophysics-exe-<version>.zip` — enthaelt den Inhalt des
+Ordners flach (also `README.md`, DLLs, EXEs, `docs\` direkt).
 
 ### 4.2 `sdk` — SDK-Paket
 
 **Zweck:** Weitergabe an externe Entwickler, die gegen den Kernel
 programmieren wollen.
 
-**Ziel:** `out\sdk\` (oder `-OutRoot <pfad>\sdk\`)
+**Ziel:** `out\sdk\` (oder `-OutDir <pfad>\sdk\`)
 
 **Struktur:**
 
@@ -161,96 +198,166 @@ gespiegelt, damit `#include`-Pfade konsistent bleiben:
 #include "sdk/pro_sdk_interface.h"
 ```
 
-**Enthält nicht:** Test-Quellcode, EXE-Dateien, Python.
+**Enthaelt nicht:** Test-Quellcode, EXE-Dateien, Python.
 
-### 4.3 `src` — Quellcode-Snapshot
+**ZIP:** `out\prophysics-sdk-<version>.zip`.
 
-**Zweck:** Weitergabe an externe Tester oder Archivierung eines
-bestimmten Etappen-Stands.
+### 4.3 `kit` — Komplettes Entwicklungspaket (neu in v1.0.0)
 
-**Ziel:** `out\src\<Name>\` — `<Name>` default = Version aus
-`ProPhysics_Version.h` (z.B. `v3.0.0`).
+**Zweck:** Weitergabe an Entwickler, die den Kernel in eigenen
+Anwendungen nutzen und mit den Beispielprogrammen starten wollen.
+
+**Ziel:** `out\kit\` (oder `-OutDir <pfad>\kit\`)
 
 **Struktur:**
 
 ```
-out\src\v3.0.0\
+out\kit\
 ├── README.md                    ← generiert
 ├── BUILD_INFO.txt               ← Kopie aus Root
-├── prophysics\
-│   ├── ProPhysics_Core.c
-│   ├── ProPhysics_Amp.c
-│   ├── ProPhysics_Dirac.c
-│   ├── ... (11 Module)
-│   └── header\
-│       ├── ProPhysics.h
-│       ├── ProPhysics_Internal.h
-│       └── ... (6 Header)
-├── sdk\                              (nur bei Scope ≥ sdk)
-│   ├── pro_sdk_interface.c
-│   └── header\
-│       └── pro_sdk_interface.h
-├── test\                             (nur bei Scope ≥ test)
-│   ├── alpha_test_main.c
-│   ├── alpha_test_dirac.c
-│   ├── ... (15 Module)
-│   └── header\
-│       └── alpha_test_common.h
-└── docs\                             ← vollständige Doku-Mirror
-    ├── build\
-    │   ├── BUILD_SCRIPT.md
-    │   ├── main\Makefile.md
-    │   ├── prophysics\Makefile.md
-    │   ├── sdk\Makefile.md
-    │   ├── test\Makefile.md
-    │   └── helper\
-    │       ├── build.md
-    │       ├── export.md
-    │       └── write_build_info.md
-    ├── project\
-    │   └── Project.md
-    └── test\
-        ├── ProPhysics_Testkatalog.md
-        └── run_alpha_tests.md
+├── libs\                        ← identisch zu sdk\libs\
+│   ├── ProPhysics.dll / .lib
+│   ├── pro_sdk_interface.dll / .lib
+│   ├── src\header\prophysics\*.h
+│   └── src\header\sdk\*.h
+├── examples\
+│   ├── example_test_density.c   ← Dichte-API + Lindblad
+│   └── example_test_tensor.c    ← Tensor-API + Fermionen + Fock
+└── docs\                        ← erweiterter Doku-Auszug
+    ├── Project.md
+    ├── CONFIG.md
+    ├── ProPhysics_Testkatalog.md
+    ├── run_alpha_tests.md
+    ├── BUILD_SCRIPT.md
+    ├── prophysics-Makefile.md
+    └── sdk-Makefile.md
 ```
 
-**Besonderheit:** Der `src`-Modus kopiert **nur** — er baut nicht. Das
-ist Absicht: ein Quellcode-Export ist unabhängig vom Build-Zustand.
+**Enthaelt gegenueber `sdk` zusaetzlich:**
+- Beispiel-Quellen unter `examples\`
+- `docs\CONFIG.md` (alle Config-Konstanten)
+- `docs\run_alpha_tests.md` (Test-Runner-Bedienung)
 
-**Nicht kopiert:** `ProPhysics.legacy` (falls vorhanden), `_obj\`,
-`.vs\`, `.git\`.
+**Enthaelt nicht:** Test-Infrastruktur (`alpha_test_*.c`),
+vollstaendige Doku-Mirror.
+
+**ZIP:** `out\prophysics-kit-<version>.zip`.
+
+### 4.4 `all` — alle drei Pakete (neu in v1.0.0)
+
+**Zweck:** Ein Aufruf fuer alle Export-Varianten.
+
+**Ziel:** erzeugt `out\exe\`, `out\sdk\`, `out\kit\` plus die drei
+ZIP-Archive.
+
+**Reihenfolge:** `exe` → `sdk` → `kit`. Fehlschlag eines Exports
+bricht nicht ab — die anderen laufen weiter.
+
+**Build:** einmal am Anfang (siehe §11).
+
+**ZIP:** drei Archive in `out\`.
+
+### 4.5 Was aus frueheren Versionen entfallen ist
+
+| Alt | Neu | Grund |
+|---|---|---|
+| `-Mode src` | `-Export kit` | `kit` liefert dieselben Beispiele, ist aber als Entwickler-Paket klarer geschnitten |
+| `-Mode <x>` | `-Export <x>` | Vokabular an `pro_run` angeglichen |
+| `-OutRoot` | `-OutDir` (Alias bleibt) | Vokabular an `pro_run` angeglichen |
+| kein ZIP | automatische ZIP-Erzeugung | siehe §5 |
+
+Der Parameter `-Name` bleibt aus Kompatibilitaetsgruenden erhalten,
+hat aber in der aktuellen Version keine Wirkung mehr — der `src`-Modus
+ist aus der `ValidateSet` entfernt.
 
 ---
 
-## 5. Dokumenten-Export — was wohin
+## 5. ZIP-Erzeugung (neu in v1.0.0)
 
-### 5.1 Mapping pro Modus
+Nach jedem Export wird der Zielordner zusaetzlich als ZIP archiviert.
 
-| Datei in `docs\` | `exe` | `sdk` | `src` |
+### 5.1 Namensschema
+
+```
+prophysics-<kind>-<version>.zip
+```
+
+| Teil | Wert |
+|---|---|
+| `kind` | `exe`, `sdk`, `kit` |
+| `version` | `MAJOR.MINOR.PATCH` aus `ProPhysics_Version.h`, **ohne `v`-Praefix** |
+
+**Aktuell:** `prophysics-sdk-1.23.0.zip`.
+
+### 5.2 Version-Override
+
+Der ZIP-Name laesst sich mit `-Version` ueberschreiben:
+
+```cmd
+export.cmd sdk -Version 1.23.0
+export.cmd kit -Version 1.23.0-rc1
+```
+
+Wenn `-Version` fehlt, wird die Version aus
+`src\prophysics\header\ProPhysics_Version.h` gelesen.
+
+### 5.3 ZIP-Inhalt
+
+Das Archiv enthaelt **den Inhalt** des Zielordners, nicht den Ordner
+selbst. Beispiel: `prophysics-sdk-1.23.0.zip` entpackt sich zu
+
+```
+libs\
+README.md
+BUILD_INFO.txt
+```
+
+und nicht zu `sdk\libs\...`. Das ist bewusst: das Archiv wird oft
+direkt entpackt, der Empfaenger will den Inhalt, nicht einen Wrapper.
+
+### 5.4 Was passiert bei fehlendem `OutDir`
+
+`OutDir` wird angelegt, falls nicht vorhanden. Ein bereits
+existierendes ZIP wird vor dem Schreiben geloescht
+(`Compress-Archive -Force`).
+
+### 5.5 Kompression
+
+`-CompressionLevel Optimal`. Der Unterschied zu `Fastest` ist
+typischerweise Faktor 2–3 bei SDK-Artefakten.
+
+---
+
+## 6. Dokumenten-Export — was wohin
+
+### 6.1 Mapping pro Export-Typ
+
+| Datei in `docs\` | `exe` | `sdk` | `kit` |
 |---|:-:|:-:|:-:|
-| `project\Project.md` | ✅ als `docs\Project.md` | ✅ als `docs\Project.md` | ✅ volle Mirror |
+| `project\Project.md` | ✅ als `docs\Project.md` | ✅ als `docs\Project.md` | ✅ als `docs\Project.md` |
+| `project\CONFIG.md` | – | – | ✅ |
 | `test\ProPhysics_Testkatalog.md` | ✅ | ✅ | ✅ |
 | `test\run_alpha_tests.md` | ✅ | – | ✅ |
 | `build\BUILD_SCRIPT.md` | – | ✅ | ✅ |
-| `build\prophysics\Makefile.md` | – | ✅ als `docs\prophysics-Makefile.md` | ✅ volle Struktur |
-| `build\sdk\Makefile.md` | – | ✅ als `docs\sdk-Makefile.md` | ✅ |
-| `build\test\Makefile.md` | – | – | ✅ |
-| `build\main\Makefile.md` | – | – | ✅ |
-| `build\helper\*.md` | – | – | ✅ |
+| `build\prophysics\Makefile.md` | – | ✅ als `docs\prophysics-Makefile.md` | ✅ als `docs\prophysics-Makefile.md` |
+| `build\sdk\Makefile.md` | – | ✅ als `docs\sdk-Makefile.md` | ✅ als `docs\sdk-Makefile.md` |
+| `build\test\Makefile.md` | – | – | – |
+| `build\main\Makefile.md` | – | – | – |
+| `build\helper\*.md` | – | – | – |
 
 **Rationale:**
 
 - **`exe`:** Anwender braucht Test-Doku (welche Prios? wie aufrufen?)
-  und Projekt-Übersicht. Keine Build-Interna.
-- **`sdk`:** Entwickler braucht Build-Doku (Makefile-Details für
+  und Projekt-Uebersicht. Keine Build-Interna.
+- **`sdk`:** Entwickler braucht Build-Doku (Makefile-Details fuer
   Kernel + SDK) plus Testkatalog (was der Kernel kann) plus
-  Projekt-Übersicht.
-- **`src`:** Vollständige Mirror. Wer den Code hat, soll auch alle
-  Docs haben — insbesondere die Helper- und Master-Makefile-Doku.
+  Projekt-Uebersicht.
+- **`kit`:** Entwickler plus Config-Referenz plus Runner-Doku. Wer
+  die Beispiele nutzt, will auch wissen, wie er die Tests fahrt.
 
-### 5.2 Was passiert, wenn eine Datei fehlt
+### 6.2 Was passiert, wenn eine Datei fehlt
 
-Der `Copy-Docs`-Helper prüft jede Quelldatei. Fehlt eine, wird sie
+Der `Copy-Docs`-Helper prueft jede Quelldatei. Fehlt eine, wird sie
 mit `skip: <pfad>` gemeldet und die anderen werden trotzdem kopiert.
 Der Export bricht **nicht** ab.
 
@@ -272,49 +379,48 @@ Fehlt `docs\` komplett, kommt nur:
 
 ---
 
-## 6. README.md — paket-spezifischer Inhalt
+## 7. README.md — paket-spezifischer Inhalt
 
 Jedes Paket bekommt eine generierte `README.md` im Wurzelverzeichnis.
-Der Inhalt hängt vom Modus ab.
+Der Inhalt haengt vom Export-Typ ab.
 
-### 6.1 `exe`-README
+### 7.1 `exe`-README
 
-Enthält:
+Enthaelt:
 
 - **Header** — Version, Zeitstempel, Host, Scope.
 - **Paketinhalt** — Tabelle aller Dateien mit Rolle.
 - **Schnellstart** — `run_alpha_tests.cmd -Prio all` und Einzeltest-Beispiel.
-- **Prios-Tabelle** — alle 7 Prios mit Test-Anzahl und Dauer.
+- **Prios-Tabelle** — alle 8 Prios mit Test-Anzahl und Dauer.
 - **Doku-Verweise** — Liste der mitgelieferten MD-Dateien.
 
-### 6.2 `sdk`-README
+### 7.2 `sdk`-README
 
-Enthält:
+Enthaelt:
 
 - **Header** — Version, Zeitstempel, Host, Scope.
-- **Paketinhalt** — Ordnerstruktur mit Erklärung.
+- **Paketinhalt** — Ordnerstruktur mit Erklaerung.
 - **Einbindung** — Include-Pfade, Library-Pfade, Link-Reihenfolge
   (`pro_sdk_interface.lib` **vor** `ProPhysics.lib`), MSVC-Beispiel.
-- **DLL-Weitergabe** — welche DLLs neben der EXE liegen müssen.
+- **DLL-Weitergabe** — welche DLLs neben der EXE liegen muessen.
 - **Doku-Verweise**.
 
-### 6.3 `src`-README
+### 7.3 `kit`-README
 
-Enthält:
+Enthaelt:
 
-- **Header** — Version, Zeitstempel, Host, Scope, Paket-Name.
-- **Paketinhalt** — Ordnerstruktur.
-- **Build-Voraussetzungen** — VS-Developer-Prompt, Windows SDK.
-- **Build-Anleitung** — `build.cmd`, `nmake`-Direktaufruf, Tests.
-- **Doku-Verweise** — Verweis auf `docs\`.
+- **Header** — Version, Zeitstempel, Host, Scope.
+- **Paketinhalt** — Ordnerstruktur (libs + examples + docs).
+- **Einbindung** — wie sdk, plus Beispiel-Compile-Zeile.
+- **Doku-Verweise**.
 
-### 6.4 Beispiel-Ausgabe (`exe`)
+### 7.4 Beispiel-Ausgabe (`exe`)
 
 ```markdown
 # ProPhysics Package — EXE
 
-**Version:** v3.0.0
-**Erzeugt:** 2026-09-24 17:42:11 auf DEV-WORKSTATION
+**Version:** 1.23.0
+**Erzeugt:** 2026-09-27 17:42:11 auf DEV-WORKSTATION
 **Scope:** all
 
 ## Was ist in diesem Paket?
@@ -327,7 +433,7 @@ dass Windows die DLLs beim Start der EXEs automatisch findet.
 |---|---|
 | `ProPhysics.dll` | Kernel-Bibliothek |
 | `pro_sdk_interface.dll` | SDK-Interface |
-| `example_alpha_test.exe` | Alpha-Test-Suite (41 Tests) |
+| `example_alpha_test.exe` | Alpha-Test-Suite (43 Tests) |
 | `example_test_density.exe` | Dichte-Regression (86 Checks) |
 | `example_test_tensor.exe` | Tensor-/Fock-Regression (61 Checks) |
 | `run_alpha_tests.cmd` / `.ps1` | Test-Runner |
@@ -349,72 +455,83 @@ run_alpha_tests.cmd -Prio all
 | 5 | Hydrogen + Shared-Ref | 4 | ~36 min |
 | 6 | Spin-1/2 | 1 | < 1 s |
 | 7 | Dirac | 1 | ~15 s |
-| `all` | alle | 41 | ~43 min |
+| 8 | SU(2) + Running-Coupling | 2 | ~30 min |
+| `all` | alle | 43 | ~65 min |
 
 ## Dokumentation
 
 | Datei | Inhalt |
 |---|---|
 | `docs\run_alpha_tests.md` | Test-Runner-Bedienung, Prios, Logs |
-| `docs\ProPhysics_Testkatalog.md` | alle 41 Tests mit Kriterien |
+| `docs\ProPhysics_Testkatalog.md` | alle 43 Tests mit Kriterien |
 | `docs\Project.md` | Ontologie und Roadmap |
 | `BUILD_INFO.txt` | Version, Artefakt-Liste, Zeitstempel |
 ```
 
 ---
 
-## 7. Parameter
+## 8. Parameter
 
 | Parameter | Typ | Default | Beschreibung |
 |---|---|---|---|
-| `-Mode` | `exe` \| `sdk` \| `src` | *(mandatory)* | Export-Modus |
-| `-Scope` | `prophysics` \| `sdk` \| `test` \| `all` | `all` | Was einbezogen wird |
-| `-OutRoot` | Pfad | `<repo>\out` | Wurzelverzeichnis |
-| `-Name` | String | Version aus `ProPhysics_Version.h` | Nur bei `-Mode src`: Unterordner-Name |
-| `-NoBuild` | Switch | aus | nmake überspringen |
+| `-Export` | `exe` \| `sdk` \| `kit` \| `all` | *(mandatory)* | Export-Typ |
+| `-Scope` | `kernel` \| `prophysics` \| `sdk` \| `test` \| `all` | `all` | Was einbezogen wird |
+| `-OutDir` | Pfad | `<repo>\out` | Wurzelverzeichnis. Alias: `-OutRoot` |
+| `-Version` | String | Version aus `ProPhysics_Version.h` | Tag fuer ZIP-Namen (ohne `v`) |
+| `-Name` | String | (leer) | Legacy, inaktiv |
+| `-NoBuild` | Switch | aus | nmake ueberspringen |
 | `-Rebuild` | Switch | aus | nmake clean + Build vor Export |
-| `-Clean` | Switch | aus | Zielordner vorher rekursiv löschen |
-| `-DryRun` | Switch | aus | nur auflisten, nichts kopieren |
+| `-Clean` | Switch | aus | Zielordner vorher rekursiv loeschen |
+| `-DryRun` | Switch | aus | nur auflisten, nichts kopieren/packen |
 
 **Hinweise:**
 
-- `-Name` wird nur im `src`-Modus ausgewertet. In `exe`- und
-  `sdk`-Modus ist der Zielordner immer `out\exe\` bzw. `out\sdk\`.
-- `-NoBuild` funktioniert in `exe`- und `sdk`-Modus. In `src`-Modus
-  ist es wirkungslos, weil dort ohnehin nicht gebaut wird.
+- `-Export` ist **Pflicht**. Es gibt keinen Default — der Aufrufer
+  muss sich entscheiden, welches Paket er will.
+- `-OutRoot` bleibt als Alias fuer `-OutDir` erhalten. Neue Aufrufer
+  sollten `-OutDir` verwenden.
+- `-Version` wird in den ZIP-Namen eingebaut. Die Version im README
+  und in BUILD_INFO kommt aus `ProPhysics_Version.h` — die beiden
+  koennen auseinanderlaufen, wenn `-Version` gesetzt ist und vom
+  Header abweicht. Das ist bewusst: der ZIP-Name ist ein Release-Tag,
+  der Header-Stand ist ein Build-Datum.
+- `-Name` ist ein Relikt aus dem `src`-Modus. Er wird aktuell
+  gespeichert, aber nicht verwendet.
+- `-NoBuild` funktioniert in `exe`, `sdk`, `kit` und `all`.
 
 ---
 
-## 8. Scope × Mode — Auswirkung
+## 9. Scope × Export — Auswirkung
 
-| Scope | `exe` | `sdk` | `src` |
+| Scope | `exe` | `sdk` | `kit` |
 |---|---|---|---|
-| `prophysics` | nur `ProPhysics.dll` | Kernel (DLL + LIB + Header) | nur `prophysics\` |
-| `sdk` | + `pro_sdk_interface.dll` | + SDK (DLL + LIB + Header) | + `sdk\` |
-| `test` | + 3 EXEs + Runner | + SDK-Header | + `test\` |
-| `all` | identisch mit `test` | identisch mit `test` | alle drei |
+| `kernel` / `prophysics` | nur `ProPhysics.dll` | Kernel (DLL + LIB + Header) | Kernel + Beispiele |
+| `sdk` | + `pro_sdk_interface.dll` | + SDK (DLL + LIB + Header) | + SDK + Beispiele |
+| `test` | + 3 EXEs + Runner | + SDK-Header | + SDK + Beispiele |
+| `all` | identisch mit `test` | identisch mit `test` | alle Komponenten |
 
-**Kumulativ:** `-Scope sdk` schließt `prophysics` ein. `-Scope test`
-schließt `sdk` und `prophysics` ein. Der Scope nach oben ist immer
-vollständig.
+**Kumulativ:** `-Scope sdk` schliesst `prophysics` ein. `-Scope test`
+schliesst `sdk` und `prophysics` ein. Der Scope nach oben ist immer
+vollstaendig.
 
-**Der Scope beeinflusst die Docs nicht.** Die Dokumenten-Auswahl hängt
-nur vom Modus ab.
+**Der Scope beeinflusst die Docs nicht.** Die Dokumenten-Auswahl haengt
+nur vom Export-Typ ab.
 
 ---
 
-## 9. Beispiel-Aufrufe
+## 10. Beispiel-Aufrufe
 
-### 9.1 Komplettes Runtime-Paket
+### 10.1 Komplettes Runtime-Paket
 
 ```cmd
 export.cmd exe
 ```
 
-Ergebnis: `nmake all` läuft, dann alle DLLs und EXEs nach `out\exe\`,
-plus `README.md`, `BUILD_INFO.txt`, `docs\`.
+Ergebnis: `nmake all` laeuft, dann alle DLLs und EXEs nach `out\exe\`,
+plus `README.md`, `BUILD_INFO.txt`, `docs\`, plus
+`out\prophysics-exe-1.23.0.zip`.
 
-### 9.2 SDK-Paket aus bereits gebauten Artefakten
+### 10.2 SDK-Paket aus bereits gebauten Artefakten
 
 ```cmd
 export.cmd sdk -NoBuild
@@ -423,123 +540,118 @@ export.cmd sdk -NoBuild
 Ergebnis: kein nmake-Aufruf, nur Kopieren. Voraussetzung: `bin\` und
 `lib\` enthalten die aktuellen DLLs und Libs.
 
-### 9.3 SDK-Paket mit Rebuild
+### 10.3 KIT-Paket mit Rebuild
 
 ```cmd
-export.cmd sdk -Scope all -Rebuild -Clean
+export.cmd kit -Scope all -Rebuild -Clean -OutDir D:\dist
 ```
 
-Ergebnis: kompletter Neu-Build, Zielordner geleert, SDK-Layout erstellt.
+Ergebnis: kompletter Neu-Build, Zielordner `D:\dist\kit\` geleert,
+KIT-Layout erstellt. ZIP: `D:\dist\prophysics-kit-1.23.0.zip`.
 
-### 9.4 Quellcode-Export mit eigenem Namen
+### 10.4 Alle drei Pakete auf einmal
 
 ```cmd
-export.cmd src -Scope sdk -Name v3.0-etappe21
+export.cmd all -Rebuild -Clean
 ```
 
-Ergebnis: `out\src\v3.0-etappe21\` mit `prophysics\`, `sdk\`, `docs\`.
+Ergebnis: ein Build, dann `out\exe\`, `out\sdk\`, `out\kit\` plus drei
+ZIPs.
 
-### 9.5 Quellcode-Export mit automatischem Namen
+### 10.5 Mit explizitem Version-Tag
 
 ```cmd
-export.cmd src
+export.cmd sdk -Version 1.23.0-rc1
 ```
 
-Ergebnis: `out\src\v3.0.0\` — Version aus `ProPhysics_Version.h`.
+Ergebnis: `out\prophysics-sdk-1.23.0-rc1.zip`.
 
-### 9.6 In ein anderes Zielverzeichnis
+### 10.6 In ein anderes Zielverzeichnis
 
 ```cmd
-export.cmd exe -OutRoot D:\dist
+export.cmd exe -OutDir D:\dist
 ```
 
-Ergebnis: `D:\dist\exe\`.
+Ergebnis: `D:\dist\exe\`, `D:\dist\prophysics-exe-1.23.0.zip`.
 
-### 9.7 Dry-Run
+### 10.7 Dry-Run
 
 ```cmd
 export.cmd sdk -Rebuild -DryRun
 ```
 
-Ergebnis: zeigt, welches nmake-Target aufgerufen würde und welche
-Dateien kopiert würden — ohne Schreibzugriff.
+Ergebnis: zeigt, welches nmake-Target aufgerufen wuerde und welche
+Dateien kopiert wuerden — ohne Schreibzugriff.
 
 ---
 
-## 10. Zielverzeichnis-Bestimmung
+## 11. Zielverzeichnis- und ZIP-Bestimmung
 
-| `-Mode` | `-OutRoot` (Default `<repo>\out`) | Ergebnis |
-|---|---|---|
-| `exe` | `<repo>\out` | `<repo>\out\exe\` |
-| `sdk` | `<repo>\out` | `<repo>\out\sdk\` |
-| `src` | `<repo>\out` | `<repo>\out\src\<Name>\` |
-| `exe` | `D:\dist` | `D:\dist\exe\` |
-| `sdk` | `D:\dist` | `D:\dist\sdk\` |
-| `src` | `D:\dist` | `D:\dist\src\<Name>\` |
+| `-Export` | `-OutDir` (Default `<repo>\out`) | Ordner | ZIP |
+|---|---|---|---|
+| `exe` | `<repo>\out` | `<repo>\out\exe\` | `<repo>\out\prophysics-exe-<version>.zip` |
+| `sdk` | `<repo>\out` | `<repo>\out\sdk\` | `<repo>\out\prophysics-sdk-<version>.zip` |
+| `kit` | `<repo>\out` | `<repo>\out\kit\` | `<repo>\out\prophysics-kit-<version>.zip` |
+| `all` | `<repo>\out` | alle drei | alle drei ZIPs |
+| `exe` | `D:\dist` | `D:\dist\exe\` | `D:\dist\prophysics-exe-<version>.zip` |
+| `sdk` | `D:\dist` | `D:\dist\sdk\` | `D:\dist\prophysics-sdk-<version>.zip` |
+| `kit` | `D:\dist` | `D:\dist\kit\` | `D:\dist\prophysics-kit-<version>.zip` |
 
 Der Zielordner wird **angelegt**, falls nicht vorhanden. Mit `-Clean`
-wird er vorher rekursiv geleert.
+wird er vorher rekursiv geleert. Ein bereits existierendes ZIP wird
+vor dem Schreiben geloescht.
 
 ---
 
-## 11. Interner Ablauf
+## 12. Interner Ablauf
 
 ```
 export.ps1
     │
     ├─ UTF-8 einstellen
     │
-    ├─ -Name leer und -Mode src? → Version aus Header lesen
+    ├─ Version bestimmen (-Version oder aus Header)
     │
-    ├─ Zielordner bestimmen (out\exe\ | out\sdk\ | out\src\<name>\)
-    │
-    ├─ -Mode src?
-    │   ├─ ja:  kein Build, direkt zu Export
-    │   └─ nein: weiter
-    │
-    ├─ nmake-Target aus Scope + -Rebuild ableiten
+    ├─ Build ausfuehren (ausser -NoBuild)
+    │   ├─ nmake-Target aus Scope + -Rebuild ableiten
     │   ├─ -Rebuild gesetzt → rebuild_<scope>
-    │   └─ sonst → <scope> (prophysics | sdk | test | all)
+    │   └─ sonst → <scope>
     │
-    ├─ nmake aufrufen (falls nicht -NoBuild)
+    ├─ Zielverzeichnis anlegen
     │
-    ├─ Export-Funktion je nach Mode:
-    │   ├─ exe: DLLs + EXEs flach
-    │   │       + Copy-BuildInfo
-    │   │       + Copy-Docs (exe)
-    │   │       + New-PackageReadme (exe)
-    │   ├─ sdk: libs\ + libs\src\header\
-    │   │       + Copy-BuildInfo
-    │   │       + Copy-Docs (sdk) → libs\docs\
-    │   │       + New-PackageReadme (sdk)
-    │   └─ src: Copy-Tree von src\<gebiet>\
-    │           + Copy-BuildInfo
-    │           + Copy-Docs (src) → docs\ (volle Mirror)
-    │           + New-PackageReadme (src)
+    ├─ Fuer jeden Export-Typ in ($Export == 'all' ? {exe, sdk, kit} : {$Export}):
+    │   │
+    │   ├─ Clean (falls -Clean)
+    │   ├─ Ensure-Dir Zielordner
+    │   ├─ Artefakte kopieren (DLLs/LIBs/EXEs/Header/Beispiele je nach Typ)
+    │   ├─ Copy-BuildInfo → Zielordner
+    │   ├─ Copy-Docs (typ-abhaengige Auswahl) → <Ziel>\docs\
+    │   ├─ New-PackageReadme (typ-abhaengig) → <Ziel>\README.md
+    │   └─ New-PackageZip → <OutDir>\prophysics-<kind>-<version>.zip
     │
-    └─ Zusammenfassung (Anzahl Dateien im Zielordner)
+    └─ Zusammenfassung (Datei-Anzahl + ZIP-Groesse je Typ)
 ```
 
 ---
 
-## 12. Was exportiert wird — im Detail
+## 13. Was exportiert wird — im Detail
 
-### 12.1 `exe`-Modus
+### 13.1 `exe`-Typ
 
 | Quelle | Ziel | Bedingung |
 |---|---|---|
 | `bin\ProPhysics.dll` | `out\exe\` | immer |
 | `bin\pro_sdk_interface.dll` | `out\exe\` | Scope ≥ sdk |
 | `bin\example_*.exe` | `out\exe\` | Scope ≥ test |
-| `bin\run_alpha_tests.cmd` | `out\exe\` | Scope ≥ test |
-| `bin\run_alpha_tests.ps1` | `out\exe\` | Scope ≥ test |
+| `tools\run_alpha_tests.cmd` | `out\exe\` | Scope ≥ test |
+| `tools\run_alpha_tests.ps1` | `out\exe\` | Scope ≥ test |
 | `BUILD_INFO.txt` | `out\exe\` | immer (falls vorhanden) |
 | `docs\project\Project.md` | `out\exe\docs\` | immer |
 | `docs\test\ProPhysics_Testkatalog.md` | `out\exe\docs\` | immer |
 | `docs\test\run_alpha_tests.md` | `out\exe\docs\` | immer |
 | generiert | `out\exe\README.md` | immer |
 
-### 12.2 `sdk`-Modus
+### 13.2 `sdk`-Typ
 
 | Quelle | Ziel | Bedingung |
 |---|---|---|
@@ -550,42 +662,46 @@ export.ps1
 | `src\prophysics\header\*.h` | `out\sdk\libs\src\header\prophysics\` | immer |
 | `src\sdk\header\*.h` | `out\sdk\libs\src\header\sdk\` | Scope ≥ sdk |
 | `BUILD_INFO.txt` | `out\sdk\` | immer (falls vorhanden) |
-| `docs\project\Project.md` | `out\sdk\libs\docs\` | immer |
-| `docs\test\ProPhysics_Testkatalog.md` | `out\sdk\libs\docs\` | immer |
-| `docs\build\BUILD_SCRIPT.md` | `out\sdk\libs\docs\` | immer |
-| `docs\build\prophysics\Makefile.md` | `out\sdk\libs\docs\prophysics-Makefile.md` | immer |
-| `docs\build\sdk\Makefile.md` | `out\sdk\libs\docs\sdk-Makefile.md` | immer |
+| `docs\project\Project.md` | `out\sdk\docs\` | immer |
+| `docs\test\ProPhysics_Testkatalog.md` | `out\sdk\docs\` | immer |
+| `docs\build\BUILD_SCRIPT.md` | `out\sdk\docs\` | immer |
+| `docs\build\prophysics\Makefile.md` | `out\sdk\docs\prophysics-Makefile.md` | immer |
+| `docs\build\sdk\Makefile.md` | `out\sdk\docs\sdk-Makefile.md` | immer |
 | generiert | `out\sdk\README.md` | immer |
 
-### 12.3 `src`-Modus
+### 13.3 `kit`-Typ
 
 | Quelle | Ziel | Bedingung |
 |---|---|---|
-| `src\prophysics\` (rekursiv) | `out\src\<name>\prophysics\` | immer |
-| `src\sdk\` (rekursiv) | `out\src\<name>\sdk\` | Scope ≥ sdk |
-| `src\test\` (rekursiv) | `out\src\<name>\test\` | Scope ≥ test |
-| `BUILD_INFO.txt` | `out\src\<name>\` | immer |
-| `docs\` (rekursiv) | `out\src\<name>\docs\` | immer |
-| generiert | `out\src\<name>\README.md` | immer |
-
-`Copy-Tree` spiegelt die **komplette** Quellstruktur. `.c`-Dateien
-landen direkt im Zielordner, `.h`-Dateien in `header\`.
+| (wie `sdk`-Typ, unter `libs\`) | `out\kit\libs\` | immer |
+| `src\test\example_test_density.c` | `out\kit\examples\` | immer |
+| `src\test\example_test_tensor.c` | `out\kit\examples\` | immer |
+| `BUILD_INFO.txt` | `out\kit\` | immer (falls vorhanden) |
+| `docs\project\Project.md` | `out\kit\docs\` | immer |
+| `docs\project\CONFIG.md` | `out\kit\docs\` | immer |
+| `docs\test\ProPhysics_Testkatalog.md` | `out\kit\docs\` | immer |
+| `docs\test\run_alpha_tests.md` | `out\kit\docs\` | immer |
+| `docs\build\BUILD_SCRIPT.md` | `out\kit\docs\` | immer |
+| `docs\build\prophysics\Makefile.md` | `out\kit\docs\prophysics-Makefile.md` | immer |
+| `docs\build\sdk\Makefile.md` | `out\kit\docs\sdk-Makefile.md` | immer |
+| generiert | `out\kit\README.md` | immer |
 
 ---
 
-## 13. Konsolenausgabe
+## 14. Konsolenausgabe
 
-### 13.1 Start
+### 14.1 Start
 
 ```
 ============================================================
-  ProPhysics Export  |  Mode: sdk  Scope: all
+  ProPhysics Export  |  Export: sdk  Scope: all
 ============================================================
   Repo:    H:\ProPhysics_SDK\ProPhysics
-  Ziel:    H:\ProPhysics_SDK\ProPhysics\out\sdk
+  Ausgabe: H:\ProPhysics_SDK\ProPhysics\out
+  Version: 1.23.0
 ```
 
-### 13.2 Während des Exports
+### 14.2 Waehrend des Exports
 
 ```
 [*] Baue (all)...
@@ -595,16 +711,20 @@ landen direkt im Zielordner, `.h`-Dateien in `header\`.
     OK  BUILD_INFO.txt
     OK  Docs (5 Dateien)
     OK  README.md
-    OK  Fertig.
+[*] ZIP: prophysics-sdk-1.23.0.zip
+    OK  ZIP erzeugt (128.4 KB)
+    OK  Fertig: H:\...\out\sdk
 ```
 
-### 13.3 Zusammenfassung
+### 14.3 Zusammenfassung
 
 ```
 ------------------------------------------------------------
   Zusammenfassung
 ------------------------------------------------------------
-  14 Datei(en) in H:\...\out\sdk
+  exe   17 Datei(en)  ->  prophysics-exe-1.23.0.zip (241.7 KB)
+  sdk   14 Datei(en)  ->  prophysics-sdk-1.23.0.zip (128.4 KB)
+  kit   21 Datei(en)  ->  prophysics-kit-1.23.0.zip (196.3 KB)
 ```
 
 Farbcodierung wie bei `build.ps1`:
@@ -612,51 +732,48 @@ Farbcodierung wie bei `build.ps1`:
 | Farbe | Bedeutung |
 |---|---|
 | Cyan | Schritt-Markierung |
-| Grün | Erfolg |
+| Gruen | Erfolg |
 | Gelb | Warnung (nicht kritisch) |
 | Rot | Fehler |
 | Grau | Dry-Run-Detail |
 
 ---
 
-## 14. Exit-Codes
+## 15. Exit-Codes
 
 | Code | Bedeutung |
 |---|---|
 | `0` | Erfolg |
-| `2` | `nmake` nicht im PATH (nur bei Build-Modi) |
+| `2` | `nmake` nicht im PATH (nur bei Build) |
 | `≠0` | `nmake`-Exit-Code |
 
-Im `src`-Modus gibt es keinen `nmake`-Aufruf, also auch keinen
-`2`-Exit-Code.
-
 Fehlende Quelldateien (Docs, Header) brechen nicht ab — sie werden
-mit `skip:` geloggt, und der Export läuft weiter.
+mit `skip:` geloggt, und der Export laeuft weiter.
 
 ---
 
-## 15. Fehlersuche
+## 16. Fehlersuche
 
 | Symptom | Ursache | Fix |
 |---|---|---|
-| `nmake nicht im PATH` | VS-Developer-Prompt fehlt | `vcvars64.bat` ausführen |
+| `nmake nicht im PATH` | VS-Developer-Prompt fehlt | `vcvars64.bat` ausfuehren |
 | `Quelle fehlt: ...\bin` | Kernel nicht gebaut | ohne `-NoBuild` neu laufen |
-| `Quelle fehlt: ...\lib` | Kernel + SDK nicht gebaut | `nmake` in `build\prophysics` und `build\sdk` |
+| `Quelle fehlt: ...\lib` | Kernel + SDK nicht gebaut | `pro_run build -Mode sdk` |
 | `example_*.exe` fehlen im Ziel | Scope zu niedrig | `-Scope test` oder `-Scope all` |
-| `pro_sdk_interface.dll` fehlt | Scope zu niedrig | `-Scope sdk` oder höher |
-| `docs\ nicht gefunden` | Doku nie angelegt | `docs\project\`, `docs\test\` prüfen |
+| `pro_sdk_interface.dll` fehlt | Scope zu niedrig | `-Scope sdk` oder hoeher |
+| `docs\ nicht gefunden` | Doku nie angelegt | `docs\project\`, `docs\test\` pruefen |
 | `skip: build\main\Makefile.md` | Doc-Datei fehlt | Doku nachliefern |
-| `BUILD_INFO.txt fehlt` | Build nie gelaufen | `build.cmd` laufen lassen |
+| `BUILD_INFO.txt fehlt` | Build nie gelaufen | `pro_run build` laufen lassen |
 | Umlaute in Ausgabe kaputt | PowerShell umging `chcp` | `export.cmd` statt `export.ps1` |
-| `-Name` wirkungslos | falscher Mode | `-Name` wirkt nur bei `-Mode src` |
-| `ProPhysics.legacy` im src-Export | Datei liegt in `src\prophysics\` | manuell löschen oder Filter ergänzen |
+| `Compress-Archive fehlgeschlagen` | Datei gesperrt oder Ziel voll | Prozess pruefen, Ziel leeren |
+| ZIP-Name zeigt unerwartete Version | Header-Version geaendert | `-Version` explizit setzen |
+| `-Name` wirkungslos | `src`-Modus entfernt | `-Export kit` nutzen |
 
 ---
 
-## 16. Was dieses Skript nicht tut
+## 17. Was dieses Skript nicht tut
 
-- **Kein Zip.** Die Zielordner werden nicht archiviert.
-- **Kein Signing.** DLLs bleiben unsigniert — für Signatur
+- **Kein Signing.** DLLs bleiben unsigniert — fuer Signatur
   `build.ps1 -Sign` verwenden, dann exportieren.
 - **Kein Git-Push.** Kein Upload irgendwohin.
 - **Kein Test-Lauf.** Der Test-Runner bleibt separat.
@@ -664,94 +781,101 @@ mit `skip:` geloggt, und der Export läuft weiter.
   Export.
 - **Kein Docs-Rendering.** Markdown bleibt Markdown, keine PDF/HTML-
   Konvertierung.
-- **Kein Lizenz-File.** Falls eine LICENSE im Root liegt, wird sie
+- **Kein Lizenz-File.** Falls eine `LICENSE` im Root liegt, wird sie
   **nicht** automatisch mitkopiert.
+- **Kein SHA-Hash.** Die ZIPs werden nicht mit einer Pruefsumme
+  versehen.
 
 ---
 
-## 17. Parameter-Referenz (kompakt)
+## 18. Parameter-Referenz (kompakt)
 
 ```
-export.cmd <exe|sdk|src>
-           [-Scope <prophysics|sdk|test|all>]
-           [-OutRoot <pfad>] [-Name <string>]
+export.cmd <exe|sdk|kit|all>
+           [-Scope <kernel|prophysics|sdk|test|all>]
+           [-OutDir <pfad>]
+           [-Version <string>]
            [-NoBuild] [-Rebuild] [-Clean] [-DryRun]
 ```
 
 | Parameter | Typ | Default | Beschreibung |
 |---|---|---|---|
-| `-Mode` | Choice | *(mandatory)* | `exe` \| `sdk` \| `src` |
+| `-Export` | Choice | *(mandatory)* | `exe` \| `sdk` \| `kit` \| `all` |
 | `-Scope` | Choice | `all` | Was einbezogen wird |
-| `-OutRoot` | Pfad | `<repo>\out` | Wurzelverzeichnis |
-| `-Name` | String | Version | Nur `-Mode src` |
-| `-NoBuild` | Switch | aus | nmake überspringen |
+| `-OutDir` | Pfad | `<repo>\out` | Wurzelverzeichnis |
+| `-Version` | String | Header-Version | Tag fuer ZIP-Namen |
+| `-NoBuild` | Switch | aus | nmake ueberspringen |
 | `-Rebuild` | Switch | aus | clean + Build |
 | `-Clean` | Switch | aus | Zielordner leeren |
 | `-DryRun` | Switch | aus | nur auflisten |
 
 ---
 
-## 18. Beispiele für typische Szenarien
+## 19. Beispiele fuer typische Szenarien
 
-### 18.1 Release-Paket für Anwender
+### 19.1 Release-Paket fuer Anwender
 
 ```cmd
 export.cmd exe -Scope all -Rebuild -Clean
 ```
 
-Liefert `out\exe\` mit:
+Liefert `out\exe\` und `out\prophysics-exe-1.23.0.zip` mit:
 
-- Allem, was zum Ausführen der Tests nötig ist.
+- Allem, was zum Ausfuehren der Tests noetig ist.
 - `README.md` mit Schnellstart und Prios-Tabelle.
 - `docs\` mit Testkatalog und Runner-Doku.
 - `BUILD_INFO.txt` als Versionsnachweis.
 
-Anwender bekommt einen Ordner, kopiert ihn irgendwohin, führt
-`run_alpha_tests.cmd` aus. Fertig.
+Anwender entpackt das ZIP irgendwohin, fuehrt `run_alpha_tests.cmd`
+aus. Fertig.
 
-### 18.2 SDK an externen Entwickler
+### 19.2 SDK an externen Entwickler
 
 ```cmd
-export.cmd sdk -Scope sdk -Rebuild -Clean -OutRoot D:\dist
+export.cmd sdk -Scope sdk -Rebuild -Clean -OutDir D:\dist
 ```
 
-Liefert `D:\dist\sdk\` mit:
+Liefert `D:\dist\sdk\` und `D:\dist\prophysics-sdk-1.23.0.zip` mit:
 
 - `libs\` mit Header, LIBs und DLLs.
 - `libs\docs\` mit Build-Doku.
-- `README.md` mit Einbindungs-Anleitung (Include-Pfade, Link-Reihenfolge).
+- `README.md` mit Einbindungs-Anleitung.
 
-Der Empfänger kann gegen `pro_sdk_interface.lib` linken und die Header
-unter `libs\src\header\prophysics\` und `libs\src\header\sdk\` finden.
+Der Empfaenger kann gegen `pro_sdk_interface.lib` linken und die
+Header unter `libs\src\header\prophysics\` finden.
 
-### 18.3 Quellcode-Snapshot einer Etappe
+### 19.3 Komplettes Entwicklungspaket
 
 ```cmd
-export.cmd src -Scope all -Name v3.0-etappe21
+export.cmd kit -Scope all -OutDir D:\sdk-kit
 ```
 
-Liefert `out\src\v3.0-etappe21\` mit:
+Liefert `D:\sdk-kit\kit\` und `D:\sdk-kit\prophysics-kit-1.23.0.zip`
+mit SDK, Beispielen und erweitertem Doku-Auszug.
 
-- Komplettem Quellcode.
-- Voller Doku-Mirror unter `docs\`.
-- `README.md` mit Build-Anleitung.
-
-Nützlich für Archivierung, Reviews, oder Weitergabe an Testpersonen.
-
-### 18.4 CI-Export
+### 19.4 Alles in einem Aufruf
 
 ```cmd
-export.cmd sdk -Scope all -NoBuild -Clean -OutRoot %CI_ARTIFACT_DIR%
+export.cmd all -Rebuild -Clean -OutDir D:\release
+```
+
+Erzeugt `D:\release\{exe,sdk,kit}\` und die drei ZIPs.
+
+### 19.5 CI-Export
+
+```cmd
+export.cmd all -Scope all -NoBuild -Clean -OutDir %CI_ARTIFACT_DIR%
 ```
 
 Im CI ist der Build schon gelaufen. Der Export kopiert nur die
-Artefakte plus Docs ins Artefakt-Verzeichnis.
+Artefakte plus Docs und packt die ZIPs ins Artefakt-Verzeichnis.
 
 ---
 
-## 19. Siehe auch
+## 20. Siehe auch
 
-- `docs\build\BUILD_SCRIPT.md` — Übersicht des Build-Systems
+- `docs\build\pro_run.md` — zentraler Einstiegspunkt
+- `docs\build\BUILD_SCRIPT.md` — Uebersicht des Build-Systems
 - `docs\build\helper\build.md` — Build-Wrapper
 - `docs\build\helper\write_build_info.md` — BUILD_INFO.txt
 - `docs\build\main\Makefile.md` — Master-Makefile
@@ -759,8 +883,8 @@ Artefakte plus Docs ins Artefakt-Verzeichnis.
 - `docs\build\sdk\Makefile.md` — SDK-Build
 - `docs\build\test\Makefile.md` — Test-Build
 - `docs\test\run_alpha_tests.md` — Test-Runner
-- `docs\test\ProPhysics_Testkatalog.md` — Test-Übersicht
+- `docs\test\ProPhysics_Testkatalog.md` — Test-Uebersicht
 
 ---
 
-**Ende Export-Wrapper-Dokumentation.**
+**Ende Export-Wrapper-Dokumentation (v1.0.0).**

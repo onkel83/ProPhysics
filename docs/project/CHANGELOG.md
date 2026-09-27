@@ -113,6 +113,124 @@ Build-Skripte sind unabhängige Werkzeuge.
 
 ---
 
+# [1.23.9] — 2026-09-27 — Konsolidierung
+
+**Etappen:** 23 (Konsolidierung)
+**Tests:** 43/43 PASS (unverändert)
+**Fokus:** Release-Vorbereitung. SDK-Versionierung, Build-Skripte,
+Sub-Makefiles und Build-Docs auf Etappe 23. Lizenz-URL, VERSIONING.md,
+Git-Tags. Keine Verhaltensänderung, keine API-Änderung.
+
+**Hintergrund:** Nach `1.23.8` (Tensor) waren die Kernel-Module
+konsolidiert, aber SDK, Build-Infrastruktur und Projekt-Dokumentation
+trugen noch Etappe-22-Reste. Dieser Patch bringt sie auf Etappe 23
+und ergänzt die fehlenden Konzept-Dokumente.
+
+**Versions-Kopplung:**
+
+| Komponente | Version | Bemerkung |
+|---|---|---|
+| Kernel | `1.23.0` | unverändert (keine ABI-Änderung) |
+| SDK | `1.23.0` | folgt Kernel |
+| Doku | `1.23.0` | folgt Kernel |
+| Tests | `1.0.0` | unverändert |
+| Build / Tools | `1.0.0` | unverändert |
+
+### Added — SDK-Versionierung
+
+- **`pro_sdk_interface.h`** — Kopf auf `Kernel: 1.23.0` /
+  `Etappe: 23`, Doxygen-`@file`-Block, Doku-Kommentare an beiden
+  öffentlichen Symbolen, `PRO_SDK_EXPORTS`-Hinweis.
+- **`pro_sdk_interface.h`** — Version-Re-Export über
+  `PRO_SDK_VERSION_STRING` und `PRO_SDK_ETAPPE` (aus
+  `ProPhysics_Version.h`).
+- **`pro_sdk_interface.c`** — Kopf auf `Kernel: 1.23.0` /
+  `Etappe: 23`, Refactoring-22-Doku konsolidiert.
+
+### Added — Build-Skripte
+
+- **`tools\pro_run.ps1`** / **`pro_run.cmd`** — zentraler
+  Einstiegspunkt. Dispatcht auf `build.ps1`, `export.ps1`,
+  `run_alpha_tests.ps1`. Aktion `all` führt build → test → export
+  aus (Abbruch bei Fehlschlag).
+- **`build\main\export.ps1`** — Export-Typ `kit` (SDK + Beispiele +
+  erweiterte Docs), ZIP-Erzeugung
+  `prophysics-<kind>-<version>.zip`, `-Version`-Override.
+- **`build\main\build.ps1`** — `-Config release|debug` für alle
+  Sub-Makefiles, `-GitStamp` / `-GitNote`, `-Sign`, `-DryRun`.
+- **`build\main\write_build_info.ps1`** — `-Config`, `-Version`,
+  `-OutFile`, `-GitStamp`, `-GitNote`.
+- **`tools\run_alpha_tests.ps1`** — `-Prio` mit Range/Liste,
+  `-Test <name>`, `-DllDir`.
+
+### Added — Sub-Makefiles
+
+- **`build\prophysics\Makefile.nmake`** — Kopf auf Etappe 23,
+  **12 Kernel-Module** (vorher 11; `ProPhysics_SU2_Dynamics.c`
+  ergänzt).
+- **`build\test\Makefile.nmake`** — Kopf auf Etappe 23,
+  **19 Test-Quellen** (17 Alpha + 2 Example), `check_deps`-Vorprüfung.
+- **`build\sdk\Makefile.sdk.nmake`** — Kopf auf Etappe 23,
+  `check_core`-Vorprüfung.
+
+### Added — Build-Dokumentation
+
+- **`docs\build\pro_run.md`** (neu) — zentraler Einstiegspunkt.
+- **`docs\build\helper\build.md`** — Etappe 23, `-Config`-Support.
+- **`docs\build\helper\export.md`** — Etappe 23, Export-Typen
+  inkl. `kit`, ZIP-Erzeugung, SDK-Layout.
+- **`docs\build\helper\write_build_info.md`** — Etappe 23,
+  `-Config`, `-Version`, `-OutFile`, Git-Optionen.
+- **`docs\build\main\Makefile.md`** — Master-Makefile,
+  `rebuild_*`-Targets, `CONFIG`-Weitergabe.
+- **`docs\build\prophysics\Makefile.md`** — 12 Kernel-Module,
+  `$(MAKEDIR)`-Pfade.
+- **`docs\build\test\Makefile.md`** — 19 `.c`, Prio 1–8.
+- **`docs\build\sdk\Makefile.md`** — Etappe 23, `check_core`.
+- **`docs\build\BUILD_SCRIPT.md`** — Übersicht, `pro_run`.
+- **`docs\test\run_alpha_tests.md`** — Version 1.0.0, Etappe 23.
+
+### Added — Projekt-Dokumente
+
+- **`docs\project\VERSIONING.md`** (neu) — Konzept-Dokument zur
+  Etappen-Versionierung.
+- **`CONTRIBUTORS.md`** (neu) — Beitragende.
+- **`docs\test\BASELINE.md`** (neu) — Test-Baseline 43/43.
+- **`docs\build\examples\BUILD_INFO.txt`** (neu) — Beispiel-Datei.
+
+### Added — Repo-Hygiene
+
+- **`.gitignore`** — ergänzt (`out\`, `.vs\`, `.vscode\`, `.idea\`,
+  `bin\logs\`, `*.obj`, `_obj\`).
+- **`.github\ISSUE_TEMPLATE\bug_report.md`** (neu)
+- **`.github\ISSUE_TEMPLATE\feature_request.md`** (neu)
+- **`.github\PULL_REQUEST_TEMPLATE.md`** (neu)
+- **`.github\workflows\ci.yml`** (neu) — Prio 1, 6, 7 auf jedem Push.
+
+### Fixed
+
+- **`LICENSE.md`** §8 — `[ISSUE-TRACKER-URL]` ersetzt durch
+  `https://github.com/onkel83/prophysics/issues`.
+- **`LICENSE.md`** §3 — Zitierweise auf Kernel-Version `1.23.0`
+  umgestellt (vorher `3.0.0`).
+- **`README.md`** (Root) — Kopf auf `Version: 1.0`, `Kernel: 1.23.0`,
+  `Etappe: 23` umgestellt.
+
+### Changed
+
+- **`docs\project\ProPhysics_VersionRegistry.md`** — SDK-, Build-
+  und Test-Dateien auf Etappe 23 aktualisiert. Verweise auf
+  `docs\test\run_alpha_tests.md` korrigiert.
+
+### Tests
+
+- Unverändert: 43/43 PASS.
+
+### Docs
+
+- `CHANGELOG.md` (diese Datei) auf `1.23.9`.
+- `TODO.md` auf `1.2` (alle Release-Blocker erledigt).
+
 ## [1.23.8] — 2026-09-26 — Konsolidierung
 
 **Etappen:** 23 (Konsolidierung)
