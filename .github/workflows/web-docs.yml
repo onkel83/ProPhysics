@@ -67,7 +67,14 @@ jobs:
             exit /b 1
           )
           echo [OK] bin\prowb\prowb.exe existiert
-
+      
+      # Prepare Output
+      - name: Prepare output
+        shell: cmd
+        run: |
+          if not exist out mkdir out
+      
+      # debug
       - name: Debug — Repo-Zustand
         shell: cmd
         run: |
