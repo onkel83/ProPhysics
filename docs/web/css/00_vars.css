@@ -1,0 +1,34 @@
+/* 00_vars.css - The Industrial Future Palette */
+:root {
+    /* --- FARBEN: SIEMENS INDUSTRIAL BASE --- */
+    --color-bg: #f0f2f5; /* Heller Maschinen-Grau Hintergrund */
+    --color-surface: #ffffff; /* Weiß für Kacheln/Cards */
+
+    --color-header-bg: #2d3436; /* Anthrazit (Header & Footer) */
+    --color-nav-bg: #dfe6e9; /* Metallic Grau (Navigation) */
+
+    --text-main: #2d3436; /* Fast Schwarz */
+    --text-muted: #636e72; /* Grau für Labels */
+    --text-light: #ffffff; /* Weiß auf dunklem Grund */
+    /* --- AKZENTE: NEON FUTURE --- */
+    --color-accent: #00ffcc; /* Strahlendes Cyan/Grün (Highlights) */
+    --color-accent-dim: #00b894; /* Dunkleres Grün (Progress Bars) */
+    --color-danger: #ff7675; /* Warnung/Fehler */
+    /* --- EFFEKTE: METALLIC FEEL --- */
+    /* Der gewünschte "Blau Metallic Schlagschatten" */
+    --shadow-metallic: 2px 2px 0px #0984e3, 4px 4px 10px rgba(9, 132, 227, 0.3);
+    --shadow-card: 0 2px 5px rgba(0,0,0,0.08);
+    /* --- TYPOGRAPHIE (System Fonts = No Latency) --- */
+    --font-stack: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: 'Courier New', Courier, monospace; /* Für Logs/Code */
+}
+
+body {
+    background-color: var(--color-bg);
+    color: var(--text-main);
+    font-family: var(--font-stack);
+    /* Sticky Footer Setup */
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}

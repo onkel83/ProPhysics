@@ -1,0 +1,39 @@
+/* 00_reset.css - W3C Standardisierung */
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Entferne Standard-Abstände bei Typographie */
+h1, h2, h3, h4, h5, h6, p, figure, blockquote, dl, dd {
+    margin: 0 0 1rem 0;
+}
+
+/* Listen sauber machen */
+ul[role='list'], ol[role='list'] {
+    list-style: none;
+    padding: 0;
+}
+
+/* Bilder responsive machen */
+img, picture {
+    max-width: 100%;
+    display: block;
+}
+
+/* Inputs und Buttons erben Schriftart */
+input, button, textarea, select {
+    font: inherit;
+}

@@ -1,0 +1,57 @@
+<section id="view_settings" class="view-content" style="display:none;">
+    
+    <div class="view-header">
+        <h2>PORTAL SETTINGS <small>// UI & PREFERENCES</small></h2>
+        <div class="status-indicator">
+            SYSTEM: SECURE
+        </div>
+    </div>
+
+    <div class="dashboard-grid">
+        
+        <div class="dash-card">
+            <h3>VISUALISIERUNG (THEME)</h3>
+            <p>Wählen Sie das Interface-Design für Ihre Arbeitsumgebung. Das Theme wird lokal in Ihrem Browser gespeichert.</p>
+            <div class="dashboard-actions">
+                <button class="action-btn" onclick="app.setTheme('default')">🏭 INDUSTRIAL (Standard)</button>
+                <button class="action-btn" onclick="app.setTheme('light')">🏢 OFFICE (Light Mode)</button>
+                <button class="action-btn" onclick="app.setTheme('matrix')">📟 TERMINAL (High Contrast)</button>
+            </div>
+        </div>
+
+        <div class="dash-card">
+            <h3>SYSTEM MAINTENANCE</h3>
+            <p>Setzt alle lokalen Einstellungen und Themes auf den Standardwert zurück.</p>
+            <div class="dashboard-actions">
+                <button class="action-btn warning" onclick="localStorage.clear(); location.reload();">
+                    🗑️ RESET UI PREFERENCES
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="utility-section">
+        <h3 class="section-title">LEGAL & COMPLIANCE</h3>
+        <div class="utility-grid">
+            
+            <div class="utility-box" onclick="app.navigate('view_lizenz')">
+                <div class="util-icon">📜</div>
+                <div class="util-text">
+                    <h4>EULA & LIZENZ</h4>
+                    <p>Master License Agreement und Nutzungsbedingungen.</p>
+                </div>
+            </div>
+
+            <div class="utility-box" onclick="app.navigate('view_datenschutz')">
+                <div class="util-icon">⚖️</div>
+                <div class="util-text">
+                    <h4>DATENSCHUTZ</h4>
+                    <p>DSGVO-Konformität und Privacy Policy.</p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+</section>

@@ -1,0 +1,47 @@
+/**
+ * 99_theme_proedc.css 
+ * Integriert das ProEDC Industrial Dark Farbschema.
+ * Aktivierung erfolgt über <body data-theme="proedc">.
+ */
+
+body[data-theme="proedc"], :root {
+    /* --- FARBEN: DARK INDUSTRIAL --- */
+    --color-bg: #1c1e22;
+    --color-surface: #23272e;
+    --color-header-bg: #2b2f36;
+    --color-nav-bg: #181a1e;
+    /* NEU: Petroleum-Schriftfarben für maximalen Kontrast */
+    --text-main: #b2d8d8; /* Helles Petroleum-Grau (Sehr gut lesbar) */
+    --text-muted: #669999; /* Gedämpftes Petroleum */
+    --text-light: #e0f2f1; /* Fast weißes Petroleum-Cyan */
+    /* --- AKZENTE: PETROLEUM / TEAL --- */
+    --color-accent: #00cccc; /* Leuchtendes Petroleum */
+    --color-accent-dim: #008080; /* Dunkles Petrol */
+    --color-danger: #ff4d4d;
+    /* --- EFFEKTE --- */
+    --shadow-metallic: 0 0 15px rgba(0, 204, 204, 0.2), 2px 2px 0px #0984e3;
+    --shadow-card: 0 10px 30px rgba(0,0,0,0.6);
+    /* --- TYPOGRAPHIE --- */
+    --font-stack: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+}
+
+/* Spezielle Overrides für ProEDC Komponenten */
+
+.dash-card {
+    border-top: 4px solid var(--color-accent);
+    background-color: var(--color-surface);
+    color: var(--text-main);
+    box-shadow: var(--shadow-card);
+}
+
+.status-indicator {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+    box-shadow: 0 0 10px rgba(0, 153, 153, 0.3);
+}
+
+.nav-btn.active {
+    border-bottom-color: var(--color-accent);
+    color: var(--color-accent);
+}

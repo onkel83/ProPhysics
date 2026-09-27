@@ -1,0 +1,290 @@
+/* 10_layout.css - Struktur & Komponenten */
+
+/* --- 1. HEADER & LOGO --- */
+.app-header {
+    background-color: var(--color-header-bg);
+    color: var(--text-light);
+    padding: 0.8rem 1.5rem;
+    border-bottom: 3px solid var(--color-accent); /* Neon Linie */
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    position: relative;
+    z-index: 100;
+}
+
+.header-content {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.brand-title {
+    margin: 0;
+    font-size: 1.5rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    /* Metallischer Text-Schatten Effekt */
+    text-shadow: 2px 2px 0px #0984e3;
+}
+
+    .brand-title .version {
+        font-size: 0.7rem;
+        opacity: 0.7;
+        text-shadow: none;
+        vertical-align: top;
+    }
+
+.status-indicator {
+    font-size: 0.75rem;
+    font-weight: bold;
+    color: var(--color-accent);
+    border: 1px solid var(--color-accent);
+    padding: 3px 8px;
+    border-radius: 2px;
+    box-shadow: 0 0 8px rgba(0, 255, 204, 0.4);
+    letter-spacing: 1px;
+}
+
+/* --- 2. NAVIGATION BAR --- */
+.app-nav {
+    background-color: var(--color-nav-bg);
+    border-bottom: 1px solid #b2bec3;
+    position: sticky;
+    top: 0;
+    /* FIX: Z-Index höher als Header setzen, falls sie überlappen */
+    z-index: 101;
+    /* DEBUG: Temporär, damit du sie siehst */
+}
+
+.nav-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1rem;
+    display: flex;
+    align-items: center;
+    overflow-x: auto; /* Scrollbar auf Mobile */
+}
+
+.nav-separator {
+    width: 2px;
+    height: 20px;
+    background-color: #b2bec3;
+    margin: 0 15px;
+}
+
+/* Button Style */
+.nav-btn {
+    background: transparent;
+    border: none;
+    padding: 1rem 1.2rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+    .nav-btn:hover {
+        color: var(--text-main);
+        background-color: rgba(255,255,255,0.4);
+    }
+
+    .nav-btn.active {
+        color: var(--color-header-bg);
+        background-color: var(--color-surface);
+        border-bottom-color: var(--color-accent-dim);
+    }
+
+/* --- 3. MAIN CONTENT --- */
+#app-view-container {
+    flex: 1; /* Drückt Footer nach unten */
+    max-width: 1200px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+}
+
+/* View Animation */
+.view-content {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* --- 4. MARKDOWN / DOCS STYLE (Wichtig für Tabellen!) --- */
+.markdown-body {
+    background: var(--color-surface);
+    padding: 2.5rem;
+    border-radius: 4px;
+    box-shadow: var(--shadow-card);
+    /* FIX: Nutze die Variable statt hartem #333 */
+    color: var(--text-main);
+    line-height: 1.7; /* Bessere Lesbarkeit */
+}
+
+    .markdown-body h1, .markdown-body h2 {
+        border-bottom: 2px solid var(--color-accent);
+        padding-bottom: 0.5rem;
+        color: var(--text-light);
+    }
+
+    /* GFM Tabellen - Industrial Look */
+    .markdown-body table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 1rem 0;
+        font-size: 0.9rem;
+    }
+
+    .markdown-body th, .markdown-body td {
+        border: 1px solid #ddd;
+        padding: 10px;
+        text-align: left;
+    }
+
+    .markdown-body th {
+        background-color: var(--color-header-bg);
+        color: var(--text-light);
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .markdown-body table tr:nth-child(even) {
+        background-color: rgba(255, 255, 255, 0.03); /* Ganz dezentes helleres Grau */
+    }
+
+    .markdown-body table tr:hover {
+        background-color: rgba(0, 204, 204, 0.1); /* Petroleum Hover-Effekt */
+    }
+
+    /* Code Blöcke */
+    .markdown-body pre {
+        background: #2d3436;
+        color: #00ffcc; /* Terminal Look */
+        padding: 1rem;
+        border-radius: 4px;
+        overflow-x: auto;
+        font-family: var(--font-mono);
+    }
+
+    .markdown-body code {
+        background: #eee;
+        padding: 2px 4px;
+        border-radius: 3px;
+        font-family: var(--font-mono);
+        font-size: 0.9em;
+        color: #d63031;
+    }
+
+    .markdown-body pre code {
+        background: transparent;
+        color: inherit;
+        padding: 0;
+    }
+
+/* Task Lists */
+.task-list-item {
+    list-style: none;
+}
+
+    .task-list-item input {
+        margin-right: 10px;
+    }
+
+/* --- 5. FOOTER --- */
+.app-footer {
+    background-color: #dfe6e9;
+    border-top: 1px solid #b2bec3;
+    padding: 0.8rem 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.footer-link {
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-decoration: underline;
+    color: var(--text-main);
+    margin-right: 15px;
+    font-size: 0.8rem;
+}
+
+/* Der markante Home Button */
+.footer-home-btn {
+    background-color: var(--color-header-bg);
+    color: var(--color-accent);
+    border: none;
+    padding: 6px 18px;
+    border-radius: 20px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    transition: transform 0.2s;
+}
+
+    .footer-home-btn:hover {
+        transform: scale(1.05);
+        box-shadow: var(--shadow-metallic);
+        color: #fff;
+    }
+
+    .footer-home-btn.active {
+        background-color: var(--color-accent-dim);
+        color: white;
+    }
+
+/* --- 6. RESPONSIVE --- */
+@media (max-width: 768px) {
+    .app-footer {
+        flex-direction: column;
+        gap: 15px;
+        padding-bottom: 20px;
+    }
+
+    .footer-center {
+        order: -1;
+    }
+    /* Home Button nach oben */
+
+    .header-content {
+        flex-direction: column;
+        gap: 5px;
+        text-align: center;
+    }
+
+    .nav-container {
+        padding: 0;
+    }
+
+    .nav-btn {
+        padding: 1rem;
+        font-size: 0.8rem;
+    }
+}
+/* Helfer für die Navigation */
+.nav-flex-bar {
+    display: flex;
+    width: 100%;
+    align-items: center;
+}
+.sys-push-right {
+    margin-left: auto;
+}
