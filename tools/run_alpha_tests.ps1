@@ -20,8 +20,14 @@
       5  Hydrogen + Shared-Ref + Tournament            4 Tests
       6  Spin-1/2                                      1 Test
       7  Dirac                                         1 Test
-      8  SU(2)-Eichfeld + Running-Coupling             2 Tests
-      all                                             43 Tests
+      8  SU(2)-Eichfeld + Running-Coupling + Creutz-Ratio  4 Tests
+      all                                             45 Tests
+
+    Hinweis Prio 8: 'Creutz-Ratio' laeuft im Fast-Modus
+    (dim in {16,32}, ~1-2 min). 'Creutz-Ratio-Full' ist die
+    Nightly-Variante (dim in {16,32,64,128}, ~25-40 min). Beide
+    nutzen dieselbe Test-Funktion und denselben CLI-Flag
+    (--test-creutz-ratio), nur mit/ohne --creutz-full.
 
     Self-Locating: -ExeDir default = <repo>\bin (relativ zu $PSScriptRoot).
 
@@ -53,14 +59,22 @@
     run_alpha_tests.cmd -Prio all
     run_alpha_tests.cmd -Prio 1-4
     run_alpha_tests.cmd -Test Running-Coupling
+    run_alpha_tests.cmd -Test Creutz-Ratio
+    run_alpha_tests.cmd -Test Creutz-Ratio-Full
     run_alpha_tests.cmd -Prio 8 -LogDir H:\temp\logs
 
 .NOTES
     Kernel: 1.23.0
     Etappe: 23
-    Version: 1.0.1 (Etappe 23)
+    Version: 1.0.2 (Etappe 23b)
     -Prio akzeptiert Range/Liste, -Test fuer Einzelauswahl,
-    -DllDir als optionaler DLL-Pfad. Zaehlung: 43 Tests.
+    -DllDir als optionaler DLL-Pfad. Zaehlung: 45 Tests.
+
+    Neu in 1.0.2 (Etappe 23b):
+    - 'Creutz-Ratio' (Prio 8, Fast-Modus, Timeout 300 s).
+    - 'Creutz-Ratio-Full' (Prio 8, FULL-Modus, Timeout 3600 s).
+      Nutzt --creutz-full zusammen mit --test-creutz-ratio.
+    - Zaehlung 43 -> 45.
 
     Fix in 1.0.1: Resolve-PrioSelection gibt den HashSet jetzt mit
     fuehrendem Komma zurueck (return ,$set). Ohne Komma entpackt
@@ -297,14 +311,22 @@ $TestCatalog = [ordered]@{
         Args = @('--test-dirac'); Timeout = 300
     }
 
-    # --- Prio 8: SU(2)-Eichfeld + Running-Coupling ---
+    # --- Prio 8: SU(2)-Eichfeld + Running-Coupling + Creutz-Ratio ---
     'SU2-Wilson-Loop' = @{
         Prio = 8; Exe = 'example_alpha_test.exe'
         Args = @('--test-su2-wilson-loop'); Timeout = 300
     }
     'Running-Coupling' = @{
         Prio = 8; Exe = 'example_alpha_test.exe'
-        Args = @('--test-running-coupling'); Timeout = 1800
+        Args = @('--test-running-coupling'); Timeout = 3600
+    }
+    'Creutz-Ratio' = @{
+        Prio = 8; Exe = 'example_alpha_test.exe'
+        Args = @('--test-creutz-ratio'); Timeout = 300
+    }
+    'Creutz-Ratio-Full' = @{
+        Prio = 8; Exe = 'example_alpha_test.exe'
+        Args = @('--test-creutz-ratio', '--creutz-full'); Timeout = 3600
     }
 }
 

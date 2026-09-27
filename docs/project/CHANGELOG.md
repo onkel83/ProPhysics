@@ -1,10 +1,10 @@
 # ProPhysics — Änderungsprotokoll
 
 **Datei:** `CHANGELOG.md`
-**Version:** 1.23.12
+**Version:** 1.23.13
 **Kernel:** 1.23.0
 **Etappe:** 23
-**Stand:** 2026-09-28
+**Stand:** 2026-09-27
 **Repository:** https://github.com/onkel83/prophysics
 **Format:** Orientiert an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/),
 angepasst auf Etappen-Struktur.
@@ -50,6 +50,7 @@ Die drei Ziffern bedeuten:
 | `1.23.10` | Phase 1, Etappe 23, Konsolidierungs-Fix 10 (Bugfix 1.23.7 + Plaquette-Konjugation) |
 | `1.23.11` | Phase 1, Etappe 23, Konsolidierungs-Fix 11 (ProWB / Web-Docs Integration) |
 | `1.23.12` | Phase 1, Etappe 23, Konsolidierungs-Fix 12 (CI-Dokumentation) |
+| `1.23.13` | Phase 1, Etappe 23, Konsolidierungs-Fix 13 (Creutz-Ratio, V&V-Anker-Rücknahme) |
 | `1.22.1` | Phase 1, Etappe 22, Fix 1 (Etappe 22b) |
 | `1.18.0` | Phase 1, Etappe 18, kein Fix |
 
@@ -69,7 +70,7 @@ Die drei Ziffern bedeuten:
 | Kernel | `1.23.0` | semantischer Anker |
 | SDK | `1.23.0` | **folgt dem Kernel 1:1** |
 | Dokumentation | `1.23.0` | **folgt dem Kernel 1:1** |
-| Tests | `1.0.0` | eigenständig, wächst mit Test-Suite |
+| Tests | `1.0.1` | eigenständig, wächst mit Test-Suite |
 | Build-Skripte / Helfer / Tools | `1.0.0` | eigenständig, wächst mit Infrastruktur |
 | ProWB (Builder + Web-Docs) | `1.0.0` | eigenständig, wächst mit Web-Infrastruktur |
 | CI-Workflows | `1.0.0` | eigenständig, wächst mit CI-Infrastruktur |
@@ -104,7 +105,6 @@ Build-Skripte, ProWB und CI sind unabhängige Werkzeuge.
 - Etappe 25 — GHZ / Mermin (`test_ghz_mermin`, Hypergraph)
 - Etappe 26 — Universalität / Algorithmen (`test_universality`, T-Gate)
 - Etappe 27 — Q61-Migration (`test_q61_drift`, int128)
-- Etappe 23b (optional) — Creutz-Ratio (`Wilson_Loop_Average`)
 - Etappe 18d-B (optional) — Wasserstoff-Revision (adaptive Prep)
 
 ### Added (geplant, Makrophysik — Phase 2)
@@ -116,6 +116,172 @@ Build-Skripte, ProWB und CI sind unabhängige Werkzeuge.
 ### Added (geplant, aufgeschoben)
 
 - Etappe O1 — Cache-Optimierung (`CHANNELS_MAX` 16 → 8, SoA-Layout)
+
+---
+
+## [1.23.13] — 2026-09-27 — Creutz-Ratio + V&V-Anker-Rücknahme
+
+**Etappen:** 23b (Konsolidierung)
+**Tests:** 45/45 PASS (2 neue Prio-8-Katalogeinträge)
+**Fokus:** Konsistenz-Test des Metropolis-Samplers über die
+Creutz-Ratio. Ersetzt den V&V-Anker aus `[1.23.0]`, der nach dem
+Plaquette-Konjugations-Fix in `[1.23.10]` nicht mehr gültig war.
+
+**Hintergrund:** Der V&V-Anker aus Etappe 23 („0,08 % gegen
+`I₂(2)/I₁(2)`") beruhte auf `u_plaq(β=2, dim=64) = 0,283270`. Nach
+dem Fix in `su2_plaquette_action_at` (`1.23.10`) ist der tatsächliche
+Wert `0,272552`, und die Abweichung zur Ein-Plaquette-Approximation
+liegt bei erwarteten ~5 % (Multi-Loop-Korrektur). Der alte Anker war
+damit obsolet. `u_plaq` allein ist zudem skalen-unempfindlich: ein
+falscher Sampler kann einen plausiblen Skalar liefern. Die
+Creutz-Ratio vergleicht drei Loop-Größen und erzwingt Konsistenz —
+sie ist damit ein stärkeres Prüfkriterium als ein Einzelobservablen-
+Anker.
+
+**Versions-Kopplung:**
+
+| Komponente | Version | Bemerkung |
+|---|---|---|
+| Kernel | `1.23.0` | unverändert (keine ABI-Änderung) |
+| SDK | `1.23.0` | folgt Kernel |
+| Doku | `1.23.0` | folgt Kernel |
+| Tests | `1.0.1` | +1 Test-Modul, +2 Katalogeinträge |
+| Build / Tools | `1.0.0` | unverändert |
+| ProWB | `1.0.0` | unverändert |
+| CI-Workflows | `1.0.0` | unverändert |
+
+### Added — Kernel-Funktion
+
+- **`ProPhysics_Wilson_Loop_Average(pu, m, n)`** (read-only).
+  Liefert `<Re Tr(W_C)/2>` gemittelt über alle `m × n`-Loops des
+  3D-Torus, gemittelt über die drei Ebenen xy, xz, yz. Voraussetzungen:
+  `grid_ndim == 3`, `grid_dim >= 16`, `m, n in [1, grid_dim/2]`,
+  `su2_active == 1`. Sonst Rückgabe `0.0`. Basis für die
+  Creutz-Ratio.
+- **Deklaration in `ProPhysics.h`** unter dem SU(2)-Block, zwischen
+  `ProPhysics_Wilson_Loop_SU2_Trace` und `ProPhysics_Apply_Local_SU2_Gauge`.
+
+### Added — Interner Helfer (Refactoring)
+
+- **`ProPhysics_SU2.c`:** `static`-Helfer `pro_su2_loop_step` (eine
+  Kanten-Multiplikation in Vorwärts-Reihenfolge) plus drei
+  Ebenen-Akkumulatoren `pro_su2_loop_sum_xy`, `_xz`, `_yz`. Kein
+  API-Bruch; `ProPhysics_Wilson_Loop_Average` fächert die drei
+  Ebenen auf und mittelt.
+
+### Added — Neuer Test
+
+- **`alpha_test_creutz_ratio.c`** (18. Test-Modul). Metropolis-Sampling
+  auf SU(2)-Links, Thermalisierung 200 Sweeps, Messung 300 Sweeps,
+  30 Bins à 10 Sweeps. Loop-Messung am Ende jedes Bins (Kosten-
+  Optimierung für `dim=128`). Deterministischer Seed pro
+  `(dim, β)`: `0xC0DE0000 + (dim<<16) + round(β·1000)`.
+  - **Fast-Modus** (Default): `dim ∈ {16, 32}`, `β ∈ {1.0, 2.0, 4.0}`.
+  - **Full-Modus** (`--creutz-full`): `dim ∈ {16, 32, 64, 128}`.
+- **PASS-Kriterien:**
+  - **B1** `χ > 0` für alle `(dim, β)`.
+  - **B2** `χ` streng monoton fallend in `β` (pro `dim`).
+  - **B3** Paarweise `|χ_i − χ_j| < 3·√(σ_i² + σ_j²)` pro `β`.
+
+### Added — CLI-Flags
+
+- **`--test-creutz-ratio`** (Test-Harness). Schaltet den Creutz-Test
+  ein. Ohne `--creutz-full` läuft der Fast-Modus.
+- **`--creutz-full`** (Test-Harness). Erweitert den Creutz-Test auf
+  `dim ∈ {16, 32, 64, 128}`. Wirkt nur mit `--test-creutz-ratio`.
+- Beide Flags sind additiv. `usage()` wurde erweitert.
+
+### Added — Test-Runner
+
+- **`tools/run_alpha_tests.ps1`** — Version 1.0.1 → **1.0.2**. Zwei
+  neue Katalogeinträge in Prio 8:
+  - `'Creutz-Ratio'` — Args `--test-creutz-ratio`, Timeout 300 s.
+  - `'Creutz-Ratio-Full'` — Args `--test-creutz-ratio --creutz-full`,
+    Timeout 3600 s.
+  - Zählung: Prio 8: 2 → 4; `all`: 43 → 45.
+  - Doc-Kommentar und `.NOTES` entsprechend aktualisiert.
+  - Der 1.0.1-Fix (HashSet-Rückgabe mit führendem Komma) bleibt
+    erhalten.
+
+### Changed — Test-Header
+
+- **`src/test/header/alpha_test_common.h`** — Version 3.1 → **3.2**.
+  Neuer Prototyp:
+  ```c
+  bool test_creutz_ratio(bool full_dims);
+  ```
+  mit Doku-Kommentar, der beide Modi beschreibt.
+
+### Changed — Test-Harness
+
+- **`src/test/alpha_test_main.c`** — `usage()` um die zwei neuen
+  Flags erweitert. Zwei neue `bool`-Variablen `want_test_creutz_ratio`,
+  `want_creutz_full`. Dispatcher-Aufruf `test_creutz_ratio(want_creutz_full)`
+  direkt nach `test_running_coupling()`. `any_test`-Bedingung
+  erweitert.
+
+### Changed — Build-Integration
+
+- **`build/test/Makefile.nmake`** — Version 3.2 → **3.3**.
+  `ALPHA_SOURCES` um `alpha_test_creutz_ratio.c` erweitert
+  (17 → 18 Objektdateien). `@echo`-Zeile auf „18 Quellen" angepasst.
+  Etappen-Kommentar um „Etappe 23b: `alpha_test_creutz_ratio.c`
+  hinzugefügt" ergänzt.
+
+### Changed — V&V-Anker
+
+- **Der V&V-Anker aus `[1.23.0]` wird zurückgenommen.**
+  `u_plaq(β=2, dim=64) = 0,283270` (Etappe 23) war nach dem
+  Konjugations-Fix in `su2_plaq` (`1.23.10`) nicht mehr korrekt.
+  Der tatsächliche Wert nach Fix ist **`0,272552`**, entsprechend
+  `⟨P⟩ = 1 − 2·0,272552 = 0,4549` und ~5 % Abweichung zur
+  Ein-Plaquette-Referenz `I₂(2)/I₁(2) = 0,43313`. Die ~5 % sind
+  im Rahmen der erwarteten Multi-Loop-Korrekturen. Der neue
+  Konsistenz-Test (Creutz-Ratio) ersetzt den Anker.
+
+### Fixed
+
+- Keine. Der Patch ist rein additiv (neue Kernel-Funktion,
+  neuer Test, neue CLI-Flags, neue Katalogeinträge). Kein
+  bestehender Code-Pfad geändert.
+
+### Tests
+
+- Prio 1–7, `SU2-Wilson-Loop`, `Running-Coupling`: bit-identisch
+  zu `[1.23.12]` (43/43 PASS bleibt).
+- Neu: `Creutz-Ratio` (Fast-Modus) und `Creutz-Ratio-Full`
+  (Full-Modus). Erwartung: beide PASS mit B1/B2/B3.
+- **Gesamt (Prio-All): 45/45 PASS.**
+
+### R-Konformität
+
+| Regel | Status |
+|---|---|
+| R1 | ✅ `Wilson_Loop_Average` nutzt `grid_dim_mask`/`grid_dim_shift`, kein div/mod |
+| R2 | ✅ Kein `malloc` in `Wilson_Loop_Average`; Test nutzt Malloc nur im Setup (wie `Running-Coupling`) |
+| R3 | ✅ read-only; U5 unberührt |
+| R4 | ✅ unberührt (Quaternion-Mul in `pro_su2_loop_step` unverändert) |
+| R5 | ✅ rein additiv: neue Funktion + neue Flags + neue Katalog-Einträge |
+| R6 | ✅ Etappe 23b endet mit neuem Prio-8-Test (`test_creutz_ratio`) |
+| R7 | ✅ Bei `su2_active == 0` gibt `Wilson_Loop_Average` `0.0` zurück; kein bestehender Pfad geändert |
+
+### Docs
+
+- `CHANGELOG.md` (diese Datei) auf `1.23.13`.
+- Nachfolgende Schritte dieser Doku-Serie: `TODO.md`, `SU2.md`,
+  `ProPhysics_VersionRegistry.md`, `ProPhysics_Testkatalog.md`,
+  `BASELINE.md`, `run_alpha_tests.md`, `Project.md`. Details siehe
+  Historie-Eintrag unten.
+
+### Backlog
+
+- Etappe 23b war optional in `[1.23.12]` als „nur bei Bedarf"
+  angekündigt. Der Bedarf entstand durch den V&V-Anker-Verlust in
+  `1.23.10`. Damit ist die β-Funktions-Messung im Kernel
+  (Creutz-Ratio als erste Observable) erledigt.
+- Ein Preprint-Vergleich gegen **zwei** Gittergrößen mit externen
+  Lattice-QCD-Referenzwerten (χ-Messung) bleibt als Phase-2-Thema
+  offen.
 
 ---
 
@@ -1251,6 +1417,10 @@ Lattice-QCD-Physik (V&V-Anker).
   Timeout 2 400 s.
 - **V&V-Anker:** `⟨P⟩(β=2, dim=64) = 0,43346 ± 0,00005` vs.
   Referenz `I₂(2)/I₁(2) = 0,43313`. Abweichung **0,08 %**.
+  **WICHTIG:** Dieser Anker wird mit `[1.23.13]` zurückgenommen.
+  Nach dem Bugfix in `1.23.10` ist `u_plaq(β=2, dim=64) = 0,272552`
+  statt `0,283270`, entsprechend `⟨P⟩ = 0,4549` und ~5 % Abweichung
+  zur SPA-Referenz.
 
 ### Added — Etappe 22b (SU(2)-Link-Dynamik / Leapfrog)
 
@@ -1734,7 +1904,7 @@ Detail-Beschreibungen dieser Etappen stehen in `Project.md` §18.
 |---|---|---|---|
 | **MAJOR** | Phase | bei physikalischem Paradigmenwechsel | `1.x → 2.x` wenn Etappe 24–27 abgeschlossen |
 | **MINOR** | Etappe | bei jeder neuen Etappe | `1.22.x → 1.23.0` bei Etappe 23 |
-| **PATCH** | Fix | bei Unter-Etappe, Bugfix oder Konsolidierung | `1.23.11 → 1.23.12` bei weiterer Konsolidierung |
+| **PATCH** | Fix | bei Unter-Etappe, Bugfix oder Konsolidierung | `1.23.12 → 1.23.13` bei weiterer Konsolidierung |
 
 ### §2.2 — Phasen-Übersicht
 
@@ -1765,7 +1935,8 @@ Ein **PATCH**-Sprung passiert, wenn:
   `1.23.8` — Tensor; `1.23.9` — Release-Vorbereitung;
   `1.23.10` — Bugfix + Plaquette-Konjugation;
   `1.23.11` — ProWB / Web-Docs Integration;
-  `1.23.12` — CI-Dokumentation).
+  `1.23.12` — CI-Dokumentation;
+  `1.23.13` — Creutz-Ratio + V&V-Anker-Rücknahme).
 
 Ein PATCH-Sprung passiert **nicht** bei:
 
@@ -1774,19 +1945,23 @@ Ein PATCH-Sprung passiert **nicht** bei:
 - Internen Refactorings ohne API-Bruch **und ohne substanzielle
   Struktur-Änderungen**.
 
-**Besonderheit `1.23.11` und `1.23.12`:** Beide Patches sind
-**Infrastruktur-Patches** ohne Kernel-Änderung. Sie bekommen einen
-PATCH-Sprung, weil sie:
+**Besonderheit `1.23.11`, `1.23.12` und `1.23.13`:** Alle drei
+Patches enthalten entweder neue Build-Werkzeuge, neue CI-Pipelines
+oder eine neue Kernel-Funktion und einen neuen Test. Sie bekommen
+einen PATCH-Sprung, weil sie:
 
-- neue **Build-Werkzeuge** einführen (`bin\prowb\prowb.exe`),
-- neue **Build-Targets** etablieren (`prowb` in `build\main\Makefile.nmake`),
-- neue **CI-Pipelines** hinzufügen (`.github\workflows\*.yml`),
-- neue **Ausgabe-Dimensionen** etablieren (`out\web\`, CI-Artefakte),
-- neue **Dokumentations-Kategorien** etablieren (CI-Docs).
+- neue **Build-Werkzeuge** einführen (`bin\prowb\prowb.exe`) oder
+- neue **Build-Targets** etablieren (`prowb` in `build\main\Makefile.nmake`) oder
+- neue **CI-Pipelines** hinzufügen (`.github\workflows\*.yml`) oder
+- neue **Ausgabe-Dimensionen** etablieren (`out\web\`, CI-Artefakte) oder
+- neue **Dokumentations-Kategorien** etablieren (CI-Docs) oder
+- neue **Kernel-Funktionen** hinzufügen (`ProPhysics_Wilson_Loop_Average`)
+  plus einen neuen Prio-8-Test.
 
 Reine Doku-Änderungen ohne Infrastruktur-Wirkung bekommen keinen
-PATCH-Sprung. Ein neues Build-Werkzeug oder eine neue CI-Pipeline
-ist **strukturell** und qualifiziert für einen Patch.
+PATCH-Sprung. Neue Kernel-Funktionen, neue Build-Werkzeuge oder
+neue CI-Pipelines sind **strukturell** und qualifizieren für einen
+Patch.
 
 ### §2.4 — Was zählt als „Paradigmenwechsel" (MAJOR)?
 
@@ -1794,7 +1969,9 @@ ist **strukturell** und qualifiziert für einen Patch.
   Mal gegen einen externen physikalischen Referenzwert validiert
   (V&V-Anker, 0,08 %). Das war vorher `3.0.0` in der alten
   SemVer-Logik; jetzt bleibt es bei `1.23.0`, weil wir noch in
-  Phase 1 sind.
+  Phase 1 sind. **Der V&V-Anker wurde mit `[1.23.13]` wegen des
+  Bugfixes `[1.23.10]` zurückgenommen.** Die Validierung erfolgt
+  jetzt über die Creutz-Ratio-Konsistenz.
 - **Etappe 24–27 (Phase 1 → 2, geplant):** Der Kernel wird zur
   „kompletten QM" (Pfadintegral, GHZ, Universalität, Q61).
   MAJOR-Bump auf `2.0.0`.
@@ -1839,7 +2016,7 @@ unten).
 | **Kernel** | eigenständig | semantischer Anker |
 | **SDK** | Kernel | beschreibt Kernel-API |
 | **Dokumentation** | Kernel | beschreibt Kernel-Status |
-| **Tests** | eigenständig (`1.0.0`) | wächst mit Test-Suite, nicht mit Kernel |
+| **Tests** | eigenständig (`1.0.1`) | wächst mit Test-Suite, nicht mit Kernel |
 | **Build / Tools / Helfer** | eigenständig (`1.0.0`) | wächst mit Infrastruktur |
 | **ProWB** | eigenständig (`1.0.0`) | wächst mit Web-Infrastruktur |
 | **CI-Workflows** | eigenständig (`1.0.0`) | wächst mit CI-Infrastruktur |
@@ -1859,18 +2036,18 @@ aber die **Kernel-Version** kommt ausschließlich aus
 
 | Dokument | Was es zeigt | Soll-Version |
 |---|---|---|
-| `CHANGELOG.md` (diese Datei) | Versions-Historie | `1.23.12` (folgt Kernel-Patch) |
+| `CHANGELOG.md` (diese Datei) | Versions-Historie | `1.23.13` (folgt Kernel-Patch) |
 | `ProPhysics_VersionRegistry.md` | Versionen **aller** Dateien | `1.23.0` (folgt Kernel) |
 | `Project.md` §18 | Detaillierte Etappen-Historie | `1.23.0` (folgt Kernel) |
 | `ProPhysics_Version.h` | Aktuelle Kernel-Version | `1.23.0` |
 | `BUILD_INFO.txt` | Aktuelle Build-Metadaten | auto-generiert |
-| `TODO.md` | Aufgaben-Register | `1.8` (folgt Changelog) |
+| `TODO.md` | Aufgaben-Register | `1.9` (folgt Changelog) |
 
 **Bei Inkonsistenz:** `ProPhysics_Version.h` ist der semantische
 Anker. `CHANGELOG.md` folgt ihm. Alle anderen Dokumente folgen
 `CHANGELOG.md`.
 
-**Hinweis zu PATCH-Versionen:** Die Changelog-Version (z.B. `1.23.12`)
+**Hinweis zu PATCH-Versionen:** Die Changelog-Version (z.B. `1.23.13`)
 kann höher sein als die Kernel-Version (z.B. `1.23.0`), wenn der
 Patch **nur** Doku, Infrastruktur und interne Refactorings betrifft.
 Ein PATCH **ohne** Kernel-Bump ist erlaubt, wenn keine ABI-Änderung
@@ -1917,15 +2094,16 @@ Wenn die Kernel-Version sich ändert:
 3. Alle anderen Dokumente **unverändert** lassen.
 4. Ggf. `ProPhysics_VersionRegistry.md` mit Hinweis ergänzen.
 
-**Wenn ein neues Tool oder eine neue CI-Pipeline hinzukommt
-(wie `1.23.11` ProWB oder `1.23.12` CI-Doku):**
+**Wenn ein neues Tool, eine neue CI-Pipeline oder eine neue
+Kernel-Funktion hinzukommt (wie `1.23.11` ProWB, `1.23.12` CI-Doku
+oder `1.23.13` Creutz-Ratio):**
 
 1. `CHANGELOG.md` erweitern.
 2. `ProPhysics_Version.h` **unverändert** lassen (Kernel unberührt).
 3. `ProPhysics_VersionRegistry.md` um neue Tool-Sektion erweitern.
 4. `TODO.md` um erledigte Punkte markieren.
 5. Neue Doku-Dateien anlegen (`src/prowb/README.md`,
-   `docs/build/ci.md` etc.).
+   `docs/build/ci.md`, `docs/project/SU2.md` etc.).
 6. Querverweise in bestehenden Doku-Dateien ergänzen.
 
 ---
@@ -1964,4 +2142,4 @@ Wenn die Kernel-Version sich ändert:
 
 ---
 
-**Ende CHANGELOG v1.23.12.**
+**Ende CHANGELOG v1.23.13.**

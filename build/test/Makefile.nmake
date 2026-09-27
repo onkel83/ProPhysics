@@ -3,7 +3,7 @@
 # File:    build\test\Makefile.nmake
 # Kernel:  1.23.0
 # Etappe:  23
-# Version: 3.2 — Alpha-Test + Example-Tests
+# Version: 3.3 — Alpha-Test + Example-Tests
 #
 # Aufruf:  aus beliebigem CWD.
 #          Pfade werden ueber $(MAKEDIR) relativ zum Ablageort dieses
@@ -37,6 +37,7 @@
 #
 # Etappe 22-Refactoring: alpha_test_su2.c hinzugefuegt (Prio 8).
 # Etappe 23:             alpha_test_running_coupling.c hinzugefuegt (Prio 8).
+# Etappe 23b:            alpha_test_creutz_ratio.c hinzugefuegt (Prio 8).
 #
 # Parameter:
 #   CONFIG   release | debug   (Default: release)
@@ -105,9 +106,10 @@ LFLAGS  = /DEBUG
 # --------------------------------------------------------------------------
 # Test-Quellen: Alpha-Test (multi-file) und Example-Tests (single-file)
 #
-# Etappe 22: alpha_test_su2.c hinzugefuegt.
-# Etappe 23: alpha_test_running_coupling.c hinzugefuegt.
-# Damit enthaelt example_alpha_test.exe 17 Objektdateien.
+# Etappe 22:  alpha_test_su2.c hinzugefuegt.
+# Etappe 23:  alpha_test_running_coupling.c hinzugefuegt.
+# Etappe 23b: alpha_test_creutz_ratio.c hinzugefuegt.
+# Damit enthaelt example_alpha_test.exe 18 Objektdateien.
 # --------------------------------------------------------------------------
 ALPHA_SOURCES = \
     $(SRC_DIR)\alpha_test_main.c \
@@ -126,7 +128,8 @@ ALPHA_SOURCES = \
     $(SRC_DIR)\alpha_test_spin.c \
     $(SRC_DIR)\alpha_test_dirac.c \
     $(SRC_DIR)\alpha_test_su2.c \
-    $(SRC_DIR)\alpha_test_running_coupling.c
+    $(SRC_DIR)\alpha_test_running_coupling.c \
+    $(SRC_DIR)\alpha_test_creutz_ratio.c
 
 EXAMPLE_SOURCES = \
     $(SRC_DIR)\example_test_density.c \
@@ -201,13 +204,13 @@ $(EXE_TENSOR): $(SRC_DIR)\example_test_tensor.c $(HEADERS_ALL) $(CORE_LIB) $(SDK
 # --------------------------------------------------------------------------
 # Alpha-Test (multi-file)
 #
-# Alle 17 Quellen werden in EINEM cl.exe-Aufruf kompiliert und gelinkt.
+# Alle 18 Quellen werden in EINEM cl.exe-Aufruf kompiliert und gelinkt.
 # Bei /MP uebersetzt cl.exe die Dateien parallel, der Link passiert am
 # Ende des Aufrufs. /Fo"$(OBJ_DIR)\\" mit abschliessendem Backslash
 # stellt sicher, dass cl.exe die OBJs dort ablegt (nicht im CWD).
 # --------------------------------------------------------------------------
 $(EXE_ALPHA): $(ALPHA_SOURCES) $(HEADERS_ALL) $(CORE_LIB) $(SDK_LIB)
-	@echo [CC+LINK] $(EXE_ALPHA)  (17 Quellen, CONFIG=$(CONFIG))
+	@echo [CC+LINK] $(EXE_ALPHA)  (18 Quellen, CONFIG=$(CONFIG))
 	$(CC) $(CFLAGS) $(ALPHA_SOURCES) \
 	    /Fo"$(OBJ_DIR)\\" /Fe$@ \
 	    /link $(LFLAGS) $(SDK_LIB) $(CORE_LIB)

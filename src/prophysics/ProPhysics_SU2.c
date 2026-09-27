@@ -11,6 +11,7 @@
  * Verantwortlich fuer:
  *   - ProPhysics_Set_Edge_SU2 / _AxisAngle / Get_Edge_SU2
  *   - ProPhysics_Wilson_Loop_SU2 / _Trace
+ *   - ProPhysics_Wilson_Loop_Average (Etappe 23b, 3D-Mittelung)
  *   - ProPhysics_Apply_Local_SU2_Gauge
  *   - ProPhysics_Verify_SU2_Quaternion
  *
@@ -36,6 +37,24 @@
  *   die Eichinvarianz folgt aus der Teleskop-Eigenschaft der
  *   inneren g-Faktoren.
  *
+ * 3D-Layout (Etappe 23b):
+ *   Bit-interleaved (z,y,x):
+ *     idx = x | (y << shift) | (z << (2*shift))
+ *   mit shift = pu->grid_dim_shift = log2(grid_dim).
+ *
+ *   Der Kernel pflegt in ProEdge.su2_* NUR den Vorwaerts-Link
+ *   (x, +mu). Der Rueckwaerts-Link ist NICHT separat gespeichert,
+ *   sondern folgt aus der Adjungierten des Vorwaerts-Links an der
+ *   vorherigen Position:
+ *     U(x -> x-mu) = U(x-mu -> x)^dagger = link(x-mu, +mu)^dagger
+ *
+ *   Konsequenz fuer ProPhysics_Wilson_Loop_Average: Rueckwaerts-
+ *   Segmente werden durch Adjungieren des Vorwaerts-Links an der
+ *   VORHERIGEN Position realisiert (siehe pro_su2_loop_step_backward).
+ *   Das ist konsistent mit su2_plaquette_action_at (SU2_Dynamics.c)
+ *   und mit dem Metropolis-Sweep im Test, der ebenfalls nur
+ *   Vorwaerts-Links anfasst.
+ *
  * R-Konformitaet:
  *   R1: keine div/mod im Hotpath (Bit-Shift statt /).
  *   R2: kein malloc (lokale Puffer, Stack).
@@ -47,6 +66,9 @@
  *   - pro_su2_edge_mut / pro_su2_edge (Link-Slot-Zugriff)
  *   - pro_su2_axis_angle_to_quat (Achse+Winkel -> Q30-Quaternion)
  *   - pro_su2_verify_product / _pauli (Algebra-Verifikation)
+ *   - pro_su2_loop_step (eine Vorwaerts-Kanten-Multiplikation)
+ *   - pro_su2_loop_step_backward (Rueckwaerts via Adjungierte)
+ *   - pro_su2_loop_sum_{xy,xz,yz} (Ebenen-Mittelung)
  *
  * Aenderungshistorie: siehe CHANGELOG.md im Projekt-Root.
  * Konfiguration:       siehe docs/project/CONFIG.md.
@@ -103,17 +125,17 @@ static bool pro_su2_normalize(
  * ========================================================================== */
 
 
-/* Achse + Winkel -> Q30-Quaternion (a_re, a_im, b_re, b_im).
- *
- *   U = cos(alpha/2) * I - i * sin(alpha/2) * (n . sigma)
- *
- *   in Quaternion-Form (a, b):
- *     a = cos(alpha/2) - i * sin(alpha/2) * nz
- *     b = -sin(alpha/2) * (ny + i*nx)
- *
- * Achse (nx, ny, nz) muss normiert sein (Normierung prueft der Aufrufer).
- * Ersetzt 6x inline-Konvertierung in ProPhysics_Verify_SU2_Quaternion
- * und 1x in ProPhysics_Set_Edge_SU2_AxisAngle. */
+ /* Achse + Winkel -> Q30-Quaternion (a_re, a_im, b_re, b_im).
+  *
+  *   U = cos(alpha/2) * I - i * sin(alpha/2) * (n . sigma)
+  *
+  *   in Quaternion-Form (a, b):
+  *     a = cos(alpha/2) - i * sin(alpha/2) * nz
+  *     b = -sin(alpha/2) * (ny + i*nx)
+  *
+  * Achse (nx, ny, nz) muss normiert sein (Normierung prueft der Aufrufer).
+  * Ersetzt 6x inline-Konvertierung in ProPhysics_Verify_SU2_Quaternion
+  * und 1x in ProPhysics_Set_Edge_SU2_AxisAngle. */
 static void pro_su2_axis_angle_to_quat(
     double nx, double ny, double nz, double alpha,
     int32_t* a_re, int32_t* a_im, int32_t* b_re, int32_t* b_im)
@@ -199,9 +221,11 @@ PROPHYSICS_API bool ProPhysics_Wilson_Loop_SU2(
      *   W(C) = U_0 * U_1 * ... * U_{n-1}
      * mit U_k = Link(path_nodes[k] -> path_nodes[k+1 mod n]).
      *
-     * Diese Reihenfolge ist entscheidend fuer die Eichinvarianz:
-     *   W' = g(p[0]) * W * g(p[0])^dagger
-     *   Tr(W') = Tr(W). */
+     * Diese Funktion liest den Link im Slot (path_nodes[k],
+     * path_channels[k]) direkt. Der Aufrufer ist dafuer
+     * verantwortlich, dass dieser Slot den physikalisch korrekten
+     * Link enthaelt (Vorwaerts: gespeicherter Link; Rueckwaerts:
+     * Adjungierte des Vorwaerts-Links an der vorherigen Position). */
     for (uint32_t k = 0; k < path_len; ++k) {
         const uint64_t src = path_nodes[k];
         const uint8_t  ch = path_channels[k];
@@ -238,6 +262,297 @@ PROPHYSICS_API double ProPhysics_Wilson_Loop_SU2_Trace(
     (void)a_im; (void)b_re; (void)b_im;
     /* Tr(U) = 2 * Re(a). Normiert auf 1.0 = Identitaet. */
     return (double)a_re / (double)PRO_SU2_SCALE;
+}
+
+/* ==========================================================================
+ * Wilson-Loop-Mittelung ueber alle m x n-Loops im 3D-Torus (Etappe 23b).
+ *
+ * Kernel-Konvention: Nur der Vorwaerts-Link (x, +mu) wird in
+ * ProEdge.su2_* gepflegt. Der Rueckwaerts-Link ist die Adjungierte
+ * des Vorwaerts-Links an der vorherigen Position:
+ *
+ *   U(x -> x-mu) = U(x-mu -> x)^dagger = link(x-mu, +mu)^dagger
+ *
+ * Deshalb liest der Loop auf Rueckwaerts-Segmenten IMMER den
+ * Vorwaerts-Link an der vorherigen Position und adjungiert.
+ *
+ * Ein m x n-Loop an Position (x0, y0, z0) in der xy-Ebene:
+ *   m Schritte +x, n Schritte +y, m Schritte -x, n Schritte -y.
+ * Alle Links werden in Vorwaerts-Reihenfolge multipliziert:
+ *   W = U_0 * U_1 * ... * U_{L-1},  L = 2(m+n).
+ * Skala: Re Tr(W_C)/2 = Re(a) / PRO_SU2_SCALE.
+ *
+ * Voraussetzungen:
+ *   - grid_ndim == 3
+ *   - grid_dim Zweierpotenz, >= 16
+ *   - m, n >= 1 und m, n <= grid_dim/2
+ *   - su2_active == 1 (sonst Rueckgabe 0.0)
+ *
+ * R-Konformitaet:
+ *   R1: Bit-Mask fuer die Koordinaten-Arithmetik, kein div/mod.
+ *   R2: Kein malloc -- alles auf dem Stack.
+ *   R3: U5 bleibt erhalten (read-only).
+ *   R7: additive Funktion; kein bestehender Pfad geaendert.
+ * ========================================================================== */
+
+ /* Eine Vorwaerts-Kanten-Multiplikation:
+  *   (a, b) <- (a, b) * link(src, ch_fwd) */
+static inline bool pro_su2_loop_step(
+    const ProUniverse* pu,
+    uint64_t src, uint8_t ch_fwd,
+    int32_t* a_re, int32_t* a_im, int32_t* b_re, int32_t* b_im)
+{
+    const ProEdge* e = pro_su2_edge(pu, src, ch_fwd);
+    if (!e) return false;
+    int32_t na_re, na_im, nb_re, nb_im;
+    pro_su2_mul(*a_re, *a_im, *b_re, *b_im,
+        e->su2_a_re, e->su2_a_im, e->su2_b_re, e->su2_b_im,
+        &na_re, &na_im, &nb_re, &nb_im);
+    *a_re = na_re; *a_im = na_im;
+    *b_re = nb_re; *b_im = nb_im;
+    return true;
+}
+
+/* Eine Rueckwaerts-Kanten-Multiplikation:
+ *   (a, b) <- (a, b) * link(src, ch_fwd)^dagger
+ *
+ * Der Aufrufer uebergibt die Position der VORHERIGEN Zelle (d.h.
+ * die Position, an der der Vorwaerts-Link der Rueckwaerts-Bewegung
+ * liegt). */
+static inline bool pro_su2_loop_step_backward(
+    const ProUniverse* pu,
+    uint64_t src, uint8_t ch_fwd,
+    int32_t* a_re, int32_t* a_im, int32_t* b_re, int32_t* b_im)
+{
+    const ProEdge* e = pro_su2_edge(pu, src, ch_fwd);
+    if (!e) return false;
+
+    int32_t ca_re, ca_im, cb_re, cb_im;
+    pro_su2_conj(e->su2_a_re, e->su2_a_im, e->su2_b_re, e->su2_b_im,
+        &ca_re, &ca_im, &cb_re, &cb_im);
+
+    int32_t na_re, na_im, nb_re, nb_im;
+    pro_su2_mul(*a_re, *a_im, *b_re, *b_im,
+        ca_re, ca_im, cb_re, cb_im,
+        &na_re, &na_im, &nb_re, &nb_im);
+    *a_re = na_re; *a_im = na_im;
+    *b_re = nb_re; *b_im = nb_im;
+    return true;
+}
+
+/* Mittelwert Re Tr(W)/2 ueber alle m x n-Loops in der xy-Ebene. */
+static double pro_su2_loop_sum_xy(const ProUniverse* pu,
+    uint32_t m, uint32_t n)
+{
+    const uint32_t dim = pu->grid_dim;
+    const uint32_t shift = pu->grid_dim_shift;
+    const uint32_t mask = pu->grid_dim_mask;
+
+    double sum = 0.0;
+    uint64_t count = 0u;
+
+    for (uint32_t z = 0; z < dim; ++z) {
+        const uint64_t z_part = ((uint64_t)z) << (2u * shift);
+        for (uint32_t y0 = 0; y0 < dim; ++y0) {
+            for (uint32_t x0 = 0; x0 < dim; ++x0) {
+                int32_t ar = PRO_SU2_IDENT_RE, ai = PRO_SU2_IDENT_IM;
+                int32_t br = 0, bi = 0;
+                uint32_t cx = x0, cy = y0;
+                bool ok = true;
+
+                /* m Schritte +x: link(cx, +x) fuer cx = x0, ..., x0+m-1 */
+                for (uint32_t i = 0; i < m && ok; ++i) {
+                    const uint64_t src =
+                        (uint64_t)cx | (((uint64_t)cy) << shift) | z_part;
+                    ok = pro_su2_loop_step(pu, src, PRO_NEIGHBOR_X_PLUS,
+                        &ar, &ai, &br, &bi);
+                    cx = (cx + 1u) & mask;
+                }
+                /* n Schritte +y: link(cx, +y) fuer cy = y0, ..., y0+n-1 */
+                for (uint32_t j = 0; j < n && ok; ++j) {
+                    const uint64_t src =
+                        (uint64_t)cx | (((uint64_t)cy) << shift) | z_part;
+                    ok = pro_su2_loop_step(pu, src, PRO_NEIGHBOR_Y_PLUS,
+                        &ar, &ai, &br, &bi);
+                    cy = (cy + 1u) & mask;
+                }
+                /* m Schritte -x: Rueckwaerts via link(cx-1, +x)^dagger.
+                 * Erst dekrementieren, dann lesen. */
+                for (uint32_t i = 0; i < m && ok; ++i) {
+                    cx = (cx + mask) & mask;
+                    const uint64_t src =
+                        (uint64_t)cx | (((uint64_t)cy) << shift) | z_part;
+                    ok = pro_su2_loop_step_backward(pu, src,
+                        PRO_NEIGHBOR_X_PLUS, &ar, &ai, &br, &bi);
+                }
+                /* n Schritte -y: Rueckwaerts via link(cx, cy-1, +y)^dagger. */
+                for (uint32_t j = 0; j < n && ok; ++j) {
+                    cy = (cy + mask) & mask;
+                    const uint64_t src =
+                        (uint64_t)cx | (((uint64_t)cy) << shift) | z_part;
+                    ok = pro_su2_loop_step_backward(pu, src,
+                        PRO_NEIGHBOR_Y_PLUS, &ar, &ai, &br, &bi);
+                }
+
+                if (ok) {
+                    sum += (double)ar / (double)PRO_SU2_SCALE;
+                    count++;
+                }
+            }
+        }
+    }
+    return (count > 0u) ? (sum / (double)count) : 0.0;
+}
+
+/* Mittelwert Re Tr(W)/2 ueber alle m x n-Loops in der xz-Ebene. */
+static double pro_su2_loop_sum_xz(const ProUniverse* pu,
+    uint32_t m, uint32_t n)
+{
+    const uint32_t dim = pu->grid_dim;
+    const uint32_t shift = pu->grid_dim_shift;
+    const uint32_t mask = pu->grid_dim_mask;
+
+    double sum = 0.0;
+    uint64_t count = 0u;
+
+    for (uint32_t y = 0; y < dim; ++y) {
+        const uint64_t y_part = ((uint64_t)y) << shift;
+        for (uint32_t z0 = 0; z0 < dim; ++z0) {
+            for (uint32_t x0 = 0; x0 < dim; ++x0) {
+                int32_t ar = PRO_SU2_IDENT_RE, ai = PRO_SU2_IDENT_IM;
+                int32_t br = 0, bi = 0;
+                uint32_t cx = x0, cz = z0;
+                bool ok = true;
+
+                /* m Schritte +x */
+                for (uint32_t i = 0; i < m && ok; ++i) {
+                    const uint64_t src =
+                        (uint64_t)cx | y_part
+                        | (((uint64_t)cz) << (2u * shift));
+                    ok = pro_su2_loop_step(pu, src, PRO_NEIGHBOR_X_PLUS,
+                        &ar, &ai, &br, &bi);
+                    cx = (cx + 1u) & mask;
+                }
+                /* n Schritte +z */
+                for (uint32_t k = 0; k < n && ok; ++k) {
+                    const uint64_t src =
+                        (uint64_t)cx | y_part
+                        | (((uint64_t)cz) << (2u * shift));
+                    ok = pro_su2_loop_step(pu, src, PRO_NEIGHBOR_Z_PLUS,
+                        &ar, &ai, &br, &bi);
+                    cz = (cz + 1u) & mask;
+                }
+                /* m Schritte -x */
+                for (uint32_t i = 0; i < m && ok; ++i) {
+                    cx = (cx + mask) & mask;
+                    const uint64_t src =
+                        (uint64_t)cx | y_part
+                        | (((uint64_t)cz) << (2u * shift));
+                    ok = pro_su2_loop_step_backward(pu, src,
+                        PRO_NEIGHBOR_X_PLUS, &ar, &ai, &br, &bi);
+                }
+                /* n Schritte -z */
+                for (uint32_t k = 0; k < n && ok; ++k) {
+                    cz = (cz + mask) & mask;
+                    const uint64_t src =
+                        (uint64_t)cx | y_part
+                        | (((uint64_t)cz) << (2u * shift));
+                    ok = pro_su2_loop_step_backward(pu, src,
+                        PRO_NEIGHBOR_Z_PLUS, &ar, &ai, &br, &bi);
+                }
+
+                if (ok) {
+                    sum += (double)ar / (double)PRO_SU2_SCALE;
+                    count++;
+                }
+            }
+        }
+    }
+    return (count > 0u) ? (sum / (double)count) : 0.0;
+}
+
+/* Mittelwert Re Tr(W)/2 ueber alle m x n-Loops in der yz-Ebene. */
+static double pro_su2_loop_sum_yz(const ProUniverse* pu,
+    uint32_t m, uint32_t n)
+{
+    const uint32_t dim = pu->grid_dim;
+    const uint32_t shift = pu->grid_dim_shift;
+    const uint32_t mask = pu->grid_dim_mask;
+
+    double sum = 0.0;
+    uint64_t count = 0u;
+
+    for (uint32_t x = 0; x < dim; ++x) {
+        for (uint32_t z0 = 0; z0 < dim; ++z0) {
+            for (uint32_t y0 = 0; y0 < dim; ++y0) {
+                int32_t ar = PRO_SU2_IDENT_RE, ai = PRO_SU2_IDENT_IM;
+                int32_t br = 0, bi = 0;
+                uint32_t cy = y0, cz = z0;
+                bool ok = true;
+
+                /* m Schritte +y */
+                for (uint32_t j = 0; j < m && ok; ++j) {
+                    const uint64_t src =
+                        (uint64_t)x | (((uint64_t)cy) << shift)
+                        | (((uint64_t)cz) << (2u * shift));
+                    ok = pro_su2_loop_step(pu, src, PRO_NEIGHBOR_Y_PLUS,
+                        &ar, &ai, &br, &bi);
+                    cy = (cy + 1u) & mask;
+                }
+                /* n Schritte +z */
+                for (uint32_t k = 0; k < n && ok; ++k) {
+                    const uint64_t src =
+                        (uint64_t)x | (((uint64_t)cy) << shift)
+                        | (((uint64_t)cz) << (2u * shift));
+                    ok = pro_su2_loop_step(pu, src, PRO_NEIGHBOR_Z_PLUS,
+                        &ar, &ai, &br, &bi);
+                    cz = (cz + 1u) & mask;
+                }
+                /* m Schritte -y */
+                for (uint32_t j = 0; j < m && ok; ++j) {
+                    cy = (cy + mask) & mask;
+                    const uint64_t src =
+                        (uint64_t)x | (((uint64_t)cy) << shift)
+                        | (((uint64_t)cz) << (2u * shift));
+                    ok = pro_su2_loop_step_backward(pu, src,
+                        PRO_NEIGHBOR_Y_PLUS, &ar, &ai, &br, &bi);
+                }
+                /* n Schritte -z */
+                for (uint32_t k = 0; k < n && ok; ++k) {
+                    cz = (cz + mask) & mask;
+                    const uint64_t src =
+                        (uint64_t)x | (((uint64_t)cy) << shift)
+                        | (((uint64_t)cz) << (2u * shift));
+                    ok = pro_su2_loop_step_backward(pu, src,
+                        PRO_NEIGHBOR_Z_PLUS, &ar, &ai, &br, &bi);
+                }
+
+                if (ok) {
+                    sum += (double)ar / (double)PRO_SU2_SCALE;
+                    count++;
+                }
+            }
+        }
+    }
+    return (count > 0u) ? (sum / (double)count) : 0.0;
+}
+
+PROPHYSICS_API double ProPhysics_Wilson_Loop_Average(
+    const ProUniverse* pu, uint32_t m, uint32_t n)
+{
+    /* Eingabe-Validierung. */
+    if (!pu || !pu->edge_phases || !pu->reg_source) return 0.0;
+    if (pu->grid_ndim != 3u) return 0.0;
+    if (pu->grid_dim < 16u) return 0.0;
+    if (m == 0u || n == 0u) return 0.0;
+    if (m > pu->grid_dim / 2u || n > pu->grid_dim / 2u) return 0.0;
+    if (pu->su2_active == 0u) return 0.0;
+
+    const double s_xy = pro_su2_loop_sum_xy(pu, m, n);
+    const double s_xz = pro_su2_loop_sum_xz(pu, m, n);
+    const double s_yz = pro_su2_loop_sum_yz(pu, m, n);
+
+    return (s_xy + s_xz + s_yz) / 3.0;
 }
 
 PROPHYSICS_API void ProPhysics_Apply_Local_SU2_Gauge(

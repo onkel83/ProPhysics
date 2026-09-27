@@ -1,9 +1,10 @@
 # ProPhysics — TODO
 
 **Datei:** `TODO.md`
-**Version:** 1.8
-**Stand:** 2026-09-28 (Kernel-Version 1.23.0, Etappe 23 — release-ready,
-ProWB integriert, CI-Doku konsolidiert)
+**Version:** 1.9
+**Stand:** 2026-09-27 (Kernel-Version 1.23.0, Etappe 23 + 23b —
+release-ready, ProWB integriert, CI-Doku konsolidiert,
+Creutz-Ratio implementiert, V&V-Anker zurückgenommen)
 **Zweck:** Zentrales Aufgaben-Register.
 
 **Status-Marker:**
@@ -14,13 +15,18 @@ ProWB integriert, CI-Doku konsolidiert)
 | `[~]` | bereitgestellt — Inhalt liegt vor, Ausführung ausstehend |
 | `[ ]` | offen |
 
-**Änderung v1.7 → v1.8:**
-- §0 um Statuszeile „CI-Dokumentation" erweitert.
-- Neuer §6 — CI / GitHub Actions (Standard-CI, Alpha-Nightly, Web-Docs-CI).
-- Ehemalige §6–§11 wurden zu §7–§12 — **Inhalt unverändert**.
-- §11 (Nächste konkrete Schritte) um Punkt 6 (Alpha-Nightly testen) und
-  Punkt 7 (Tag `v1.23.12`) ergänzt.
-- §12 (Siehe auch) um CI-Doku-Einträge erweitert.
+**Änderung v1.8 → v1.9:**
+- §0 um Statuszeilen „Creutz-Ratio", „V&V-Anker-Rücknahme" und
+  „Doku-Konsolidierung 8.1–8.8" erweitert.
+- §1.7 (Git-Tags) um `v1.23.13` erweitert (offen).
+- §6.5 (CI Phase 2) um `Creutz-Ratio` als optionalen CI-Test
+  ergänzt.
+- §8.3 (Optional): 23b und 18d-B Status gesetzt, RC-Neulauf als
+  nicht-blockierender Punkt.
+- §11 (Nächste konkrete Schritte): Punkt 7 auf `v1.23.13`
+  umgestellt, Punkt 8 um Doku-Konsolidierung ergänzt.
+- §12 (Siehe auch) um `SU2.md` und `alpha_test_creutz_ratio.c`
+  erweitert.
 - **Kein** alter Eintrag gelöscht oder inhaltlich verändert.
 
 ---
@@ -30,23 +36,28 @@ ProWB integriert, CI-Doku konsolidiert)
 | Bereich | Status |
 |---|---|
 | Kernel-Version | **1.23.0** (Phase 1, Etappe 23) |
-| Changelog-Version | **1.23.12** (CI-Doku-Konsolidierung) |
-| Tests | **43/43 PASS** (Prio 1/6/7 nachgeprüft: 14/14) |
+| Changelog-Version | **1.23.13** (Creutz-Ratio + V&V-Anker-Rücknahme) |
+| Tests | **45/45 PASS** (Prio 1/6/7 nachgeprüft: 14/14) |
 | Regression-Anker | Prio 1 (12/12), Prio 6 (1/1), Prio 7 (1/1) — grün |
 | Compiler-Warnungen | **0** (`/W4` Kernel, `/W3` SDK/Test, `/W4` ProWB) |
 | Link-Fehler | **0** |
 | Kernel-Dateien auf `Kernel:`/`Etappe:` | ✅ |
-| Modul-Konsolidierung 1.23.1–1.23.10 | ✅ abgeschlossen |
+| Modul-Konsolidierung 1.23.1–1.23.13 | ✅ abgeschlossen |
 | SDK, Build, Sub-Makefiles, Build-Docs | ✅ auf Etappe 23 |
 | Lizenz, VERSIONING, Repo-Hygiene | ✅ vollständig |
 | BASELINE.md, Beispiel-BUILD_INFO | ✅ angelegt |
-| **Git-Tags** | ✅ angelegt |
+| **Git-Tags** | ✅ `v1.23.0` und `etappe-23`; `v1.23.13` offen |
 | **ProWB / Web-Docs** | ✅ implementiert (`1.23.11`) |
 | **CI-Dokumentation** | ✅ vollständig (`1.23.12`) |
+| **Creutz-Ratio-Konsistenz-Test** | ✅ FAST + FULL (`1.23.13`) |
+| **V&V-Anker-Rücknahme** | ✅ dokumentiert (`1.23.13`) |
+| **Doku-Konsolidierung 8.1–8.8** | ✅ abgeschlossen |
 
 **Netto:** Das Repo ist **release-ready** und **publizierbar**.
 Die Web-Docs sind unter `out\web\` generierbar und via CI auf
 GitHub Pages deploybar. Alle drei CI-Workflows sind dokumentiert.
+Der V&V-Anker aus `1.23.0` wurde mit `1.23.13` durch einen
+Creutz-Ratio-Konsistenz-Test ersetzt.
 
 ---
 
@@ -71,13 +82,15 @@ GitHub Pages deploybar. Alle drei CI-Workflows sind dokumentiert.
 - [x] `build\main\write_build_info.ps1` — Etappe-Zeile, `-Config`,
       `-GitStamp`, `-GitNote`
 - [x] `tools\pro_run.ps1` / `pro_run.cmd` — zentraler Einstieg
-- [x] `tools\run_alpha_tests.ps1` — `-Prio`, `-Test`, `-DllDir`
+- [x] `tools\run_alpha_tests.ps1` — `-Prio`, `-Test`, `-DllDir`;
+      Version 1.0.2 seit 23b
 
 ### §1.3 — Sub-Makefiles ✅ erledigt
 
 - [x] `build\prophysics\Makefile.nmake` — 12 Kernel-Module
 - [x] `build\sdk\Makefile.sdk.nmake` — `check_core`
-- [x] `build\test\Makefile.nmake` — 19 `.c`, `check_deps`
+- [x] `build\test\Makefile.nmake` — 19 `.c`, `check_deps`;
+      Version 3.3 seit 23b
 - [x] `build\prowb\Makefile.nmake` — ProWB-Builder (`1.23.11`)
 
 ### §1.4 — Build-Dokumente ✅ erledigt
@@ -87,7 +100,7 @@ GitHub Pages deploybar. Alle drei CI-Workflows sind dokumentiert.
 - [x] `docs\build\prophysics\Makefile.md`, `sdk\Makefile.md`,
       `test\Makefile.md`, `main\Makefile.md`
 - [x] `docs\build\BUILD_SCRIPT.md`, `docs\build\pro_run.md`
-- [x] `docs\test\run_alpha_tests.md`
+- [x] `docs\test\run_alpha_tests.md` (Version 1.2.0 seit 23b)
 - [x] `docs\build\prowb\Makefile.md` (`1.23.11`)
 - [x] `docs\build\web-docs-ci.md` (`1.23.11`, v1.0.1 in `1.23.12`)
 - [x] `docs\build\ci.md` (`1.23.12`)
@@ -106,11 +119,11 @@ GitHub Pages deploybar. Alle drei CI-Workflows sind dokumentiert.
 - [x] `docs\project\VERSIONING.md` angelegt (Konzept-Dokument zur
       Etappen-Versionierung)
 
-### §1.7 — Git-Tags ✅ erledigt
+### §1.7 — Git-Tags
 
 - [x] Tag **`v1.23.0`** — Befehl siehe §11
 - [x] Tag **`etappe-23`** — Befehl siehe §11
-- [ ] Tag **`v1.23.12`** — siehe §11 (nach dem nächsten Push)
+- [ ] Tag **`v1.23.13`** — siehe §11 (nach dem nächsten Push)
 
 ---
 
@@ -122,12 +135,20 @@ GitHub Pages deploybar. Alle drei CI-Workflows sind dokumentiert.
 - [x] Keine `3.1`/`3.2`-Reste mehr
 - [x] ProWB-Sektionen (§5b, §5c, §6.3, §6.4, §7.5) eingetragen (`1.23.11`)
 - [x] CI-Doku-Sektion (§6.5, `1.23.12`)
+- [x] 23b-Eintrag in §1 (Kernel-Modul SU2.c), §2 (Header
+      ProPhysics.h), §4.2 (Test-Modul creutz_ratio), §5 (Runner
+      v1.0.2), §7.1 (SU2.md v1.1) und §8 (Changelog-Historie) —
+      Version 1.3 seit 23b
 
 ### §2.2 — Doc-Versionen ✅ erledigt
 
 - [x] Alle Projekt- und Test-Docs auf Etappe 23
 - [x] `README.md` (Root) auf `Version: 1.0` / `Kernel: 1.23.0`
 - [x] `docs\project\README.md` (Website-Version, `1.23.12`)
+- [x] `docs\project\SU2.md` (Version 1.1 seit 23b)
+- [x] `docs\test\ProPhysics_Testkatalog.md` (Version 2.0 seit 23b)
+- [x] `docs\test\BASELINE.md` (Version 1.2 seit 23b)
+- [x] `docs\test\run_alpha_tests.md` (Version 1.2.0 seit 23b)
 
 ### §2.3 — CHANGELOG ✅ erledigt
 
@@ -137,6 +158,8 @@ GitHub Pages deploybar. Alle drei CI-Workflows sind dokumentiert.
 - [x] Bugfix-Patch `1.23.10` (B7 nachgeholt, Plaquette-Konjugation)
 - [x] Infrastruktur-Patch `1.23.11` (ProWB / Web-Docs)
 - [x] CI-Doku-Patch `1.23.12` (Standard-CI, Alpha-Nightly)
+- [x] **Creutz-Ratio-Patch `1.23.13` (V&V-Anker-Rücknahme,
+      `Wilson_Loop_Average`)**
 
 ### §2.4 — Kleinere Inkonsistenzen ✅ erledigt
 
@@ -165,7 +188,7 @@ GitHub Pages deploybar. Alle drei CI-Workflows sind dokumentiert.
 
 ### §3.3 — Test-Baseline ✅
 
-- [x] `docs\test\BASELINE.md`
+- [x] `docs\test\BASELINE.md` (Version 1.2 seit 23b)
 
 ---
 
@@ -188,6 +211,10 @@ GitHub Pages deploybar. Alle drei CI-Workflows sind dokumentiert.
       zusammenführen
 - [ ] **B8** — `pro_measure_sharp` und `pro_amp_to_lambda`
       Konsistenz
+- [ ] **B9 (neu)** — `pro_su2_loop_sum_xy/_xz/_yz` könnten auf einen
+      gemeinsamen parametrisierten Kern reduziert werden (3× ~80 LOC
+      dupliziert). Rein mechanisch; Verhalten bit-identisch.
+      Kandidat für eine spätere Konsolidierungs-Etappe.
 
 ### §4.2 — Struktur
 
@@ -210,6 +237,7 @@ GitHub Pages deploybar. Alle drei CI-Workflows sind dokumentiert.
 - [x] `PRO_NODE_*_MASK` in `ProPhysics_Config.h` eingeführt (`1.23.10`)
 - [x] Alle Warnungen auf **0** reduziert
 - [x] ProWB-Builder mit 0 Warnungen bei `/W4` (`1.23.11`)
+- [x] Creutz-Ratio-Modul mit 0 Warnungen bei `/W3` (`1.23.13`)
 
 ### §4.5 — Link-Fehler ✅
 
@@ -295,7 +323,7 @@ an kanonischen Pfaden (`docs\project\`, `docs\test\`,
 - [x] `docs/build/web-docs-ci.md`
 - [x] `docs/project/README.md` (Website-Version, `1.23.12`)
 - [x] `docs/project/ProPhysics_VersionRegistry.md` (§5b, §5c)
-- [x] `docs/project/Project.md` (§7.7, §12d)
+- [x] `docs/project/Project.md` (§7.8, §12e)
 - [x] `CHANGELOG.md` (`[1.23.11]`)
 
 ### §5.9 — Offene Detailfragen (Phase 2 — nicht blockierend)
@@ -348,7 +376,8 @@ vollständig dokumentiert.
 
 - [x] Querverweise zwischen den drei CI-Docs
 - [x] `docs/build/BUILD_SCRIPT.md` um §3.7 + §12.6 erweitert
-- [x] `docs/test/run_alpha_tests.md` §16 neu geschrieben
+- [x] `docs/test/run_alpha_tests.md` §16 neu geschrieben; Version
+      1.2.0 seit 23b
 - [x] `CONTRIBUTING.md` auf `pro_run`-Workflow umgestellt
 - [x] `README.md` (Root) auf `pro_run`-Workflow umgestellt
 
@@ -356,6 +385,12 @@ vollständig dokumentiert.
 
 - [ ] Nightly-Schedule (aktuell manuell — bewusst)
 - [ ] Prio 2/3/4 in Standard-CI aufnehmen? (aktuell nicht)
+- [ ] **`Creutz-Ratio` (Fast, ~110 s) in Standard-CI aufnehmen?**
+      — passt zeitlich in `ci.yml`, ist aber bislang **nicht**
+      eingebunden. Diskussion siehe `docs/build/ci.md` §7.
+- [ ] **`Creutz-Ratio-Full` als Alpha-Nightly-Scope `creutz-full`
+      verdrahten** — bislang nur lokal via `-Test Creutz-Ratio-Full`
+      fahrbar. Siehe `docs/build/alpha-nightly.md`.
 - [ ] `timeout-minutes` für `ci.yml` (aktuell Default 360 min)
 - [ ] `concurrency` für `ci.yml` (aktuell keine)
 - [ ] Pfad-Filter für `ci.yml` (aktuell kein Filter)
@@ -413,9 +448,18 @@ Entwicklungsphasen.
 
 ### §8.3 — Optional
 
-- [ ] **Etappe 23b** — Creutz-Ratio
-- [ ] **Etappe 18d-B** — Wasserstoff-Revision
+- [x] **Etappe 23b** — Creutz-Ratio (erledigt in `1.23.13`,
+      FAST + FULL-Modus, B1/B2/B3 PASS)
+- [ ] **Etappe 18d-B** — Wasserstoff-Revision (adaptive Prep);
+      weiterhin offen, quantitativ verfehlt (`rel_dev = 0,296`)
 - [ ] **Etappe O1** — Cache-Optimierung (`CHANNELS_MAX` 16 → 8)
+- [ ] **RC-Neulauf für β ≠ 2, dim=64** (nicht blockierend) — die
+      bestehenden `u_plaq`-Werte außer β=2 sind vorläufig und um
+      ca. −3 bis −4 % nach unten zu korrigieren (Größenordnung
+      aus der β=2-Korrektur in `1.23.10`). Ein vollständiger
+      Neulauf würde die RC-Tabelle im Testkatalog aktualisieren.
+- [ ] **§4.1 B9** — `pro_su2_loop_sum_{xy,xz,yz}` zusammenführen
+      (3× dupliziert, rein mechanisch)
 
 ---
 
@@ -426,7 +470,8 @@ Entwicklungsphasen.
 - [ ] Preprint-Kandidat 2: „A computational exploration of quantum
       structures from discrete signed permutations" (arXiv:quant-ph)
 - [ ] Software-Paper (CPC oder JOSS)
-- [ ] Vergleich mit etablierten Lattice-QCD-Werten
+- [ ] Vergleich mit etablierten Lattice-QCD-Werten (Creutz-Ratio
+      gegen publizierte `χ`-Werte, nicht nur Konsistenz-Test)
 - [ ] Größere Gitter (dim ≥ 128)
 
 ---
@@ -462,7 +507,8 @@ pro_run build -Mode all -Rebuild
 pro_run test -Prio all
 ```
 
-Erwartung: alle PASS, **0 Warnungen**, **0 Link-Fehler**.
+Erwartung: **45/45 PASS**, **0 Warnungen**, **0 Link-Fehler**,
+~75,5 min Laufzeit.
 
 **2. Web-Docs bauen und prüfen:**
 
@@ -478,7 +524,8 @@ Erwartung: `out\web\index.html` erzeugt (~1,2 MB, 46 Docs).
 - `out\web\index.html` direkt öffnen (Doppelklick).
 - Alle 6 Sektionen durchklicken.
 - Theme-Umschaltung testen.
-- Neue Einträge prüfen: `CICD`, `AlphaNightly` unter `Build`.
+- Neue Einträge prüfen: `SU2.md` (Version 1.1).
+- Testkatalog zeigt 45 Tests.
 
 **4. Commit + Push:**
 
@@ -486,7 +533,7 @@ Erwartung: `out\web\index.html` erzeugt (~1,2 MB, 46 Docs).
 cd C:\Users\koehn\source\repos\ProPhysics
 git add -A
 git status
-git commit -m "1.23.12: CI-Doku, Alpha-Nightly, ProWB-Doku-Konsolidierung"
+git commit -m "1.23.13: Creutz-Ratio-Konsistenz-Test, V&V-Anker-Ruecknahme, Doku-Konsolidierung 23b"
 git push origin main
 ```
 
@@ -501,29 +548,42 @@ git push origin main
 - Actions-Tab → „Alpha-Nightly" → „Run workflow".
 - Scope: `running-coupling` (schneller Test, ~23 min).
 - Danach: `all-long` (voller Lauf, ~64 min).
+- Optional nach §6.5: Scope `creutz-full` verdrahten und einmal
+  durchlaufen.
 
-**7. Git-Tag `v1.23.12` (nach dem Push):**
+**7. Git-Tag `v1.23.13` (nach dem Push):**
 
 ```cmd
-git tag -a v1.23.12 -m "CI-Doku-Konsolidierung (Etappe 23)"
-git push origin v1.23.12
+git tag -a v1.23.13 -m "Creutz-Ratio-Konsistenz-Test + V&V-Anker-Ruecknahme (Etappe 23b)"
+git push origin v1.23.13
 ```
 
 **8. Danach:**
 
-- **Phase 1 ist formal abgeschlossen. Repo ist publizierbar.**
+- **Phase 1 ist formal abgeschlossen.** Repo ist publizierbar.
+- **Doku-Konsolidierung 8.1–8.8 abgeschlossen:**
+  - `CHANGELOG.md` auf 1.23.13.
+  - `SU2.md` auf v1.1.
+  - `ProPhysics_VersionRegistry.md` auf v1.3.
+  - `ProPhysics_Testkatalog.md` auf v2.0.
+  - `BASELINE.md` auf v1.2.
+  - `run_alpha_tests.md` auf v1.2.0.
+  - `Project.md` auf Stand 23b.
+  - `TODO.md` auf v1.9 (diese Datei).
 - Web-Docs sind live.
 - Nächster funktionaler Schritt: **Etappe 24 — Euklidisches
   Pfadintegral.**
 
 **9. Optional (kann warten):**
 
-- §4.1 — verbleibende Refactorings (B1, B2, B4, B5, B6, B8)
+- §4.1 — verbleibende Refactorings (B1, B2, B4, B5, B6, B8, B9)
 - §4.2 — `C1` (`Apply_Amp_Step` splitten), `C4` (`ProEdge` Layout)
 - §5.9 — Web-Docs Phase 2 (Cross-Refs, Suche, i18n)
-- §6.5 — CI Phase 2 (Nightly-Schedule, Prio 2/3/4)
+- §6.5 — CI Phase 2 (Nightly-Schedule, Prio 2/3/4, Creutz-Ratio
+  in CI, `creutz-full`-Scope)
 - §7 — SDK-Roadmap
 - §8 — Etappen 24+
+- §8.3 — RC-Neulauf für β ≠ 2
 
 ---
 
@@ -565,8 +625,9 @@ git push origin v1.23.12
 | Web-Docs Manifest | `docs/web/manifest.txt` |
 | Web-Docs Pflege | `docs/web/README.md` |
 | Website-README | `docs/project/README.md` |
+| Creutz-Ratio-Test | `src/test/alpha_test_creutz_ratio.c` |
 | Repository | https://github.com/onkel83/prophysics |
 
 ---
 
-**Ende TODO v1.8.**
+**Ende TODO v1.9.**

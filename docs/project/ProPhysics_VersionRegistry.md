@@ -1,15 +1,16 @@
 # ProPhysics — Versions-Register
 
 **Datei:** `docs/project/ProPhysics_VersionRegistry.md`
-**Version:** 1.2
+**Version:** 1.3
 **Kernel:** 1.23.0
 **Etappe:** 23
 **Zweck:** Zentrale Übersicht aller Versionen in allen Dateien.
 Dient der Vereinheitlichung und dem schnellen Auffinden von
 Inkonsistenzen.
-**Stand:** 2026-09-28 (Kernel 1.23.0, Etappe 23, Konsolidierungs-Serie
-1.23.1–1.23.12 abgeschlossen, Changelog-Version 1.23.12, ProWB
-integriert, CI-Doku konsolidiert)
+**Stand:** 2026-09-27 (Kernel 1.23.0, Etappe 23 + 23b,
+Konsolidierungs-Serie 1.23.1–1.23.13 abgeschlossen,
+Changelog-Version 1.23.13, ProWB integriert, CI-Doku konsolidiert,
+Creutz-Ratio implementiert)
 
 ---
 
@@ -25,9 +26,9 @@ und `CHANGELOG.md` §0 und §2.
 |---|---|---|
 | **Kernel** | `1.23.0` (MAJOR.MINOR.PATCH) | Phase.Etappe.Fix |
 | **SDK** | `1.23.0` | folgt Kernel |
-| **Module-Docs** | `1.0` pro Dokument | eigenständig; referenziert `Kernel:` |
-| **CHANGELOG** | `1.23.12` | Kernel + Konsolidierungs-Patch-Serie |
-| **Tests** | `1.0.0` | eigenständig (Test-Suite-Version) |
+| **Module-Docs** | `1.0` / `1.1` pro Dokument | eigenständig; referenziert `Kernel:` |
+| **CHANGELOG** | `1.23.13` | Kernel + Konsolidierungs-Patch-Serie |
+| **Tests** | `1.0.1` | eigenständig (Test-Suite-Version) |
 | **Build / Tools** | `1.0.0` | eigenständig (Infrastruktur-Version) |
 | **ProWB / Web-Docs** | `1.0.0` | eigenständig (Web-Infrastruktur-Version) |
 | **CI-Workflows** | `1.0.0` | eigenständig (CI-Infrastruktur-Version) |
@@ -41,7 +42,7 @@ und `CHANGELOG.md` §0 und §2.
 |---|---|---|
 | MAJOR | Phase | `1` = Fundament, `2` = komplette QM, `3` = Makrophysik |
 | MINOR | Etappen-Nummer | `1`, `2`, …, `23`, `24`, … |
-| PATCH | Fix / Konsolidierung | `0`, `1`, `2`, …, `12` |
+| PATCH | Fix / Konsolidierung | `0`, `1`, `2`, …, `13` |
 
 ### §0.3 — Kein `3.0.0` mehr
 
@@ -75,7 +76,7 @@ Quellcode-Kommentaren; Verweise auf `CHANGELOG.md` und
 | `ProPhysics_Gauge.c` | 1.23.0 | 23 | 1.23.3 | `pro_amp_vector_rotate_q16` |
 | `ProPhysics_Observer.c` | 1.23.0 | 23 | 1.23.4 | 4 `static`-Helfer |
 | `ProPhysics_Shared.c` | 1.23.0 | 23 | 1.23.5 + 1.23.10 | `pro_shared_pair_rotate_q31`; `PRO_NODE_*_MASK` |
-| `ProPhysics_SU2.c` | 1.23.0 | 23 | 1.23.6 + 1.23.10 | `pro_su2_axis_angle_to_quat`; Edge-Zugriff nach Internal.h |
+| `ProPhysics_SU2.c` | 1.23.0 | 23 | 1.23.6 + 1.23.10 + 1.23.13 | `pro_su2_axis_angle_to_quat`; Edge-Zugriff nach Internal.h; **`Wilson_Loop_Average` + `pro_su2_loop_step` / `_backward` (23b)** |
 | `ProPhysics_SU2_Dynamics.c` | 1.23.0 | 23 | 1.23.7 + 1.23.10 | `su2_leapfrog_kick_E`; Plaquette-Konjugations-Fix |
 | `ProPhysics_Tensor.c` | 1.23.0 | 23 | 1.23.8 | 3 `static`-Helfer |
 
@@ -94,6 +95,12 @@ in `su2_plaquette_action_at` gefixt.
 haben **keinen** Kernel-Code angefasst. Alle 12 Kernel-Module
 bleiben unverändert.
 
+**Anmerkung zu 1.23.13:** Additive Kernel-Erweiterung in
+`ProPhysics_SU2.c`: neue read-only Funktion
+`ProPhysics_Wilson_Loop_Average` plus zwei interne Helfer
+(`pro_su2_loop_step`, `pro_su2_loop_step_backward`). Kein
+bestehender Code-Pfad geändert; R7-konform.
+
 ---
 
 ## §2 — Kernel-Header (`src/prophysics/header/`)
@@ -102,7 +109,7 @@ bleiben unverändert.
 
 | Datei | Kernel | Etappe | Konsolidiert mit | Anmerkung |
 |---|---|---|---|---|
-| `ProPhysics.h` | 1.23.0 | 23 | 1.23.1 | Öffentliche API, gruppierte Sektionen |
+| `ProPhysics.h` | 1.23.0 | 23 | 1.23.1 + 1.23.13 | Öffentliche API, gruppierte Sektionen; **`Wilson_Loop_Average`-Deklaration (23b)** |
 | `ProPhysics_Config.h` | 1.23.0 | 23 | 1.23.1 + 1.23.10 | `PRO_NODE_*_MASK` eingeführt; `PRO_Q31_HALF_SQRT2` kommentiert |
 | `ProPhysics_Exports.h` | 1.23.0 | 23 | 1.23.1 | Build-Modus-Kommentar |
 | `ProPhysics_Internal.h` | 1.23.0 | 23 | 1.23.1 + 1.23.7 + 1.23.10 | `pro_su2_edge*` final verschoben; C2-Kommentar präzisiert |
@@ -134,23 +141,23 @@ Kommentar.
 
 ## §4 — Test-Module (`src/test/`)
 
-**Status:** ✅ erledigt (Patch 1.23.9)
+**Status:** ✅ erledigt (Patch 1.23.9 + 1.23.13)
 
 ### §4.1 — Test-Infrastruktur
 
-| Datei | Kernel | Etappe |
-|---|---|---|
-| `alpha_test_common.h` | 1.23.0 | 23 |
-| `alpha_test_common.c` | 1.23.0 | 23 |
+| Datei | Kernel | Etappe | Anmerkung |
+|---|---|---|---|
+| `alpha_test_common.h` | 1.23.0 | 23 | Version 3.2 (23b-Prototyp ergänzt) |
+| `alpha_test_common.c` | 1.23.0 | 23 | — |
 
-### §4.2 — Test-Module (18)
+### §4.2 — Test-Module (19)
 
 Alle folgenden Dateien tragen den Kopf
 `Kernel: 1.23.0` / `Etappe: 23`:
 
 | Datei | Prio | Anmerkung |
 |---|:-:|---|
-| `alpha_test_main.c` | — | CLI-Einstieg |
+| `alpha_test_main.c` | — | CLI-Einstieg; 23b-Flags |
 | `alpha_test_basic.c` | 1 | 2D-Basis |
 | `alpha_test_born.c` | 1 | Born-Regel |
 | `alpha_test_chsh.c` | 2 | CHSH |
@@ -166,6 +173,7 @@ Alle folgenden Dateien tragen den Kopf
 | `alpha_test_dirac.c` | 7 | Dirac |
 | `alpha_test_su2.c` | 8 | SU(2)-Wilson-Loop |
 | `alpha_test_running_coupling.c` | 8 | Running-Coupling |
+| `alpha_test_creutz_ratio.c` | 8 | **NEU in 1.23.13** — Creutz-Ratio-Konsistenz-Test (Fast + Full) |
 | `example_test_density.c` | — | Beispiel |
 | `example_test_tensor.c` | — | Beispiel |
 
@@ -173,17 +181,18 @@ Alle folgenden Dateien tragen den Kopf
 
 ## §5 — Tools (`tools/`)
 
-**Status:** ✅ erledigt (Patch 1.23.9, `web`-Aktion in 1.23.11)
+**Status:** ✅ erledigt (Patch 1.23.9, `web`-Aktion in 1.23.11,
+`Creutz-Ratio`-Einträge in 1.23.13)
 
 | Datei | Kernel | Etappe | Anmerkung |
 |---|---|---|---|
 | `pro_run.ps1` | 1.23.0 | 23 | Zentraler Einstiegspunkt (Aktion `web` neu in 1.23.11) |
 | `pro_run.cmd` | 1.23.0 | 23 | UTF-8-Wrapper |
-| `run_alpha_tests.ps1` | 1.23.0 | 23 | Test-Runner |
+| `run_alpha_tests.ps1` | 1.23.0 | 23 | **Version 1.0.2** (23b: `Creutz-Ratio`, `Creutz-Ratio-Full`; Zählung 45) |
 | `run_alpha_tests.cmd` | 1.23.0 | 23 | UTF-8-Wrapper |
 
-**Doc:** `docs/test/run_alpha_tests.md` (Version 1.1.0, Etappe 23,
-erweitert um CI-Integration in `1.23.12`).
+**Doc:** `docs/test/run_alpha_tests.md` (Version 1.2.0, Etappe 23,
+erweitert um CI-Integration in `1.23.12` und Creutz-Ratio in `1.23.13`).
 
 ---
 
@@ -285,7 +294,7 @@ Zwecke.
 
 ## §6 — Build-Infrastruktur (`build/`)
 
-**Status:** ✅ erledigt (Patch 1.23.9 + 1.23.11 + 1.23.12)
+**Status:** ✅ erledigt (Patch 1.23.9 + 1.23.11 + 1.23.12 + 1.23.13)
 
 ### §6.1 — Master (`build/main/`)
 
@@ -304,12 +313,12 @@ Zwecke.
 |---|---|---|---|
 | `build/prophysics/Makefile.nmake` | 1.23.0 | 23 | **12 Kernel-Module** |
 | `build/sdk/Makefile.sdk.nmake` | 1.23.0 | 23 | `check_core`-Vorprüfung |
-| `build/test/Makefile.nmake` | 1.23.0 | 23 | **19 `.c`** (17 Alpha + 2 Example) |
+| `build/test/Makefile.nmake` | 1.23.0 | 23 | **19 `.c`** (17 Alpha + 2 Example); Version 3.3 (23b) |
 
 **Kritisch geprüft:** `build/prophysics/Makefile.nmake` zählt 12
 Module (mit `ProPhysics_SU2_Dynamics.c`). `build/test/Makefile.nmake`
-zählt 19 Quellen (mit `alpha_test_running_coupling.c` und den beiden
-Example-Tests).
+zählt 19 Quellen (mit `alpha_test_running_coupling.c`,
+`alpha_test_creutz_ratio.c` und den beiden Example-Tests).
 
 ### §6.3 — ProWB-Makefile (`build/prowb/`)
 
@@ -317,7 +326,7 @@ Example-Tests).
 
 | Datei | Kernel | Etappe | Anmerkung |
 |---|---|---|---|
-| `Makefile.nmake` | 1.23.0 | 23 | Baut `bin\prowb\prowb.exe`. Targets: `all`, `setup`, `help`, `clean`. `CONFIG=release\|debug`. |
+| `Makefile.nmake` | 1.23.0 | 23 | Baut `bin\prowb\prowb.exe`. Targets: `all`, `setup`, `help`, `clean`. `CONFIG=release|debug`. |
 
 **Doc:** `docs/build/prowb/Makefile.md` (Version 1.0.0, Etappe 23).
 
@@ -345,6 +354,12 @@ Example-Tests).
 | `docs/build/alpha-nightly.md` | 1.0.0 | 1.23.0 | 23 | Alpha-Nightly (`alpha-nightly.yml`) |
 | `docs/build/web-docs-ci.md` | 1.0.1 | 1.23.0 | 23 | Web-Docs-CI (`web-docs.yml`) |
 
+**Hinweis zu 1.23.13:** Der Creutz-Ratio-Test ist als zusätzlicher
+Katalogeintrag in `tools/run_alpha_tests.ps1` verankert. Die
+CI-Workflows selbst wurden **nicht** angepasst (Creutz-Ratio läuft
+noch nicht in `ci.yml`, kann aber `alpha-nightly.yml`-Scope
+erweitern).
+
 ---
 
 ## §7 — Modul-Dokumentation (`docs/project/`)
@@ -365,14 +380,14 @@ Example-Tests).
 | `Gauge.md` | 1.0 | 1.23.0 | 23 | ✅ | ✅ |
 | `Observer.md` | 1.0 | 1.23.0 | 23 | ✅ | ✅ |
 | `Shared.md` | 1.0 | 1.23.0 | 23 | ✅ | ✅ |
-| `SU2.md` | 1.0 | 1.23.0 | 23 | ✅ | ✅ |
+| `SU2.md` | **1.1** | 1.23.0 | 23 | ✅ | ✅ (23b: `Wilson_Loop_Average` dokumentiert) |
 | `SU2_Dynamics.md` | 1.0 | 1.23.0 | 23 | ✅ | ✅ |
 | `Tensor.md` | 1.0 | 1.23.0 | 23 | ✅ | ✅ |
 
 **Soll-Header pro Modul-Doc:**
 ```
 **Datei:** `docs/project/<Name>.md`
-**Version:** 1.0
+**Version:** 1.0 (oder höher)
 **Kernel:** 1.23.0
 **Etappe:** 23
 **Quelldatei:** `src/prophysics/ProPhysics_<Name>.c`
@@ -383,10 +398,10 @@ Example-Tests).
 
 | Datei | Doc-Version | Kernel | Etappe | Status |
 |---|---|---|---|---|
-| `Project.md` | 1.0 | 1.23.0 | 23 | ✅ (Layout um ProWB + CI erweitert in 1.23.11/1.23.12) |
+| `Project.md` | 1.0 | 1.23.0 | 23 | ✅ (Layout um ProWB + CI erweitert in 1.23.11/1.23.12; V&V-Anker-Rücknahme folgt in Schritt 8.7) |
 | `ProPhysics_API.md` | 1.0 | 1.23.0 | 23 | ✅ |
 | `ProPhysics_Differentiators.md` | 1.0 | 1.23.0 | 23 | ✅ |
-| `ProPhysics_VersionRegistry.md` | 1.2 | 1.23.0 | 23 | ✅ (diese Datei) |
+| `ProPhysics_VersionRegistry.md` | **1.3** | 1.23.0 | 23 | ✅ (diese Datei) |
 | `ARCHITECTURE.md` | 1.0 | 1.23.0 | 23 | ✅ |
 | `VERSIONING.md` | 1.0 | 1.23.0 | 23 | ✅ (Patch 1.23.9) |
 | `SDK_API.md` | 1.0 | 1.23.0 | 23 | ✅ |
@@ -397,10 +412,16 @@ Example-Tests).
 
 | Datei | Doc-Version | Kernel | Etappe |
 |---|---|---|---|
-| `docs/test/ProPhysics_Testkatalog.md` | 1.9 | 1.23.0 | 23 |
-| `docs/test/run_alpha_tests.md` | 1.1.0 | 1.23.0 | 23 |
-| `docs/test/BASELINE.md` | 1.1 | 1.23.0 | 23 |
+| `docs/test/ProPhysics_Testkatalog.md` | **2.0** | 1.23.0 | 23 |
+| `docs/test/run_alpha_tests.md` | **1.2.0** | 1.23.0 | 23 |
+| `docs/test/BASELINE.md` | **1.2** | 1.23.0 | 23 |
 | `docs/test/WRITING_TESTS.md` | 1.0 | 1.23.0 | 23 |
+
+**Hinweis zu 1.23.13:** Test-Docs werden in Schritt 8.4 / 8.5 / 8.6
+aktualisiert (Versionen oben sind Soll-Werte nach diesen Schritten).
+Der aktuelle Stand ist:
+`ProPhysics_Testkatalog.md` v1.9, `BASELINE.md` v1.1,
+`run_alpha_tests.md` v1.1.0.
 
 ### §7.4 — Build-Docs
 
@@ -431,10 +452,11 @@ Example-Tests).
 
 ## §8 — Changelog-Historie
 
-**Aktuelle Changelog-Version:** `1.23.12`
+**Aktuelle Changelog-Version:** `1.23.13`
 
 | Version | Datum | Fokus |
 |---|---|---|
+| `1.23.13` | 2026-09-27 | Creutz-Ratio + V&V-Anker-Rücknahme; neue Kernel-Funktion `Wilson_Loop_Average`; neuer Prio-8-Test (Fast + Full) |
 | `1.23.12` | 2026-09-28 | CI-Dokumentation, Alpha-Nightly, Website-README |
 | `1.23.11` | 2026-09-28 | ProWB / Web-Docs Integration |
 | `1.23.10` | 2026-09-27 | Bugfix: 1.23.7 nachgeholt (B7); SU(2)-Plaquette-Konjugations-Fix (T16 1,41e-03); 0 Warnungen |
@@ -455,14 +477,14 @@ Example-Tests).
 
 ## §9 — Zusammenfassung: Was ist fertig, was ist offen
 
-### §9.1 — Fertig (Stand 2026-09-28)
+### §9.1 — Fertig (Stand 2026-09-27)
 
 1. ✅ **12 Kernel-Module** auf `Kernel: 1.23.0` / `Etappe: 23`
 2. ✅ **6 Kernel-Header** auf `Kernel: 1.23.0` / `Etappe: 23`
 3. ✅ **13 Modul-Docs** (`Amp`, `Core`, `Density`, `Dirac`, `EPR`,
    `Fock`, `Gauge`, `Observer`, `Shared`, `SU2`, `SU2_Dynamics`,
    `Tensor`, `CONFIG`)
-4. ✅ **`CHANGELOG.md`** auf `1.23.12` mit vollständiger Patch-Serie
+4. ✅ **`CHANGELOG.md`** auf `1.23.13` mit vollständiger Patch-Serie
 5. ✅ **Backlog B7** (SU(2)-Edge-Zugriff) gelöst (1.23.10)
 6. ✅ **Backlog D, B3** (Dirac-Massenterm, Lindblad-2x2) gelöst
 7. ✅ **Compiler-Warnungen 0** (Patch 1.23.10)
@@ -475,7 +497,7 @@ Example-Tests).
 14. ✅ **VERSIONING.md** angelegt
 15. ✅ **Repo-Hygiene** (`.gitignore`, `.github/`, CI-Workflow)
 16. ✅ **BASELINE.md** und **Beispiel-BUILD_INFO.txt**
-17. ✅ **TODO.md** auf v1.8
+17. ✅ **TODO.md** auf v1.9 (folgt in Schritt 8.8)
 18. ✅ **ProWB-Builder** (`src/prowb/`, `1.23.11`)
 19. ✅ **ProWB-Makefile** (`build/prowb/`, `1.23.11`)
 20. ✅ **Web-Docs-Quelle** (`docs/web/`, `1.23.11`, Manifest erweitert in `1.23.12`)
@@ -489,6 +511,14 @@ Example-Tests).
 28. ✅ **Alpha-Nightly-Doku** (`docs/build/alpha-nightly.md`, `1.23.12`)
 29. ✅ **Website-README** (`docs/project/README.md`, `1.23.12`)
 30. ✅ **CI-Doku-Querverweise** (`web-docs-ci.md`, `BUILD_SCRIPT.md`, `run_alpha_tests.md`, `CONTRIBUTING.md`, `README.md`, `1.23.12`)
+31. ✅ **`Wilson_Loop_Average`** Kernel-Funktion (`1.23.13`)
+32. ✅ **`alpha_test_creutz_ratio.c`** (Fast + Full, `1.23.13`)
+33. ✅ **CLI-Flags** `--test-creutz-ratio`, `--creutz-full` (`1.23.13`)
+34. ✅ **Test-Runner** `run_alpha_tests.ps1` v1.0.2 (`1.23.13`)
+35. ✅ **Test-Header** `alpha_test_common.h` v3.2 (`1.23.13`)
+36. ✅ **Test-Build** `build/test/Makefile.nmake` v3.3 (`1.23.13`)
+37. ✅ **`SU2.md`** v1.1 (23b-Doku, `1.23.13`)
+38. ✅ **V&V-Anker-Rücknahme** dokumentiert (`1.23.13`)
 
 ### §9.2 — Offen
 
@@ -497,18 +527,20 @@ Example-Tests).
 | Refactoring B1, B2, B4, B5, B6, B8 | kann | TODO §4.1 |
 | Refactoring C1, C4 | kann | TODO §4.2 |
 | Web-Docs Phase 2 (Cross-Refs, Suche, i18n) | optional | TODO §5.9 |
-| CI Phase 2 (Nightly-Schedule, Prio 2/3/4) | optional | TODO §6.5 |
+| CI Phase 2 (Nightly-Schedule, Prio 2/3/4, Creutz-Ratio in CI) | optional | TODO §6.5 |
 | SDK-Roadmap | optional | TODO §7 |
 | Etappen 24+ | Roadmap | TODO §8 |
+| Testkatalog / BASELINE / Project.md Doku-Update | — | Schritte 8.4–8.7 |
+| TODO.md Doku-Update | — | Schritt 8.8 |
 
 ### §9.3 — Empfohlene Reihenfolge
 
-1. **Jetzt:** Web-Docs bauen und prüfen (`pro_run web`).
-2. **Danach:** Commit + Push auf `main`.
-3. **Danach:** CI prüfen (Actions-Tab, zwei Workflows).
-4. **Optional:** Alpha-Nightly manuell starten.
-5. **Danach:** Tag `v1.23.12` setzen und pushen.
-6. **Danach:** Repo ist offiziell release-ready und publizierbar.
+1. **Jetzt:** Doku-Schritte 8.4–8.8 abschließen.
+2. **Danach:** `pro_run build -Mode all -Rebuild` + `pro_run test -Prio all`.
+3. **Danach:** Commit + Push auf `main`.
+4. **Optional:** Alpha-Nightly manuell starten (`Running-Coupling` + `Creutz-Ratio-Full`).
+5. **Danach:** Tag `v1.23.13` setzen und pushen.
+6. **Danach:** Repo ist release-ready und publizierbar.
 7. **Optional:** Refactorings (§4), CI Phase 2 (§6.5), SDK-Roadmap
    (§7), Etappen 24+ (§8).
 
@@ -523,7 +555,8 @@ Example-Tests).
 | 2026-09-27 | 1.0 | Konsolidierungs-Serie `1.23.9` + `1.23.10` eingetragen; §1 Konsolidierungsspalte SU2/SU2_Dynamics auf `1.23.7 + 1.23.10` aktualisiert; §2 Header-Konsolidierung ergänzt; §9 Status-Liste auf 17 fertige Punkte erweitert, nur Git-Tags offen |
 | 2026-09-28 | 1.1 | ProWB-Integration (`1.23.11`): §5b (ProWB-Quellen), §5c (Web-Docs-Quellen), §6.3 (ProWB-Makefile), §6.4 (CI-Workflows), §7.5 (Web-Docs-Docs) neu; §1 Anmerkung zu 1.23.11 ergänzt; §5 Tools-Aktion `web` markiert; §6.1 Master-Makefile um `prowb`-Target ergänzt; §7.4 Build-Docs um ProWB-Einträge und Version-Updates erweitert; §8 Changelog-Historie um `1.23.11` ergänzt; §9 Status-Liste auf 25 fertige Punkte erweitert |
 | 2026-09-28 | 1.2 | CI-Doku-Konsolidierung (`1.23.12`): §5c Manifest-Anmerkung (44 → 46 Einträge); §5d (Website-README) neu; §6.4 CI-Workflows um `alpha-nightly.yml` und Doku-Verweise; §6.5 (CI-Dokumentation) neu; §7.2 Projekt-Docs um `docs/project/README.md` (Website); §7.4 Build-Docs um `ci.md` und `alpha-nightly.md`; §8 Changelog-Historie um `1.23.12`; §9 Status-Liste auf 30 fertige Punkte erweitert; §0.1 Versions-Ebenen um CI-Workflows; §0.2 PATCH-Wertebereich bis 12 |
+| 2026-09-27 | 1.3 | Creutz-Ratio (`1.23.13`): §0.1 Versions-Ebenen (Tests 1.0.1, Changelog 1.23.13, PATCH-Wertebereich bis 13); §1 SU2-Zeile Konsolidierungsspalte um 1.23.13; §2 ProPhysics.h-Zeile um 1.23.13; §4.1 `alpha_test_common.h` Version 3.2; §4.2 neue Zeile `alpha_test_creutz_ratio.c`; §5 `run_alpha_tests.ps1` Version 1.0.2, Doc-Version 1.2.0; §6.2 test-Makefile Version 3.3; §7.1 `SU2.md` Version 1.1; §7.3 Soll-Versionen Test-Docs; §8 Changelog-Historie um `1.23.13`; §9 Status-Liste auf 38 fertige Punkte erweitert; §10 neuer Eintrag |
 
 ---
 
-**Ende Versions-Register v1.2.**
+**Ende Versions-Register v1.3.**

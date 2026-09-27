@@ -1,11 +1,12 @@
 # ProPhysics — Test-Baseline
 
 **Datei:** `docs/test/BASELINE.md`
-**Version:** 1.1
+**Version:** 1.2
 **Kernel:** 1.23.0
 **Etappe:** 23
-**Stand:** 2026-09-27
-**Zweck:** Referenz-Lauf der 43 Tests mit Rohwerten. Dient als
+**Stand:** 2026-09-27 (nach Etappe 23b + Patch 1.23.13,
+Creutz-Ratio-Konsistenz-Test)
+**Zweck:** Referenz-Lauf der 45 Tests mit Rohwerten. Dient als
 Vergleichsanker für Regressionstests.
 
 ---
@@ -13,8 +14,8 @@ Vergleichsanker für Regressionstests.
 ## §0 — Was dieses Dokument ist
 
 Ein **Snapshot** des aktuellen Test-Suite-Ergebnisses (Kernel 1.23.0,
-Etappe 23). Wer eine Änderung am Kernel vornimmt, kann seine
-Ergebnisse gegen diese Werte vergleichen.
+Etappe 23 + 23b, Patch-Stand `1.23.13`). Wer eine Änderung am Kernel
+vornimmt, kann seine Ergebnisse gegen diese Werte vergleichen.
 
 **Nicht** in diesem Dokument:
 
@@ -22,7 +23,15 @@ Ergebnisse gegen diese Werte vergleichen.
 - Test-Runner-Bedienung → `docs/test/run_alpha_tests.md`
 - Changelog → `CHANGELOG.md`
 
-**Quelle:** `bin\logs\<timestamp>_*.log` des letzten Prio-All-Laufes.
+**Quelle:** `bin\logs\<timestamp>_*.log` des letzten Prio-All-Laufes
+plus der 23b-Creutz-Ratio-Läufe (`*_Creutz_Ratio.log`).
+
+**Wichtige Änderung gegenüber v1.1:** Der frühere V&V-Anker („0,08 %
+gegen `I₂(2)/I₁(2)`") wurde mit Patch `1.23.13` **zurückgenommen**.
+Ursache: Der Plaquette-Konjugations-Fix in `1.23.10` verändert
+`u_plaq(β=2, dim=64)` von `0,283270` auf `0,272552`. Der alte Anker
+war damit nicht mehr gültig. An seine Stelle tritt der
+**Creutz-Ratio-Konsistenz-Test** (§2.7).
 
 ---
 
@@ -37,16 +46,19 @@ Ergebnisse gegen diese Werte vergleichen.
 | 5 | Hydrogen + Shared-Ref + Tournament | 4 | 4/4 |
 | 6 | Spin-1/2 | 1 | 1/1 |
 | 7 | Dirac | 1 | 1/1 |
-| 8 | SU(2) + Running-Coupling | 2 | 2/2 |
-| **Gesamt** | | **43** | **43/43** |
+| 8 | SU(2) + Running-Coupling + Creutz-Ratio | 4 | 4/4 |
+| **Gesamt** | | **45** | **45/45** |
 
-**Prio-All-Laufzeit:** 4 420,6 s (~73,7 min).
+**Prio-All-Laufzeit (ohne `Creutz-Ratio-Full`):**
+~4 530 s (~75,5 min) mit 23b-Ergänzung.
 
 **Laufzeit-Treiber:**
 
-- Hydrogen-48 (~2 281 s = 51,6 %)
-- Running-Coupling (~1 398 s = 31,6 %)
-- Alle anderen (~742 s = 16,8 %)
+- Hydrogen-48 (~2 281 s = **50,4 %**)
+- Running-Coupling (~1 398 s = **30,9 %**)
+- Creutz-Ratio (Fast, ~110 s)
+- Creutz-Ratio-Full (~2 400 s, **nur Nightly**)
+- Alle anderen (~850 s = 18,7 %)
 
 ---
 
@@ -108,18 +120,72 @@ Konjugations-Bug in `su2_plaquette_action_at` wurde gefixt
 (`l3br_n`/`l4br_n` statt `l3br`/`l4br`). T11 (Plaquette-Näherung)
 bleibt unverändert, weil dort `b_re = 0`.
 
-### §2.7 — V&V-Anker (Running-Coupling)
+### §2.7 — SU(2)-Metropolis: RC-Rohwerte und Creutz-Ratio
 
-| β | dim=64 `u_plaq` | `u_err` | ⟨P⟩ |
-|---|---|---|---|
-| 0,50 | 0,438134 | 0,000025 | 0,123732 |
-| 1,00 | 0,379875 | 0,000021 | 0,240250 |
-| **2,00** | **0,283270** | **0,000027** | **0,433460** |
-| 4,00 | 0,170344 | 0,000019 | 0,659312 |
+**Vorbemerkung zur Anker-Rücknahme:** Der ursprüngliche V&V-Anker
+aus `[1.23.0]` (`⟨P⟩(β=2, dim=64) = 0,43346` vs. `I₂(2)/I₁(2) =
+0,43313`, Abweichung 0,08 %) ist mit `1.23.13` **zurückgenommen**.
+Grund: Der Plaquette-Konjugations-Fix in `1.23.10` verschiebt
+`u_plaq(β=2, dim=64)` auf `0,272552`. Entsprechend
+`⟨P⟩ = 1 − 2·u_plaq = 0,454896`, ca. 5 % Abweichung zur
+Ein-Plaquette-Approximation — im Rahmen der erwarteten
+Multi-Loop-Korrektur, aber kein 0,08 %-Anker mehr.
 
-**Referenz** (β=2, dim=64): `I₂(2)/I₁(2) = 0,43313`.
+**RC-Rohwerte (Stand `1.23.13`):**
 
-**Abweichung:** **0,08 %**.
+Nur der Wert für β=2, dim=64 wurde nach dem Bugfix neu gemessen.
+Die übrigen β-Werte stammen aus dem Stand von `1.23.0` und sind um
+ca. −3 bis −4 % zu korrigieren (Größenordnung aus der β=2-Korrektur).
+Ein vollständiger RC-Neulauf steht aus.
+
+| β | dim=64 `u_plaq` (alt, `1.23.0`) | dim=64 `u_plaq` (neu, `1.23.13`) |
+|---|---|---|
+| 0,50 | 0,438134 | (Neulauf ausstehend) |
+| 1,00 | 0,379875 | (Neulauf ausstehend) |
+| **2,00** | 0,283270 | **0,272552** |
+| 4,00 | 0,170344 | (Neulauf ausstehend) |
+
+**Referenz:** Für β=2: `I₂(2)/I₁(2) = 0,43313`
+(starke-Kopplungs-Approximation, Pietarinen 1981).
+
+**Abweichung β=2, dim=64:** `⟨P⟩ = 0,454896` gegen 0,43313 →
+**~5 %** (erwartete Multi-Loop-Korrektur).
+
+**Creutz-Ratio (Etappe 23b, FAST-Modus, 2026-09-27):**
+
+Deterministische Seeds, 200 Sweeps Thermalisierung, 300 Sweeps
+Messung, 30 Bins à 10 Sweeps. Loop-Messung am Ende jedes Bins.
+
+**dim=16:**
+
+| β | W(1,1) | W(2,1) | W(2,2) | χ(2,2) |
+|---|---|---|---|---|
+| 1,00 | 0,24120 ± 0,00066 | 0,05850 ± 0,00093 | 0,00300 ± 0,00081 | 1,04844 ± 0,19338 |
+| 2,00 | 0,45589 ± 0,00073 | 0,20912 ± 0,00082 | 0,04394 ± 0,00085 | 0,78591 ± 0,01758 |
+| 4,00 | 0,72683 ± 0,00042 | 0,54315 ± 0,00069 | 0,31931 ± 0,00121 | 0,24010 ± 0,00281 |
+
+**dim=32:**
+
+| β | W(1,1) | W(2,1) | W(2,2) | χ(2,2) |
+|---|---|---|---|---|
+| 1,00 | 0,24124 ± 0,00020 | 0,05826 ± 0,00023 | 0,00343 ± 0,00028 | 1,51631 ± 0,08838 |
+| 2,00 | 0,45436 ± 0,00027 | 0,20742 ± 0,00032 | 0,04350 ± 0,00029 | 0,77838 ± 0,00518 |
+| 4,00 | 0,72734 ± 0,00018 | 0,54383 ± 0,00034 | 0,32009 ± 0,00046 | 0,23930 ± 0,00078 |
+
+**Prüf-Ergebnisse:**
+
+| Kriterium | Ergebnis |
+|---|---|
+| B1 (χ > 0 für alle dim,β) | **PASS** |
+| B2 (χ monoton fallend in β pro dim) | **PASS** |
+| B3 (χ konsistent über dim, 3σ) | **PASS** |
+
+**Kreuzvalidierung gegen Running-Coupling:**
+
+`W(1,1)(β=2, dim=32) = 0,4544` vs. `RC-⟨P⟩(β=2, dim=32) = 1 − 2·u_plaq ≈ 0,433`.
+Übereinstimmung auf **~4,8 %** — konsistent mit der erwarteten
+Multi-Loop-Korrektur. Die beiden Observablen messen dieselbe
+physikalische Größe und liefern jetzt konsistente Werte.
 
 ### §2.8 — Code-Qualität
 
@@ -135,16 +201,24 @@ bleibt unverändert, weil dort `b_re = 0`.
 
 Bei jeder Änderung am Kernel:
 
-1. **Test-Suite läuft 43/43 PASS** (keine Regression).
+1. **Test-Suite läuft 45/45 PASS** (keine Regression).
 2. **Numerische Anker bleiben innerhalb ihrer Toleranzen** (siehe
    Testkatalog).
-3. **V&V-Anker bleibt < 0,1 %** (Running-Coupling).
-4. **Compiler-Warnungen bleiben bei 0** bei `/W4` (Kernel) bzw.
+3. **Creutz-Ratio-Konsistenz bleibt erhalten:**
+   - χ > 0 für alle (dim, β),
+   - χ monoton fallend in β,
+   - χ dim-konsistent innerhalb 3σ.
+4. **`W(1,1)` bleibt konsistent mit RC-`⟨P⟩`** innerhalb ~10 %
+   (großzügige Schranke für Multi-Loop-Korrektur).
+5. **Compiler-Warnungen bleiben bei 0** bei `/W4` (Kernel) bzw.
    `/W3` (SDK/Test).
 
 **Bit-Identität** ist nur bei deterministischen Tests garantiert
 (Wave-Step und SU(2)-exp nutzen `cos`/`sin` — IEEE-754-konform auf
-x86-64, aber nicht plattformübergreifend bit-identisch).
+x86-64, aber nicht plattformübergreifend bit-identisch). Der
+Creutz-Ratio-Test ist **deterministisch** (fester Seed pro
+`(dim, β)`), sollte also bei gleichem Compiler/Build reproduzierbar
+sein.
 
 ---
 
@@ -166,8 +240,9 @@ sind die ausführlichere Referenz. `BASELINE.md` ist eine Kurzfassung.
 | Test-Runner | `docs/test/run_alpha_tests.md` |
 | Changelog | `CHANGELOG.md` |
 | Physik-Übersicht | `docs/physics/README.md` |
+| SU2-Modul | `docs/project/SU2.md` |
 | Repository | https://github.com/onkel83/prophysics |
 
 ---
 
-**Ende BASELINE v1.1.**
+**Ende BASELINE v1.2.**

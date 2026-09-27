@@ -1,7 +1,11 @@
 /* ==========================================================================
  * ProPhysics - Alpha-Test Common Header
  * File: alpha_test_common.h
- * Version: 3.1 (Etappe 22 + Refactoring)
+ * Version: 3.2 (Etappe 23b + Refactoring)
+ *
+ * Refactoring 23b-Aenderungen:
+ *   - Header-Kommentar auf v3.2 aktualisiert.
+ *   - Neuer Testprototyp test_creutz_ratio (Etappe 23b, Prio 8).
  *
  * Refactoring 22-Aenderungen:
  *   - Header-Kommentar auf v3.1 aktualisiert.
@@ -223,4 +227,11 @@ bool test_dirac_dispersion_entry(void);
 bool test_su2_wilson_loop(void);
 /* --- Prio 8-Erweiterung: Renormierung / Running Coupling (Etappe 23) --- */
 bool test_running_coupling(void);
+/* --- Prio 8-Erweiterung: Creutz-Ratio Konsistenz-Test (Etappe 23b) ---
+ *
+ * full_dims == false : dim in {16, 32}           (Default, schnell)
+ * full_dims == true  : dim in {16, 32, 64, 128}  (Nightly, --creutz-full)
+ */
+bool test_creutz_ratio(bool full_dims);
+
 #endif /* ALPHA_TEST_COMMON_H */

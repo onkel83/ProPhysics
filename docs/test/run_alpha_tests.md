@@ -1,8 +1,8 @@
 # ProPhysics Alpha-Test-Runner
 
 **Dateien:** `tools\run_alpha_tests.ps1` + `tools\run_alpha_tests.cmd`
-**Version:** 1.1.0 (Build-System)
-**Kernel:** 1.23.0 (Etappe 23)
+**Version:** 1.2.0 (Build-System)
+**Kernel:** 1.23.0 (Etappe 23 + 23b)
 **Zweck:** Fuehrt die Alpha-Test-Suite sequenziell aus, schreibt pro Test
 ein Log und liefert eine PASS/FAIL-Bilanz mit Exit-Code.
 
@@ -27,6 +27,10 @@ wuerde.
 **Empfohlener Aufruf:** ueber `pro_run test …` in `tools\`. Der
 Runner bleibt auch direkt aufrufbar. `pro_run` dispatcht auf dieses
 Skript und reicht Parameter wie `-Prio`, `-Test`, `-LogDir` durch.
+
+**Neu in 1.2.0 (Etappe 23b):** zwei zusaetzliche Prio-8-Katalogeintraege
+(`Creutz-Ratio` im Fast-Modus, `Creutz-Ratio-Full` im Nightly-Modus).
+Gesamtzahl 43 → 45.
 
 ---
 
@@ -68,6 +72,8 @@ pro_run test
 pro_run test -Prio 1-4
 pro_run test -Prio 8
 pro_run test -Test Running-Coupling -LogDir C:\logs
+pro_run test -Test Creutz-Ratio
+pro_run test -Test Creutz-Ratio-Full
 ```
 
 Details siehe `docs\build\pro_run.md`. `pro_run test` dispatcht auf
@@ -81,6 +87,8 @@ run_alpha_tests.cmd -Prio 8
 run_alpha_tests.cmd -Prio all
 run_alpha_tests.cmd -Prio 1-4
 run_alpha_tests.cmd -Test Dirac
+run_alpha_tests.cmd -Test Creutz-Ratio
+run_alpha_tests.cmd -Test Creutz-Ratio-Full
 ```
 
 ### 3.3 Direkt ueber PowerShell
@@ -90,6 +98,7 @@ cd tools
 .\run_alpha_tests.ps1 -Prio 8
 .\run_alpha_tests.ps1 -Prio all
 .\run_alpha_tests.ps1 -Test Running-Coupling
+.\run_alpha_tests.ps1 -Test Creutz-Ratio
 ```
 
 ### 3.4 Aus jedem anderen CWD
@@ -123,15 +132,16 @@ PowerShell fragt nach `-Prio`. Nuetzlich beim Debuggen.
 
 | Form | Beispiel | Bedeutung |
 |---|---|---|
-| Einzelwert | `-Prio 8` | nur Prio 8 |
+| Einzelwert | `-Prio 8` | nur Prio 8 (4 Tests) |
 | Range | `-Prio 1-4` | Prios 1,2,3,4 |
 | Liste | `-Prio 1,3,5` | Prios 1,3,5 |
-| `all` | `-Prio all` | alle 8 Prios, 43 Tests |
+| `all` | `-Prio all` | alle 8 Prios, 45 Tests |
 
 **`-Test`** waehlt einen einzelnen Test per Name. Wenn `-Test` gesetzt
 ist, wird `-Prio` ignoriert. Der Name ist case-insensitive, `-` und `_`
 sind austauschbar: `Running-Coupling`, `running_coupling` und
-`RUNNING-COUPLING` sind aequivalent.
+`RUNNING-COUPLING` sind aequivalent. Ebenso `Creutz-Ratio`,
+`creutz_ratio`, `CREUTZ-RATIO-FULL` und `creutz_ratio_full`.
 
 **`-ExeDir`** ist selten noetig. Es wird verwendet, wenn der Runner aus
 einem Export-Paket heraus aufgerufen wird (z.B. `out\exe\`).
@@ -155,19 +165,22 @@ Verzeichnissen liegen. In dem Fall haengt der Runner `-DllDir` an
 | 5 | Hydrogen + Shared-Ref + Tournament | 4 | ~41 min |
 | 6 | Spin-1/2 | 1 | < 1 s |
 | 7 | Dirac | 1 | ~15 s |
-| 8 | SU(2)-Eichfeld + Running-Coupling | 2 | **~24 min** |
-| **all** | **alle** | **43** | **~74 min** |
+| 8 | SU(2)-Eichfeld + Running-Coupling + Creutz-Ratio | **4** | **~24 min** |
+| **all** | **alle** | **45** | **~75 min** |
 
-Die Laufzeit-Dominanz verteilt sich auf zwei Tests:
-- **Hydrogen-48** (Prio 5, ~2 280 s = 51,6 %)
-- **Running-Coupling** (Prio 8, ~1 400 s = 31,6 %)
+Die Laufzeit-Dominanz verteilt sich auf drei Tests:
+- **Hydrogen-48** (Prio 5, ~2 280 s = 50,4 %)
+- **Running-Coupling** (Prio 8, ~1 400 s = 30,9 %)
+- **Creutz-Ratio-Full** (~2 400 s, **nur Nightly**, nicht in Prio-All)
 
-Fuer schnelle Regressionen im CI sind die Prios 1–4, 6, 7 und der
+Für schnelle Regressionen im CI sind die Prios 1–4, 6, 7 und der
 `SU2-Wilson-Loop`-Test aus Prio 8 empfohlen (~1,5 min zusammen).
+`Creutz-Ratio` (Fast) fügt weitere ~110 s hinzu (~3 min zusammen).
 
-**Achtung:** Prio 8 enthaelt zwei Tests. Fuer CI kann mit
+**Achtung:** Prio 8 enthaelt **vier** Tests. Für CI kann mit
 `-Test SU2-Wilson-Loop` gezielt nur der kurze Test gefahren werden
-(siehe §16).
+(siehe §16). `Creutz-Ratio-Full` sollte **nicht** in normalen
+CI-Läufen verwendet werden.
 
 ---
 
@@ -252,16 +265,21 @@ hinterlegt. Pro Eintrag: Name, EXE, Argumente, Timeout.
 |---|---|---|
 | Dirac | `--test-dirac` | 300 s |
 
-### Prio 8 — SU(2)-Eichfeld + Running-Coupling (2)
+### Prio 8 — SU(2)-Eichfeld + Running-Coupling + Creutz-Ratio (4)
 
 | Test | Args | Timeout | Bemerkung |
 |---|---|---|---|
 | SU2-Wilson-Loop | `--test-su2-wilson-loop` | 300 s | 18 + KA = 19 Einzelchecks |
 | Running-Coupling | `--test-running-coupling` | **1800 s** | CI-untauglich |
+| **Creutz-Ratio** | `--test-creutz-ratio` | 300 s | **NEU in 1.2.0** — FAST-Modus (dim ∈ {16, 32}) |
+| **Creutz-Ratio-Full** | `--test-creutz-ratio --creutz-full` | **3600 s** | **NEU in 1.2.0** — Nightly (dim ∈ {16, 32, 64, 128}) |
 
-**Empfehlung:** In normalen CI-Laeufen `Running-Coupling` auslassen,
-indem `-Test SU2-Wilson-Loop` gefahren wird (~2 s). `Running-Coupling`
-als Nightly-Job (manuell, siehe §16.2).
+**Empfehlung:**
+- In normalen CI-Laeufen `Running-Coupling` und `Creutz-Ratio-Full`
+  auslassen. Mit `-Test SU2-Wilson-Loop` (~2 s) und optional
+  `-Test Creutz-Ratio` (~110 s) fahren.
+- `Running-Coupling` und `Creutz-Ratio-Full` als Nightly-Jobs
+  (manuell, siehe §16.2).
 
 ---
 
@@ -306,7 +324,12 @@ Verwendet von: CHSH-Native, Lorentz.
 Muster: `-> PASSED` oder `-> FAILED`.
 
 Verwendet von: allen `*_impl`-Funktionen, Hydrogen, Shared-Reference,
-SU2-Wilson-Loop, **Running-Coupling**.
+SU2-Wilson-Loop, **Running-Coupling**, **Creutz-Ratio**.
+
+**Hinweis zu Creutz-Ratio:** Der Test gibt drei Marker-Zeilen aus
+(`B1: PASS`, `B2: PASS`, `B3: PASS`) und eine abschließende Zeile
+`[CRx] -> PASSED` oder `[CRx] -> FAILED`. Der Runner erkennt den
+Direkt-Marker `-> PASSED`.
 
 ### 7.6 Sondermarker ohne PASS/FAIL
 
@@ -354,6 +377,8 @@ Beispiel:
 20260928_150634_Dirac.log
 20260928_150634_SU2-Wilson-Loop.log
 20260928_150634_Running-Coupling.log
+20260928_150634_Creutz-Ratio.log
+20260928_150634_Creutz-Ratio-Full.log
 ...
 ```
 
@@ -389,6 +414,8 @@ Extremwerte:
 | Dirac | 300 s |
 | SU2-Wilson-Loop | 300 s |
 | Running-Coupling | **1800 s** |
+| **Creutz-Ratio (FAST)** | **300 s** |
+| **Creutz-Ratio-Full** | **3600 s** |
 
 Bei Timeout: Prozess wird via `Kill()` beendet, Log enthaelt die
 bis dahin gesammelte Ausgabe, Ergebnis ist `TIMEOUT`. Timeout wird
@@ -404,6 +431,15 @@ einem langsamen Rechner kann er an die 1700 s laufen; 1800 s ist
 knapp. Wenn er in deiner Umgebung TIMEOUT-t, Timeout im Skript auf
 2400 s erhoehen.
 
+**Warum 300 s fuer Creutz-Ratio (FAST)?** Der FAST-Lauf dauert
+typisch ~110 s (dim ∈ {16, 32}, β ∈ {1, 2, 4}). Der Timeout ist
+~2,7× groesser.
+
+**Warum 3600 s fuer Creutz-Ratio-Full?** Der FULL-Lauf skaliert
+mit dim³ (Loop-Kosten). dim=128 dominiert die Laufzeit (~2 400 s
+typisch). Timeout ist ~1,5× groesser, plus Reserve für langsame
+Rechner.
+
 ---
 
 ## 10. Konsolenausgabe
@@ -417,18 +453,19 @@ knapp. Wenn er in deiner Umgebung TIMEOUT-t, Timeout im Skript auf
   ExeDir: <repo>\bin
   DllDir: <repo>\bin
   LogDir: <repo>\bin\logs
-  Tests:  43
+  Tests:  45
 ```
 
 ### 10.2 Pro Test eine Zeile
 
 ```
-[ 1/43] Amp-Smoke              ... PASS         0,5s
-[ 2/43] Born-Regel             ... PASS         0,1s
-[ 3/43] Unitary-Tick           ... PASS         0,1s
+[ 1/45] Amp-Smoke              ... PASS         0,5s
+[ 2/45] Born-Regel             ... PASS         0,1s
+[ 3/45] Unitary-Tick           ... PASS         0,1s
 ...
-[42/43] SU2-Wilson-Loop        ... PASS         1,1s
-[43/43] Running-Coupling       ... PASS     1.398,3s
+[43/45] Running-Coupling       ... PASS     1.398,3s
+[44/45] Creutz-Ratio           ... PASS       110,1s
+[45/45] Creutz-Ratio-Full      ... PASS     2.397,3s
 ```
 
 Farbcodierung:
@@ -455,23 +492,33 @@ Born-Regel               PASS           0,1 20260928_150634_Born-Regel.log
 ...
 SU2-Wilson-Loop          PASS           1,1 20260928_150634_SU2-Wilson-Loop.log
 Running-Coupling         PASS       1.398,3 20260928_150634_Running-Coupling.log
+Creutz-Ratio             PASS         110,1 20260928_150634_Creutz-Ratio.log
+Creutz-Ratio-Full        PASS       2.397,3 20260928_150634_Creutz-Ratio-Full.log
 
-PASS: 43   FAIL: 0   TIMEOUT: 0   MISSING: 0   UNKNOWN: 0   | Gesamt: 43
-Dauer gesamt: 4420,6s
+PASS: 45   FAIL: 0   TIMEOUT: 0   MISSING: 0   UNKNOWN: 0   | Gesamt: 45
+Dauer gesamt: 4528,2s
 
 Alle Tests erfolgreich.
 ```
+
+**Hinweis:** `Creutz-Ratio-Full` wird bei Prio-All nur dann mitgezählt,
+wenn es explizit via `-Test` oder `-Prio 8` aktiviert wird. Im
+normalen Prio-All-Lauf über `pro_run test -Prio all` läuft es mit
+(Prio 8 = 4 Tests). Wenn du die Laufzeit verkürzen willst, dann
+`-Prio 1-7` plus `-Test SU2-Wilson-Loop -Test Creutz-Ratio`
+sequenziell. Der Runner akzeptiert aber nur **einen** `-Test`-Wert
+pro Aufruf; nutze `-Prio 1,6,7` und dann separat `-Test Creutz-Ratio`.
 
 ### 10.4 Fehlerfall
 
 Wenn ein Test fehlschlaegt:
 
 ```
-PASS: 42   FAIL: 1   TIMEOUT: 0   MISSING: 0   UNKNOWN: 0   | Gesamt: 43
-Dauer gesamt: 4421,0s
+PASS: 44   FAIL: 1   TIMEOUT: 0   MISSING: 0   UNKNOWN: 0   | Gesamt: 45
+Dauer gesamt: 4528,7s
 
 Nicht-bestandene Tests:
-  - Running-Coupling       FAIL     <repo>\bin\logs\20260928_150634_Running-Coupling.log
+  - Creutz-Ratio           FAIL     <repo>\bin\logs\20260928_150634_Creutz-Ratio.log
 ```
 
 Die Zeile wird in Rot ausgegeben, Exit-Code ist 1.
@@ -495,7 +542,7 @@ Unterscheidung steht in der Konsolenausgabe und im Log-Verzeichnis.
 
 ### 12.1 SU2-Wilson-Loop (T1–T18 + KA)
 
-`20260928_104315_SU2-Wilson-Loop.log` (gekuerzt):
+`20260927_104315_SU2-Wilson-Loop.log` (gekuerzt):
 
 ```
 ========================================================================
@@ -533,7 +580,7 @@ vorher 8,06e-03 (Original).
 
 ### 12.2 Running-Coupling (Etappe 23)
 
-`20260928_150634_Running-Coupling.log` (gekuerzt):
+`20260927_150634_Running-Coupling.log` (gekuerzt):
 
 ```
 ========================================================================
@@ -563,6 +610,80 @@ vorher 8,06e-03 (Original).
 Der Runner erkennt entweder `[RC] -> PASSED` oder
 `-> PASSED (Rohdaten, ...)`.
 
+**Nachtrag `1.23.13`:** Der obige Log-Ausschnitt zeigt Werte aus
+`1.23.0`. Nach dem Plaquette-Konjugations-Fix (`1.23.10`) wurde
+`u_plaq(β=2, dim=64) = 0,272552` neu gemessen (statt `0,283270`).
+Die übrigen β-Werte sind vorläufig. Der V&V-Anker wurde in `1.23.13`
+zurückgenommen (siehe `docs/project/SU2.md` und
+`docs/test/BASELINE.md` §2.7).
+
+### 12.3 Creutz-Ratio (Etappe 23b, NEU in 1.2.0)
+
+`20260927_161200_Creutz-Ratio.log` (FAST-Modus, gekuerzt):
+
+```
+========================================================================
+  Etappe 23b: Creutz-Ratio Konsistenz-Test
+========================================================================
+
+[CRx] Ziel: Konsistenz des Metropolis-Samplers auf SU(2)-Links.
+[CRx] Observable: chi(2,2) = -ln( W(2,2)*W(1,1) / W(2,1)^2 ).
+[CRx] Sweep: dim in {16, 32} x beta in {1.0, 2.0, 4.0}.
+[CRx] Modus: FAST (default)
+[CRx] Thermalisierung: 200 Sweeps, Messung: 300 Sweeps, Bins: 30.
+[CRx] Loop-Messung am Ende jedes Bins.
+
+[CRx] --------------------------------------------------------------
+[CRx] dim = 16  (N = 4096 Knoten)
+[CRx] --------------------------------------------------------------
+[CRx]   beta    eps    accept    W(1,1)         W(2,1)         W(2,2)         chi(2,2)
+[CRx]   -----------------------------------------------------------------------------------------------------
+[CRx]   1.00    0.675  0.665     0.24120+-0.00066  0.05850+-0.00093  0.00300+-0.00081  1.04844+-0.19338
+[CRx]   2.00    0.450  0.549     0.45589+-0.00073  0.20912+-0.00082  0.04394+-0.00085  0.78591+-0.01758
+[CRx]   4.00    0.300  0.457     0.72683+-0.00042  0.54315+-0.00069  0.31931+-0.00121  0.24010+-0.00281
+
+[CRx] --------------------------------------------------------------
+[CRx] dim = 32  (N = 32768 Knoten)
+[CRx] --------------------------------------------------------------
+[CRx]   beta    eps    accept    W(1,1)         W(2,1)         W(2,2)         chi(2,2)
+[CRx]   -----------------------------------------------------------------------------------------------------
+[CRx]   1.00    0.675  0.665     0.24124+-0.00020  0.05826+-0.00023  0.00343+-0.00028  1.51631+-0.08838
+[CRx]   2.00    0.450  0.549     0.45436+-0.00027  0.20742+-0.00032  0.04350+-0.00029  0.77838+-0.00518
+[CRx]   4.00    0.300  0.457     0.72734+-0.00018  0.54383+-0.00034  0.32009+-0.00046  0.23930+-0.00078
+
+[CRx] ==============================================================
+[CRx] Zusammenfassung: chi(2,2)(beta, dim)
+[CRx] ==============================================================
+[CRx]   beta      chi(d= 16)       chi(d= 32)     
+[CRx]   ----------------------------------------------------------
+[CRx]   1.00      1.04844+-0.19338  1.51631+-0.08838
+[CRx]   2.00      0.78591+-0.01758  0.77838+-0.00518
+[CRx]   4.00      0.24010+-0.00281  0.23930+-0.00078
+
+[CRx] ==============================================================
+[CRx] Konsistenz-Pruefung
+[CRx] ==============================================================
+[CRx] B1 (chi > 0 fuer alle dim,beta):
+[CRx]   B1: PASS
+
+[CRx] B2 (chi monoton fallend in beta pro dim):
+[CRx]   B2: PASS
+
+[CRx] B3 (chi konsistent ueber dim, 3 sigma):
+[CRx]   beta 1.00: |chi(16)-chi(32)| = 0.467870 vs 3sigma = 0.637858  OK
+[CRx]   beta 2.00: |chi(16)-chi(32)| = 0.007532 vs 3sigma = 0.054993  OK
+[CRx]   beta 4.00: |chi(16)-chi(32)| = 0.000802 vs 3sigma = 0.008744  OK
+[CRx]   B3: PASS
+
+[CRx] -> PASSED
+```
+
+Der Runner erkennt die Zeile `[CRx] -> PASSED`.
+
+**FULL-Modus:** Mit `--creutz-full` erweitert sich der Sweep auf
+`dim ∈ {16, 32, 64, 128}`. Der Test läuft dann ~40 min (dim=128
+dominiert). Laufzeit-Ziel des FULL-Modus ist die Nightly-Nutzung.
+
 ---
 
 ## 13. Wie ein einzelner Test manuell laeuft
@@ -574,13 +695,16 @@ cd bin
 .\example_alpha_test.exe --test-dirac
 .\example_alpha_test.exe --test-su2-wilson-loop
 .\example_alpha_test.exe --test-running-coupling
+.\example_alpha_test.exe --test-creutz-ratio
+.\example_alpha_test.exe --test-creutz-ratio --creutz-full
 ```
 
 Die Ausgabe ist direkt sichtbar. Der Runner macht dasselbe, leitet
 aber stdout/stderr in eine Datei um und wertet den Marker aus.
 
-**Hinweis:** `--test-running-coupling` dauert ~23 min. Nicht
-versehentlich im Debug-Modus starten.
+**Hinweis:** `--test-running-coupling` dauert ~23 min. `--test-creutz-ratio`
+dauert ~2 min, `--test-creutz-ratio --creutz-full` dauert ~40 min.
+Nicht versehentlich im Debug-Modus starten.
 
 Alternativ per Runner:
 
@@ -588,6 +712,8 @@ Alternativ per Runner:
 cd tools
 run_alpha_tests.cmd -Test Dirac
 run_alpha_tests.cmd -Test Running-Coupling
+run_alpha_tests.cmd -Test Creutz-Ratio
+run_alpha_tests.cmd -Test Creutz-Ratio-Full
 ```
 
 Oder ueber `pro_run`:
@@ -596,6 +722,7 @@ Oder ueber `pro_run`:
 cd tools
 pro_run test -Test Dirac
 pro_run test -Test Running-Coupling -LogDir C:\logs
+pro_run test -Test Creutz-Ratio
 ```
 
 ---
@@ -608,6 +735,7 @@ pro_run test -Test Running-Coupling -LogDir C:\logs
 | `tools\` | `run_alpha_tests.cmd -Prio 8` | `<repo>\bin` | `<repo>\bin` | `<repo>\bin\logs` |
 | `tools\` | `run_alpha_tests.cmd -Prio all -LogDir H:\temp\logs` | `<repo>\bin` | `<repo>\bin` | `H:\temp\logs` |
 | `tools\` | `run_alpha_tests.cmd -Test Dirac` | `<repo>\bin` | `<repo>\bin` | `<repo>\bin\logs` |
+| `tools\` | `run_alpha_tests.cmd -Test Creutz-Ratio` | `<repo>\bin` | `<repo>\bin` | `<repo>\bin\logs` |
 | Repo-Root | `tools\run_alpha_tests.cmd -Prio 8` | `<repo>\bin` | `<repo>\bin` | `<repo>\bin\logs` |
 | `C:\Temp` | `H:\...\tools\run_alpha_tests.cmd -Prio all` | `<repo>\bin` | `<repo>\bin` | `<repo>\bin\logs` |
 | Export | `out\exe\run_alpha_tests.cmd -Prio all` | `out\exe` | `out\exe` | `out\exe\logs` |
@@ -624,7 +752,7 @@ Der Build-Wrapper ruft den Runner **nicht** auf. Das ist Absicht:
 - **Build ≠ Test.** Der Build produziert die EXEs, der Runner fuehrt
   sie aus.
 - **Der Nutzer entscheidet.** Nach einem Build kann er `-Prio 6`
-  laufen lassen, ohne die vollen 74 Minuten zu investieren.
+  laufen lassen, ohne die vollen 75 Minuten zu investieren.
 
 **Empfohlen:** ueber `pro_run all`, das build → test → export in
 einem Aufruf macht:
@@ -664,13 +792,18 @@ Test-Runner wird von **zwei** von ihnen genutzt.
 | 1 | 2D-Basis (12 Tests) | ~5 s |
 | 6 | Spin-1/2 (1 Test) | < 1 s |
 | 7 | Dirac (1 Test) | ~15 s |
-| 8 | **nur** `SU2-Wilson-Loop` (nicht Running-Coupling) | ~2 s |
+| 8 | **nur** `SU2-Wilson-Loop` (nicht Running-Coupling, nicht Creutz-Ratio) | ~2 s |
 
 **Warum genau diese vier?**
 
 - Prio 1 deckt die Basis-Physik ab (Born, Unitariät, Gauge U(1), CHSH).
 - Prio 6 und 7 sind schnell und decken zwei Schicht-2-Erweiterungen ab.
 - `SU2-Wilson-Loop` ist der einzige schnelle Test aus Prio 8.
+
+**Noch nicht in `ci.yml` enthalten, aber optional hinzufügbar:**
+
+- `Creutz-Ratio` (Fast, ~110 s) — passt in die Standard-CI, wenn
+  gewünscht. Derzeit nicht eingebunden.
 
 **Aufruf aus dem Workflow:**
 
@@ -702,6 +835,12 @@ Nach jedem Aufruf prüft der Workflow explizit den Exit-Code
 | `all-long` (Default) | Prio 5 + `Running-Coupling` | ~64 min |
 | `prio-5` | Nur Prio 5 (Hydrogen, Hydrogen-48, Shared-Reference, Tournament) | ~41 min |
 | `running-coupling` | Nur der Metropolis-Test | ~23 min |
+| **`creutz-full`** (neu, optional) | `Creutz-Ratio-Full` (dim ∈ {16, 32, 64, 128}) | ~40 min |
+
+**Hinweis:** `creutz-full` ist als Scope in `docs\build\alpha-nightly.md`
+**noch nicht** verdrahtet. Bei Bedarf den Workflow um den Scope
+erweitern oder lokal `run_alpha_tests.cmd -Test Creutz-Ratio-Full`
+fahren.
 
 **Warum manuell und nicht per Cron?**
 
@@ -715,8 +854,9 @@ Nach jedem Aufruf prüft der Workflow explizit den Exit-Code
 
 ```cmd
 cd tools
-run_alpha_tests.cmd -Prio 5              :: Scope prio-5
-run_alpha_tests.cmd -Test Running-Coupling   :: Scope running-coupling
+run_alpha_tests.cmd -Prio 5                   :: Scope prio-5
+run_alpha_tests.cmd -Test Running-Coupling    :: Scope running-coupling
+run_alpha_tests.cmd -Test Creutz-Ratio-Full   :: Scope creutz-full (sobald verdrahtet)
 ```
 
 **Artefakt:** `bin\logs\` wird als
@@ -749,11 +889,13 @@ auf GitHub Pages. **Kein Test-Runner.**
 | 7 | Dirac-Struktur | Standard-CI |
 | 8 | SU(2)-Eichfeld (kinematisch + dynamisch) | Standard-CI (`SU2-Wilson-Loop`) |
 | 8 | SU(2)-Metropolis (Running-Coupling) | Alpha-Nightly (manuell) |
+| 8 | **Creutz-Ratio-Konsistenz (FAST)** | — (lokal, optional Standard-CI) |
+| 8 | **Creutz-Ratio-Konsistenz (FULL)** | — (lokal / Nightly, optional) |
 
 **Prio 2, 3, 4 laufen aktuell nicht automatisch.** Sie sind für
 lokale Regressionen vorgesehen. Bei Bedarf können sie in die
 Standard-CI aufgenommen werden (siehe `docs\build\ci.md` §7 für
-Diskussion).
+Diskussion). Dasselbe gilt für `Creutz-Ratio` (Fast).
 
 ### 16.5 Lokale Reproduktion der CI
 
@@ -782,6 +924,7 @@ build.cmd -Mode all -Rebuild
 cd ..\..\tools
 run_alpha_tests.cmd -Prio 5
 run_alpha_tests.cmd -Test Running-Coupling
+run_alpha_tests.cmd -Test Creutz-Ratio-Full
 ```
 
 ### 16.6 Vollständiger Prio-All-Lauf vor einem Release
@@ -794,11 +937,11 @@ cd tools
 pro_run test -Prio all
 ```
 
-~74 min. Kein CI-Workflow führt diesen Lauf automatisch aus. Er
+~75 min. Kein CI-Workflow führt diesen Lauf automatisch aus. Er
 muss lokal oder über einen manuell gestarteten Nightly-Lauf
 erledigt werden.
 
-**Regel:** Kein Push auf `main` ohne 43/43 PASS (siehe
+**Regel:** Kein Push auf `main` ohne 45/45 PASS (siehe
 `CONTRIBUTING.md` §7.4).
 
 ---
@@ -816,7 +959,10 @@ erledigt werden.
 | `Dirac FAIL` | Kernel nicht neu gebaut | `pro_run build -Mode kernel` |
 | `SU2-Wilson-Loop FAIL` | Kernel nicht neu gebaut oder `ProPhysics_SU2_Dynamics.c` fehlt in `OBJ_KERNEL` | `build\prophysics\Makefile.nmake` pruefen, dann `-Rebuild` |
 | `Running-Coupling FAIL` | `SU2_Link_Plaquette_Sum` fehlt | `pro_run build -Mode kernel -Rebuild` |
+| **`Creutz-Ratio FAIL`** | `Wilson_Loop_Average` fehlt im Kernel (vor `1.23.13`) oder Vorwärts/Rückwärts-Bug | `pro_run build -Mode kernel -Rebuild`; Kernel-Stand ≥ `1.23.13` prüfen |
+| **`Creutz-Ratio` liefert `B1 FAIL: chi <= 0`** | Sampler exploriert falsche Slots (Kernel < `1.23.13`) | Build-Stand prüfen; `ProPhysics_Wilson_Loop_Average` muss in `ProPhysics.h` deklariert sein |
 | `Running-Coupling TIMEOUT` | Rechner sehr langsam | Timeout auf 2400 s erhoehen (Prio 8) |
+| **`Creutz-Ratio-Full TIMEOUT`** | Rechner sehr langsam (dim=128) | Timeout auf 5400 s erhoehen |
 | `Hydrogen-48 TIMEOUT` | Rechner sehr langsam | Timeout im Skript erhoehen (Prio 5) |
 | `UNKNOWN`-Ergebnis | unbekannter Test-Marker | Ausgabe im Log pruefen, Regex erweitern |
 | Logs leer | EXE stuerzte beim Start | DLL fehlt in `bin\` |
@@ -885,9 +1031,21 @@ und dispatcht auf dieses Skript. Details siehe
 | Build-Wrapper | `docs\build\helper\build.md` |
 | Export-Wrapper | `docs\build\helper\export.md` |
 | Build-System-Übersicht | `docs\build\BUILD_SCRIPT.md` |
+| **SU(2)-Modul (Quaternion-Links, Loop-Average)** | **`docs\project\SU2.md`** |
 | CLI-Parser der EXE | `src\test\alpha_test_main.c` |
 | Running-Coupling-Test | `src\test\alpha_test_running_coupling.c` |
+| **Creutz-Ratio-Test** | **`src\test\alpha_test_creutz_ratio.c`** |
 
 ---
 
-**Ende Test-Runner-Dokumentation (v1.1.0).**
+## 21. Änderungshistorie dieses Dokuments
+
+| Datum | Version | Änderung |
+|---|:-:|---|
+| (früh) | 1.0.0 | Erste Fassung. |
+| 2026-09-28 | 1.1.0 | CI-Doku-Konsolidierung (`1.23.12`): §16 komplett neu geschrieben (drei Workflows `ci.yml`, `web-docs-ci.md`, `alpha-nightly.yml`); §1, §3.1, §13, §14, §15, §17, §18, §20 um `pro_run`-Workflow und CI-Verweise; Zählung 43. |
+| **2026-09-27** | **1.2.0** | **Creutz-Ratio (`1.23.13`): §5 Prio-8 = 4 Tests, all = 45; §6 Prio-8-Tabelle um `Creutz-Ratio` (300 s) und `Creutz-Ratio-Full` (3600 s); §9 Timeouts-Tabelle erweitert; §10 Konsolenausgaben auf 45 Zeilen; §12.3 neuer Creutz-Ratio-Log-Ausschnitt; §12.2 Nachtrag zum Bugfix `1.23.10`; §16.2 Nightly-Scope-Tabelle um `creutz-full` (noch nicht verdrahtet); §16.4 Testlauf-Tabelle um Creutz-Ratio-FAST/-FULL; §16.6 45/45-Pflicht; §17 Fehlersuche um Creutz-Ratio-Symptome; §20 Querverweise auf `SU2.md` und `alpha_test_creutz_ratio.c`.** |
+
+---
+
+**Ende Test-Runner-Dokumentation (v1.2.0).**

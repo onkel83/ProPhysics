@@ -464,6 +464,13 @@ extern "C" {
 	 *   U(x->y) -> g(x) * U(x->y) * g(y)^dagger
 	 *   W(C)    -> g(p[0]) * W(C) * g(p[0])^dagger
 	 *   Tr(W)   -> Tr(W)   (unveraendert, weil Tr zyklisch ist)
+	 *
+	 * Wilson-Loop-Average (Etappe 23b):
+	 *   <Re Tr(W_C)/2> gemittelt ueber alle m x n-Loops der drei
+	 *   Ebenen (xy, xz, yz) eines 3D-Torus. Read-only; dient dem
+	 *   Creutz-Ratio-Konsistenz-Test in alpha_test_creutz_ratio.c.
+	 *   Rueckgabe 0.0, wenn grid_ndim != 3, su2_active == 0, oder
+	 *   m/n ausserhalb [1, grid_dim/2].
 	 * ========================================================================== */
 
 	PROPHYSICS_API bool ProPhysics_Set_Edge_SU2(
@@ -493,6 +500,9 @@ extern "C" {
 		const uint64_t* path_nodes,
 		const uint8_t* path_channels,
 		uint32_t        path_len);
+
+	PROPHYSICS_API double ProPhysics_Wilson_Loop_Average(
+		const ProUniverse* pu, uint32_t m, uint32_t n);
 
 	PROPHYSICS_API void ProPhysics_Apply_Local_SU2_Gauge(
 		ProUniverse* pu,

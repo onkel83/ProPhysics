@@ -76,6 +76,8 @@ static void usage(const char* prog) {
     printf("  --test-dirac                   Dirac-Struktur (Etappe 21)\n");
     printf("  --test-su2-wilson-loop         SU(2)-Eichfeld (Etappe 22)\n");
     printf("  --test-running-coupling       Running-Coupling / Beta-Funktion (Etappe 23)\n");
+    printf("  --test-creutz-ratio           Creutz-Ratio Konsistenz-Test (Etappe 23b)\n");
+    printf("  --creutz-full                 Erweitert Creutz-Ratio auf dim in {16,32,64,128}\n");
     exit(0);
 }
 
@@ -411,7 +413,8 @@ int main(int argc, char** argv) {
         want_test_shared_formula_tournament = false,
         want_test_spin_half = false,
         want_test_dirac = false,
-        want_test_su2_wilson_loop = false, want_test_running_coupling = false;
+        want_test_su2_wilson_loop = false, want_test_running_coupling = false,
+        want_test_creutz_ratio = false, want_creutz_full = false;
 
     for (int i = 1; i < argc; ++i) {
         if (arg_matches(argv[i], "-h") || arg_matches(argv[i], "--help")) usage(argv[0]);
@@ -473,6 +476,8 @@ int main(int argc, char** argv) {
         else if (arg_matches(argv[i], "--test-dirac")) want_test_dirac = true;
         else if (arg_matches(argv[i], "--test-su2-wilson-loop")) want_test_su2_wilson_loop = true;
         else if (arg_matches(argv[i], "--test-running-coupling")) want_test_running_coupling = true;
+        else if (arg_matches(argv[i], "--test-creutz-ratio")) want_test_creutz_ratio = true;
+        else if (arg_matches(argv[i], "--creutz-full")) want_creutz_full = true;
 
         else if (arg_matches(argv[i], "--log") && i + 1 < argc) { i++; /* Wert in Pre-Pass bereits konsumiert */ }
         else { fprintf(stderr, "Unbekannter Parameter: %s\n", argv[i]); usage(argv[0]); }
@@ -553,6 +558,7 @@ int main(int argc, char** argv) {
 
     if (want_test_su2_wilson_loop) test_su2_wilson_loop();
     if (want_test_running_coupling) test_running_coupling();
+    if (want_test_creutz_ratio) test_creutz_ratio(want_creutz_full);
 
     bool any_test = want_test_chsh || want_test_no_signal || want_test_invariance
         || want_test_lorentz || want_test_amp || want_test_born || want_test_unitary
@@ -572,7 +578,8 @@ int main(int argc, char** argv) {
         || want_test_shared_reference
         || want_test_shared_formula_tournament
         || want_test_spin_half || want_test_dirac
-        || want_test_su2_wilson_loop || want_test_running_coupling;
+        || want_test_su2_wilson_loop || want_test_running_coupling
+        || want_test_creutz_ratio;
     if (any_test) return 0;
 
     const uint32_t inject_ticks = (inject_ticks_arg >= 0) ? (uint32_t)inject_ticks_arg : (ticks / 10);
