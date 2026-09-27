@@ -425,6 +425,35 @@ extern "C" {
     }
 
     /* ==========================================================================
+ * SU(2)-Edge-Zugriff (geteilt zwischen SU2.c und SU2_Dynamics.c)
+ *
+ * Liefert den Link-Slot in pu->edge_phases. Bounds-Checks eingebaut.
+ * Bei ungueltigen Argumenten NULL.
+ *
+ * Wurde in Patch 1.23.7 (Backlog B7) aus ProPhysics_SU2.c nach hier
+ * verschoben, damit auch ProPhysics_SU2_Dynamics.c die beiden Helfer
+ * nutzen kann. Die static-Varianten in SU2.c sind entfernt.
+ * ========================================================================== */
+
+    static inline ProEdge* pro_su2_edge_mut(ProUniverse* pu,
+        uint64_t src, uint8_t ch)
+    {
+        if (!pu || !pu->edge_phases) return NULL;
+        if (src >= pu->total_nodes) return NULL;
+        if (ch >= CHANNELS_MAX) return NULL;
+        return &pu->edge_phases[src * (uint64_t)CHANNELS_MAX + ch];
+    }
+
+    static inline const ProEdge* pro_su2_edge(const ProUniverse* pu,
+        uint64_t src, uint8_t ch)
+    {
+        if (!pu || !pu->edge_phases) return NULL;
+        if (src >= pu->total_nodes) return NULL;
+        if (ch >= CHANNELS_MAX) return NULL;
+        return &pu->edge_phases[src * (uint64_t)CHANNELS_MAX + ch];
+    }
+
+    /* ==========================================================================
      * Tensor-Index und Dichte-Umrechnung
      * ========================================================================== */
 

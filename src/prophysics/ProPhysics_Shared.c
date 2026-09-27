@@ -53,7 +53,7 @@ static inline void pro_node_set_spin_flip(ProUniverse* pu, uint64_t k, int on)
 {
     if (!pu || !pu->ur_grid || k >= pu->total_nodes) return;
     if (on) pu->ur_grid[k].reserved_gating |= PRO_NODE_SPIN_FLIP_BIT;
-    else    pu->ur_grid[k].reserved_gating &= (uint8_t)~PRO_NODE_SPIN_FLIP_BIT;
+    else    pu->ur_grid[k].reserved_gating &= PRO_NODE_SPIN_FLIP_MASK;
 }
 
 /* ==========================================================================

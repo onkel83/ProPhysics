@@ -97,24 +97,11 @@ static bool pro_su2_normalize(
 
 /* ==========================================================================
  * Interne Helfer: Zugriff auf den Link-Slot.
+ *
+ * Seit Patch 1.23.7 (Backlog B7) leben pro_su2_edge_mut und pro_su2_edge
+ * als static inline in ProPhysics_Internal.h. Siehe dort.
  * ========================================================================== */
 
-static ProEdge* pro_su2_edge_mut(ProUniverse* pu, uint64_t src, uint8_t ch)
-{
-    if (!pu || !pu->edge_phases) return NULL;
-    if (src >= pu->total_nodes) return NULL;
-    if (ch >= CHANNELS_MAX) return NULL;
-    return &pu->edge_phases[src * (uint64_t)CHANNELS_MAX + ch];
-}
-
-static const ProEdge* pro_su2_edge(const ProUniverse* pu,
-    uint64_t src, uint8_t ch)
-{
-    if (!pu || !pu->edge_phases) return NULL;
-    if (src >= pu->total_nodes) return NULL;
-    if (ch >= CHANNELS_MAX) return NULL;
-    return &pu->edge_phases[src * (uint64_t)CHANNELS_MAX + ch];
-}
 
 /* Achse + Winkel -> Q30-Quaternion (a_re, a_im, b_re, b_im).
  *
@@ -361,8 +348,6 @@ static double pro_su2_verify_product(void)
             /* Matrix-Eintraege von U_i und U_j (2x2, komplex). */
             const double Ui00_re = ia_re, Ui00_im = ia_im;
             const double Ui01_re = ib_re, Ui01_im = ib_im;
-            const double Ui10_re = -ib_re, Ui10_im = ib_im;
-            const double Ui11_re = ia_re, Ui11_im = -ia_im;
             const double Uj00_re = ja_re, Uj00_im = ja_im;
             const double Uj01_re = jb_re, Uj01_im = jb_im;
             const double Uj10_re = -jb_re, Uj10_im = jb_im;

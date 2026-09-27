@@ -321,10 +321,10 @@ static double su2_plaquette_action_at(
         l2ar, l2ai, l2br, l2bi,
         &t1ar, &t1ai, &t1br, &t1bi);
     pro_su2_mul(t1ar, t1ai, t1br, t1bi,
-        l3ar, l3ai_n, l3br, l3bi_n,
+        l3ar, l3ai_n, l3br_n, l3bi_n,
         &t2ar, &t2ai, &t2br, &t2bi);
     pro_su2_mul(t2ar, t2ai, t2br, t2bi,
-        l4ar, l4ai_n, l4br, l4bi_n,
+        l4ar, l4ai_n, l4br_n, l4bi_n,
         &w_ar, &w_ai, &w_br, &w_bi);
 
     (void)w_ai; (void)w_br; (void)w_bi;

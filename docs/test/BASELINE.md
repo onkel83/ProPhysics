@@ -1,7 +1,7 @@
 # ProPhysics — Test-Baseline
 
 **Datei:** `docs/test/BASELINE.md`
-**Version:** 1.0
+**Version:** 1.1
 **Kernel:** 1.23.0
 **Etappe:** 23
 **Stand:** 2026-09-27
@@ -100,7 +100,13 @@ Rohwerte pro Test: siehe `docs/test/ProPhysics_Testkatalog.md`.
 | Test | Wert |
 |---|---|
 | Link-Norm `max_dev` | 1,80e-08 |
-| Energie-Drift (100 Ticks) | 2,44e-03 |
+| Energie-Drift (100 Ticks) | **1,41e-03** |
+
+**Hinweis (1.23.10):** Der Wert für T16 (Energie-Drift) hat sich von
+2,44e-03 auf **1,41e-03** verbessert (Faktor 1,7). Ursache: ein
+Konjugations-Bug in `su2_plaquette_action_at` wurde gefixt
+(`l3br_n`/`l4br_n` statt `l3br`/`l4br`). T11 (Plaquette-Näherung)
+bleibt unverändert, weil dort `b_re = 0`.
 
 ### §2.7 — V&V-Anker (Running-Coupling)
 
@@ -115,6 +121,14 @@ Rohwerte pro Test: siehe `docs/test/ProPhysics_Testkatalog.md`.
 
 **Abweichung:** **0,08 %**.
 
+### §2.8 — Code-Qualität
+
+| Prüfung | Ergebnis |
+|---|---|
+| Compiler-Warnungen (`/W4` Kernel, `/W3` SDK, `/W3` Test) | **0** |
+| Linker-Fehler | 0 |
+| Build-Zeit kompletter Rebuild | ~5 s |
+
 ---
 
 ## §3 — Was gegen diese Baseline geprüft wird
@@ -125,6 +139,8 @@ Bei jeder Änderung am Kernel:
 2. **Numerische Anker bleiben innerhalb ihrer Toleranzen** (siehe
    Testkatalog).
 3. **V&V-Anker bleibt < 0,1 %** (Running-Coupling).
+4. **Compiler-Warnungen bleiben bei 0** bei `/W4` (Kernel) bzw.
+   `/W3` (SDK/Test).
 
 **Bit-Identität** ist nur bei deterministischen Tests garantiert
 (Wave-Step und SU(2)-exp nutzen `cos`/`sin` — IEEE-754-konform auf
@@ -154,4 +170,4 @@ sind die ausführlichere Referenz. `BASELINE.md` ist eine Kurzfassung.
 
 ---
 
-**Ende BASELINE v1.0.**
+**Ende BASELINE v1.1.**

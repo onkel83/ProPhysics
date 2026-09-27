@@ -208,6 +208,9 @@
 #define PRO_NODE_SPIN_FLIP_BIT  0x01u
 #define PRO_NODE_DIRAC_BIT      0x02u
 
+		 /* Komplement-Masken zum Loeschen der jeweiligen Bits. */
+#define PRO_NODE_SPIN_FLIP_MASK  ((uint8_t)0xFEu)   /* ~0x01 */
+#define PRO_NODE_DIRAC_MASK      ((uint8_t)0xFDu)   /* ~0x02 */
 		 /* ==========================================================================
 		  * 8. Physik-Konstanten
 		  * ========================================================================== */

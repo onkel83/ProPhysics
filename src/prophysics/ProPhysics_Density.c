@@ -181,7 +181,7 @@ PROPHYSICS_API bool ProPhysics_Density_Create(
     const int32_t slot = pro_density_find_free_slot(
         pu->density_matrices,
         sizeof(ProDensityMatrix),
-        pu->density_capacity);
+        (uint32_t)pu->density_capacity);
     if (slot < 0) return false;
 
     ProDensityMatrix* r = &pu->density_matrices[slot];
@@ -559,7 +559,7 @@ PROPHYSICS_API bool ProPhysics_TensorDensity_Create(
     const int32_t slot = pro_density_find_free_slot(
         pu->tensor_densities,
         sizeof(ProTensorDensity),
-        pu->tensor_density_capacity);
+        (uint32_t)pu->tensor_density_capacity);
     if (slot < 0) return false;
 
     ProTensorDensity* td = &pu->tensor_densities[slot];
@@ -845,7 +845,7 @@ PROPHYSICS_API bool ProPhysics_FockDensity_Create(
     const int32_t slot = pro_density_find_free_slot(
         pu->fock_densities,
         sizeof(ProFockDensity),
-        pu->fock_density_capacity);
+        (uint32_t)pu->fock_density_capacity);
     if (slot < 0) return false;
 
     ProFockDensity* fd = &pu->fock_densities[slot];
