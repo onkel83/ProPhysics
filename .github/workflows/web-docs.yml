@@ -68,11 +68,29 @@ jobs:
           )
           echo [OK] bin\prowb\prowb.exe existiert
 
+      #debug
+      - name: Debug — Repo-Zustand
+        shell: cmd
+        run: |
+          echo === HEAD commit ===
+          git log -1 --oneline
+          echo.
+          echo === docs\build Inhalt ===
+          dir docs\build
+          echo.
+          echo === Manifest-Zeilen mit | ===
+          find /c "|" docs\web\manifest.txt
+          echo.
+          echo === kritische Dateien ===
+          if exist docs\build\ci.md (echo ci.md OK) else (echo ci.md FEHLT!)
+          if exist docs\build\alpha-nightly.md (echo alpha-nightly.md OK) else (echo alpha-nightly.md FEHLT!)
+          if exist docs\project\README.md (echo docs\project\README.md OK) else (echo docs\project\README.md FEHLT!)
+
       # Generiert out\web\index.html aus dem Manifest
       - name: Generate Web-Docs
         shell: cmd
         run: |
-          bin\prowb\prowb.exe --manifest docs\web\src docs\web\manifest.txt out\web
+              bin\prowb\prowb.exe --manifest "%GITHUB_WORKSPACE%\docs\web\src" "%GITHUB_WORKSPACE%\docs\web\manifest.txt" "%GITHUB_WORKSPACE%\out\web"
 
       # Verifiziert, dass die index.html entstanden ist
       - name: Verify output exists
