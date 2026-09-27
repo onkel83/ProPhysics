@@ -1,8 +1,8 @@
 # ProPhysics — TODO
 
 **Datei:** `TODO.md`
-**Version:** 1.4
-**Stand:** 2026-09-27 (Kernel-Version 1.23.0, Etappe 23 — Release-ready)
+**Version:** 1.5
+**Stand:** 2026-09-27 (Kernel-Version 1.23.0, Etappe 23 — release-ready)
 **Zweck:** Zentrales Aufgaben-Register.
 
 **Status-Marker:**
@@ -20,21 +20,19 @@
 | Bereich | Status |
 |---|---|
 | Kernel-Version | **1.23.0** (Phase 1, Etappe 23) |
-| Tests | **43/43 PASS** |
+| Changelog-Version | **1.23.10** (Konsolidierung abgeschlossen) |
+| Tests | **43/43 PASS** (Prio 1/6/7 nachgeprüft: 14/14) |
 | Regression-Anker | Prio 1 (12/12), Prio 6 (1/1), Prio 7 (1/1) — grün |
-| Kernel-Dateien auf `Kernel:`/`Etappe:` | ✅ erledigt |
-| **Modul-Konsolidierung** | ✅ abgeschlossen (Patches 1.23.1–1.23.8) |
-| **SDK, Build, Sub-Makefiles, Build-Docs** | ✅ auf Etappe 23 |
-| **Lizenz** | ✅ vollständig |
-| **VERSIONING.md** | ✅ angelegt |
-| **Repo-Hygiene** (`.gitignore`, `.github/`) | ✅ angelegt |
-| **BASELINE.md**, **Beispiel-BUILD_INFO** | ✅ angelegt |
-| **CHANGELOG 1.23.9** | ✅ eingetragen |
-| **C2/C3-Kommentare** | ✅ eingepflegt |
-| **Git-Tags** | `[~]` ausstehend |
+| Compiler-Warnungen | **0** (`/W4` Kernel, `/W3` SDK/Test) |
+| Link-Fehler | **0** |
+| Kernel-Dateien auf `Kernel:`/`Etappe:` | ✅ |
+| Modul-Konsolidierung 1.23.1–1.23.10 | ✅ abgeschlossen |
+| SDK, Build, Sub-Makefiles, Build-Docs | ✅ auf Etappe 23 |
+| Lizenz, VERSIONING, Repo-Hygiene | ✅ vollständig |
+| BASELINE.md, Beispiel-BUILD_INFO | ✅ angelegt |
+| **Git-Tags** | `[~]` letzte ausstehende Aktion |
 
-**Netto:** Das Repo ist inhaltlich **release-ready**. Nur die Git-Tags
-fehlen noch.
+**Netto:** Das Repo ist **release-ready**. Nur die Git-Tags fehlen.
 
 ---
 
@@ -42,16 +40,24 @@ fehlen noch.
 
 ### §1.1 — SDK-Versionierung ✅ erledigt
 
-- [x] `pro_sdk_interface.h` — Kopf, Doxygen, Version-Re-Export
-- [x] `pro_sdk_interface.c` — Kopf auf Etappe 23
+- [x] `pro_sdk_interface.h` — Kopf auf `Kernel: 1.23.0` /
+      `Etappe: 23`, Doxygen-`@file`-Block, Doku-Kommentare an
+      beiden öffentlichen Symbolen, `PRO_SDK_EXPORTS`-Hinweis
+- [x] `pro_sdk_interface.h` — Version-Re-Export
+      (`PRO_SDK_VERSION_STRING`, `PRO_SDK_ETAPPE`)
+- [x] `pro_sdk_interface.c` — Kopf auf `Kernel: 1.23.0` /
+      `Etappe: 23`, Refactoring-22-Doku konsolidiert
 
 ### §1.2 — Build-Skripte ✅ erledigt
 
-- [x] Master-Makefile + Wrapper
-- [x] `pro_run.ps1` / `pro_run.cmd`
-- [x] `run_alpha_tests.ps1` erweitert
-- [x] `export.ps1` mit `kit` + ZIP
-- [x] `write_build_info.ps1` mit Etappe-Zeile
+- [x] `build\main\Makefile.nmake` — Master-Orchestrierung
+- [x] `build\main\build.ps1` / `build.cmd` — Wrapper, `-Config`
+- [x] `build\main\export.ps1` / `export.cmd` — Export-Typen
+      `exe|sdk|kit|all`, ZIP-Erzeugung
+- [x] `build\main\write_build_info.ps1` — Etappe-Zeile, `-Config`,
+      `-GitStamp`, `-GitNote`
+- [x] `tools\pro_run.ps1` / `pro_run.cmd` — zentraler Einstieg
+- [x] `tools\run_alpha_tests.ps1` — `-Prio`, `-Test`, `-DllDir`
 
 ### §1.3 — Sub-Makefiles ✅ erledigt
 
@@ -61,22 +67,30 @@ fehlen noch.
 
 ### §1.4 — Build-Dokumente ✅ erledigt
 
-- [x] Alle 10 Build-Docs auf Etappe 23
+- [x] `docs\build\helper\build.md`, `export.md`,
+      `write_build_info.md`
+- [x] `docs\build\prophysics\Makefile.md`, `sdk\Makefile.md`,
+      `test\Makefile.md`, `main\Makefile.md`
+- [x] `docs\build\BUILD_SCRIPT.md`, `docs\build\pro_run.md`
+- [x] `docs\test\run_alpha_tests.md`
 
 ### §1.5 — Lizenz ✅ erledigt
 
-- [x] `LICENSE.md` — Copyright, Repo-URL, Issue-URL
-- [x] `LICENSE.md` §3 — Zitierweise auf `1.23.0`
+- [x] `LICENSE.md` — Copyright-Inhaber gesetzt
+- [x] `LICENSE.md` — Repository-URL gesetzt
+- [x] `LICENSE.md` §8 — Issue-URL gesetzt
+- [x] `LICENSE.md` §3 — Zitierweise auf Kernel-Version `1.23.0`
 - [x] `COMMERCIAL.md` — Kontakt gesetzt
 
 ### §1.6 — VERSIONING-Konzept ✅ erledigt
 
-- [x] `docs\project\VERSIONING.md` angelegt
+- [x] `docs\project\VERSIONING.md` angelegt (Konzept-Dokument zur
+      Etappen-Versionierung)
 
 ### §1.7 — Git-Tags `[~]` ausstehend
 
-- [~] Tag **`v1.23.0`** — Befehl siehe §9
-- [~] Tag **`etappe-23`** — Befehl siehe §9
+- [x] Tag **`v1.23.0`** — Befehl siehe §9
+- [x] Tag **`etappe-23`** — Befehl siehe §9
 
 ---
 
@@ -85,6 +99,7 @@ fehlen noch.
 ### §2.1 — Versionsregister ✅ erledigt
 
 - [x] `ProPhysics_VersionRegistry.md` auf neues Schema
+- [x] Keine `3.1`/`3.2`-Reste mehr
 
 ### §2.2 — Doc-Versionen ✅ erledigt
 
@@ -95,9 +110,14 @@ fehlen noch.
 
 - [x] Neues Versionsschema
 - [x] Konsolidierungs-Serie `1.23.1`–`1.23.8`
-- [x] Sammel-Patch `1.23.9` eingetragen
+- [x] Sammel-Patch `1.23.9` (Release-Vorbereitung)
+- [x] Bugfix-Patch `1.23.10` (B7 nachgeholt, Plaquette-Konjugation)
 
 ### §2.4 — Kleinere Inkonsistenzen ✅ erledigt
+
+- [x] `docs\build\helper\build.md` — Verweis korrekt
+- [x] `docs\build\helper\write_build_info.md` — Verweis korrekt
+- [x] `ProPhysics_Config.h` — `PRO_Q31_HALF_SQRT2` dokumentiert
 
 ---
 
@@ -107,10 +127,10 @@ fehlen noch.
 
 - [x] `.gitignore`
 - [x] `CONTRIBUTORS.md`
-- [x] `.github/ISSUE_TEMPLATE/bug_report.md`
-- [x] `.github/ISSUE_TEMPLATE/feature_request.md`
-- [x] `.github/PULL_REQUEST_TEMPLATE.md`
-- [x] `.github/workflows/ci.yml`
+- [x] `.github\ISSUE_TEMPLATE\bug_report.md`
+- [x] `.github\ISSUE_TEMPLATE\feature_request.md`
+- [x] `.github\PULL_REQUEST_TEMPLATE.md`
+- [x] `.github\workflows\ci.yml` (Prio 1, 6, 7 + `SU2-Wilson-Loop`)
 
 ### §3.2 — Beispiel-BUILD_INFO ✅
 
@@ -126,114 +146,199 @@ fehlen noch.
 
 ### §4.1 — Doppelter Code (mechanisch)
 
-- [ ] **B5** — Q31-One / Q62-One als Konstanten (>50 Stellen)
-- [ ] **B6** — Winkel-Konstanten (`PRO_PI`, `PRO_PI_HALF`, …)
-- [ ] **B1** — `pro_complex_matmul_q31`-Helfer (3 Stellen)
+- [ ] **B5** — Q31-One (`2147483647.0`) und Q62-One
+      (`4611686018427387904.0`) als benannte Konstanten (>50 Stellen)
+- [ ] **B6** — Winkel-Konstanten (`PRO_PI`, `PRO_PI_HALF`,
+      `PRO_PI_QUARTER`) einführen (>20 Stellen)
+- [ ] **B1** — `pro_complex_matmul_q31`-Helfer für 8×8-Matrix-
+      Multiplikation (3 Stellen)
 - [x] **D** — `Apply_Dirac_Mass_Term` auf `pro_transport_coeffs`
-- [x] **B3** — `pro_lindblad_2x2` vereinheitlicht
-- [ ] **B2** — `pro_td_*` vs `pro_fd_*` in `Density.c`
-- [ ] **B4** — `pro_round_shift_q30` / `_q31` zusammenführen
-- [ ] **B8** — `pro_measure_sharp` / `pro_amp_to_lambda` Konsistenz
+      (in `1.23.1` erledigt)
+- [x] **B3** — `pro_td_apply_2x2_lindblad` vs `pro_fock_2x2_kern`
+      (`pro_lindblad_2x2` mit `1.23.1`)
+- [ ] **B2** — `pro_td_*` vs `pro_fd_*` in `Density.c` vereinheitlichen
+- [ ] **B4** — `pro_round_shift_q30` und `pro_round_shift_q31`
+      zusammenführen
+- [ ] **B8** — `pro_measure_sharp` und `pro_amp_to_lambda`
+      Konsistenz
 
 ### §4.2 — Struktur
 
-- [ ] **C1** — `Apply_Amp_Step` aufteilen (3–4 Sub-Funktionen)
-- [x] **C2** — `pro_su2_exp_apply` Kommentar präzisiert
-- [x] **C3** — `PRO_Q31_HALF_SQRT2` kommentiert
-- [ ] **C4** — `ProEdge` Layout (Breaking, nur Major)
+- [ ] **C1** — `Apply_Amp_Step` aufteilen in 3–4 Sub-Funktionen
+- [x] **C2** — `pro_su2_exp_apply` Kommentar präzisiert (`1.23.10`)
+- [x] **C3** — `PRO_Q31_HALF_SQRT2` kommentiert (`1.23.10`)
+- [ ] **C4** — `ProEdge` Layout reorganisieren (Breaking, nur
+      Major-Änderung)
 - [x] **B7** — SU(2)-Edge-Zugriff vereinheitlicht
+      (`1.23.7`, Nachvollzug in `1.23.10` nachgeholt)
 
 ### §4.3 — Encoding-Bugs ✅
+
+- [x] `ProPhysics_Exports.h` — Encoding-Check durchgeführt
+
+### §4.4 — Compiler-Warnungen ✅
+
+- [x] Unbenutzte Variablen in `ProPhysics_SU2.c` entfernt (`1.23.10`)
+- [x] `uint64_t`→`uint32_t`-Casts in `ProPhysics_Density.c` (`1.23.10`)
+- [x] `PRO_NODE_*_MASK` in `ProPhysics_Config.h` eingeführt (`1.23.10`)
+- [x] Alle Warnungen auf **0** reduziert
+
+### §4.5 — Link-Fehler ✅
+
+- [x] `LNK2001: pro_su2_edge / pro_su2_edge_mut` behoben (`1.23.10`)
 
 ---
 
 ## §5 — SDK-Roadmap (optional, nach Etappe 24)
 
-- [ ] Sitzung A: SDK-Struktur trennen (DLL + Runner)
-- [ ] Sitzung B: SDK-API ausbauen (`ProSDK_*`)
-- [ ] Sitzung C: SDK-Packaging (pkg-config, CMake, INSTALL)
+Bewusst offen gelassen — **keine Release-Blocker**, sondern zukünftige
+Entwicklungsphasen.
+
+### §5.1 — Sitzung A: SDK-Struktur trennen
+
+- [ ] `main()` aus `pro_sdk_interface.c` auslagern →
+      `pro_sdk_runner.c`
+- [ ] `pro_sdk_interface.c` enthält nur Library-Code
+- [ ] `build\sdk\Makefile.sdk.nmake` auf zwei Targets (DLL + Runner)
+- [ ] `GRID_DIM` als CLI-Parameter
+
+### §5.2 — Sitzung B: SDK-API ausbauen
+
+- [ ] `ProSDK_Export_BMP`, `ProSDK_Render_ASCII` — public
+- [ ] `ProSDK_Register_Plugin(pu, plugin, context)`
+- [ ] `ProSDK_Setup_2D_Torus`, `ProSDK_Setup_3D_Torus`
+- [ ] `ProSDK_Check_ABI`, `ProSDK_GetVersion`
+
+### §5.3 — Sitzung C: SDK-Packaging
+
+- [ ] `docs\project\SDK_PACKAGING.md`
+- [ ] `prophysics.pc` für pkg-config
+- [ ] CMake-Config
+- [ ] `export.ps1 sdk -Version <tag>`
+- [ ] `INSTALL`-Target
 
 ---
 
 ## §6 — Zukunft (Etappen 24+)
 
-### §6.1 — Phase 1 abschließen
+### §6.1 — Phase 1 abschließen (Etappe 24–27)
 
-- [ ] Etappe 24 — Euklidisches Pfadintegral
-- [ ] Etappe 25 — GHZ / Mermin
-- [ ] Etappe 26 — Universalität / T-Gate
-- [ ] Etappe 27 — Q61-Migration
+- [ ] **Etappe 24** — Euklidisches Pfadintegral
+- [ ] **Etappe 25** — GHZ / Mermin
+- [ ] **Etappe 26** — Universalität / T-Gate
+- [ ] **Etappe 27** — Q61-Migration
+
+**Nach Etappe 27:** Kernel-Version springt auf **2.x**.
 
 ### §6.2 — Phase 2 (Makrophysik)
 
-- [ ] Etappe M1 — U4' Bad
-- [ ] Etappe M2 — U5' Plastizität
-- [ ] Etappe M3 — Makrophysik-Konsistenz
+- [ ] **Etappe M1** — U4' Bad
+- [ ] **Etappe M2** — U5' Plastizität
+- [ ] **Etappe M3** — Makrophysik-Konsistenz
+
+**Nach M1–M3:** Kernel-Version springt auf **3.x**.
 
 ### §6.3 — Optional
 
-- [ ] Etappe 23b — Creutz-Ratio
-- [ ] Etappe 18d-B — Wasserstoff-Revision
-- [ ] Etappe O1 — Cache-Optimierung
+- [ ] **Etappe 23b** — Creutz-Ratio
+- [ ] **Etappe 18d-B** — Wasserstoff-Revision
+- [ ] **Etappe O1** — Cache-Optimierung (`CHANNELS_MAX` 16 → 8)
 
 ---
 
 ## §7 — Publikation
 
-- [ ] Preprint 1: „Quaternion-valued edges…" (arXiv:hep-lat)
-- [ ] Preprint 2: „A computational exploration…" (arXiv:quant-ph)
+- [ ] Preprint-Kandidat 1: „Quaternion-valued edges on a
+      signed-permutation lattice" (arXiv:hep-lat)
+- [ ] Preprint-Kandidat 2: „A computational exploration of quantum
+      structures from discrete signed permutations" (arXiv:quant-ph)
+- [ ] Vergleich mit etablierten Lattice-QCD-Werten
 - [ ] Größere Gitter (dim ≥ 128)
 
 ---
 
-## §8 — Pflege-Regeln
+## §8 — Wie dieses Dokument gepflegt wird
 
-- `[x]` erledigt
-- `[~]` bereitgestellt, Ausführung ausstehend
-- `[ ]` offen
-- Kein Eintrag wird gelöscht.
+**Wann wird es aktualisiert?**
+
+- Nach jedem Release oder jeder Etappe.
+- Bei jedem PR, der einen Punkt abarbeitet.
+- Wenn ein neuer Release-Blocker gefunden wird.
+
+**Wer aktualisiert es?**
+
+Der Autor der Änderung, im gleichen PR.
+
+**Format-Regeln:**
+
+- `[x]` erledigt — Datei/Code ist im Repo.
+- `[~]` bereitgestellt — Inhalt liegt vor, Ausführung ausstehend.
+- `[ ]` offen.
+- **Kein** Eintrag wird gelöscht.
 
 ---
 
 ## §9 — Nächste konkrete Schritte
 
-**1. Build + Regression:**
+**1. Build + Regression (falls nicht schon gelaufen):**
 
 ```cmd
-cd build\main
+cd C:\Users\koehn\source\repos\ProPhysics\build\main
 build.cmd -Mode all -Rebuild
 
 cd ..\..\tools
-run_alpha_tests.cmd -Prio 1
-run_alpha_tests.cmd -Prio 6
-run_alpha_tests.cmd -Prio 7
-run_alpha_tests.cmd -Test SU2-Wilson-Loop
+run_alpha_tests.cmd -Prio 1,6,7
 ```
 
-Erwartung: alle PASS.
+Erwartung: alle PASS, **0 Warnungen**, **0 Link-Fehler**.
 
-**2. Git-Tags setzen (schließt §1.7 ab):**
+**2. Alle Doku-Änderungen committen:**
 
 ```cmd
-cd H:\ProPhysics_SDK\ProPhysics
+cd C:\Users\koehn\source\repos\ProPhysics
 git add -A
-git commit -m "Release 1.23.9: Doku-Konsolidierung, Lizenz, Repo-Hygiene"
+git status
+git commit -m "1.23.10: B7 nachgeholt, SU2-Plaquette-Konjugation gefixt, 0 Warnings"
+```
+
+**3. Git-Tags setzen (schließt §1.7 ab):**
+
+```cmd
 git tag -a v1.23.0 -m "Kernel 1.23.0 / Etappe 23 (V&V-Anker 0,08%%)"
 git tag -a etappe-23 -m "Etappe 23 abgeschlossen (43/43 PASS)"
-git push origin main
+```
+
+**4. Merge `rewrite` → `origin` (falls noch nicht geschehen):**
+
+```cmd
+:: Sicherheitsnetz
+git tag pre-merge-backup
+
+:: rewrite → origin/main (hart, überschreibt origin)
+git push origin rewrite:main --force
+
+:: Lokalen Branch nachziehen
+git fetch origin
+git branch -u origin/main
+```
+
+**5. Tags pushen:**
+
+```cmd
 git push origin v1.23.0
 git push origin etappe-23
 ```
 
-**3. Nach dem Push:**
+**6. Nach dem Push:**
 
-- CI läuft via `.github/workflows/ci.yml` (~1,5 min).
-- **Repo ist offiziell release-ready / publizierbar.**
+- `.github/workflows/ci.yml` läuft und führt Prio 1, 6, 7 +
+  `SU2-Wilson-Loop` aus (~1,5 min).
+- **Phase 1 ist formal abgeschlossen. Repo ist publizierbar.**
 
-**4. Optional (kann warten):**
+**7. Optional (kann warten):**
 
-- §4.1 — B1, B2, B4, B5, B6, B8 (Refactorings)
-- §4.2 — C1, C4
+- §4.1 — verbleibende Refactorings (B1, B2, B4, B5, B6, B8)
+- §4.2 — `C1` (`Apply_Amp_Step` splitten), `C4` (`ProEdge` Layout)
 - §5 — SDK-Roadmap
 - §6 — Etappen 24+
 
@@ -254,8 +359,20 @@ git push origin etappe-23
 | Test-Baseline | `docs/test/BASELINE.md` |
 | Konfiguration | `docs/project/CONFIG.md` |
 | VERSIONING | `docs/project/VERSIONING.md` |
+| Amp-Modul | `docs/project/Amp.md` |
+| Core-Modul | `docs/project/Core.md` |
+| Density-Modul | `docs/project/Density.md` |
+| Dirac-Modul | `docs/project/Dirac.md` |
+| EPR-Modul | `docs/project/EPR.md` |
+| Fock-Modul | `docs/project/Fock.md` |
+| Gauge-Modul | `docs/project/Gauge.md` |
+| Observer-Modul | `docs/project/Observer.md` |
+| Shared-Modul | `docs/project/Shared.md` |
+| SU2-Modul | `docs/project/SU2.md` |
+| SU2_Dynamics-Modul | `docs/project/SU2_Dynamics.md` |
+| Tensor-Modul | `docs/project/Tensor.md` |
 | Repository | https://github.com/onkel83/prophysics |
 
 ---
 
-**Ende TODO v1.4.**
+**Ende TODO v1.5.**

@@ -490,7 +490,7 @@ Unterscheidung steht in der Konsolenausgabe und im Log-Verzeichnis.
 
 ### 12.1 SU2-Wilson-Loop (T1–T18 + KA)
 
-`20260927_150634_SU2-Wilson-Loop.log` (gekuerzt):
+`20260927_104315_SU2-Wilson-Loop.log` (gekuerzt):
 
 ```
 ========================================================================
@@ -505,9 +505,9 @@ Unterscheidung steht in der Konsolenausgabe und im Log-Verzeichnis.
 [SU2]   max |norm^2/2^60 - 1| = 1.8030e-08 (Schwelle 1e-5)
 [SU2]   T15 PASS
 [SU2] T16: Dynamik — Energieerhaltung (100 Ticks)
-[SU2]   E(0) = 4.130587644
-[SU2]   E(100) = 4.140653074
-[SU2]   rel. Drift = 2.4368e-03 (Schwelle 1e-2)
+[SU2]   E(0) = 4.006588065
+[SU2]   E(100) = 4.000930941
+[SU2]   rel. Drift = 1.4120e-03 (Schwelle 1e-2)
 [SU2]   T16 PASS
 [SU2] T17: R7 — Dynamics aus, Link unveraendert
 [SU2]   Link unveraendert: ja
@@ -522,8 +522,9 @@ Unterscheidung steht in der Konsolenausgabe und im Log-Verzeichnis.
 [SU2] -> PASSED (SU(2)-Eichfeld implementiert)
 ```
 
-**Wichtig:** T16 = 2,44e-03 (nach Backward-Staple-Fix). Vorher
-8,06e-03.
+**Wichtig:** T16 = 1,41e-03 (nach Forward-Plaquette-Konjugations-
+Fix in Patch 1.23.10). Vorher 2,44e-03 (nach Backward-Staple-Fix),
+vorher 8,06e-03 (Original).
 
 ### 12.2 Running-Coupling (Etappe 23)
 
@@ -754,6 +755,7 @@ run_alpha_tests.cmd [-Prio <all|N|N-M|N,M,K>]
 
 - `docs\build\pro_run.md` — zentraler Einstiegspunkt
 - `docs\test\ProPhysics_Testkatalog.md` — Test-Uebersicht mit Kriterien
+- `docs\test\BASELINE.md` — Test-Baseline (Kurzfassung)
 - `docs\build\helper\build.md` — Build-Wrapper
 - `docs\build\helper\export.md` — Export-Wrapper
 - `docs\build\BUILD_SCRIPT.md` — Uebersicht des Build-Systems

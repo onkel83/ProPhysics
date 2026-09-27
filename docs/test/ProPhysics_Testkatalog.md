@@ -1,8 +1,8 @@
 # ProPhysics — Testkatalog
 
-**Version:** 1.8
-**Stand:** 2026-09-25 nach Etappe 23 (Prio-All-Lauf 43/43 PASS,
-            Etappe 23 mit Running-Coupling + V&V-Anker)
+**Version:** 1.9
+**Stand:** 2026-09-27 nach Etappe 23 (Prio-All-Lauf 43/43 PASS,
+            Konsolidierungs-Serie 1.23.1–1.23.10 abgeschlossen)
 **Zweck:** Vollständige Beschreibung aller Alpha-Tests.
 
 Pro Test werden dokumentiert:
@@ -17,13 +17,14 @@ Pro Test werden dokumentiert:
 
 **Quelle der Rohwerte:**
 `bin\logs\20260925_150634_*.log` (Prio-All-Lauf 2026-09-25,
-Etappe 23).
+Etappe 23) und `bin\logs\20260927_104315_*.log` (Regression
+nach Patch 1.23.10).
 
 ---
 
 ## §0 — Regression-Status
 
-### Aktueller Stand (2026-09-25, Etappe 23)
+### Aktueller Stand (2026-09-27, Etappe 23 + Patch 1.23.10)
 
 | Prio | Thema | Tests | Status |
 |---|---|---|---|
@@ -40,6 +41,11 @@ Etappe 23).
 **R6 erfüllt:** Etappe 23 formal abgeschlossen.
 **Prio-8-Checks:** SU2-Wilson-Loop (18 + KA = 19) und
 Running-Coupling (16 Werte + V&V-Anker = 17) = **36 Einzelchecks**.
+
+**Konsolidierungs-Serie:** `1.23.1`–`1.23.10` — reine Doku- und
+Header-Konsolidierung, Reparatur des unvollständigen Patch `1.23.7`,
+Compiler-Warnungen auf **0** reduziert. Alle numerischen Ergebnisse
+bit-identisch mit Ausnahme von T16 (siehe §8.1).
 
 ### Laufzeit-Tabelle (Prio-All-Lauf, 2026-09-25)
 
@@ -894,13 +900,13 @@ Massenterm addieren sich exakt.
 | T13 | R7-Regression | <1e-6 | 1,24e-09 |
 | T14 | U5 mit SU2 (500 T) | <1e-3 | 1,57e-09 |
 
-**Ergebnis T15–T18 (Etappe 22b, Leapfrog-Dynamik, **nach
-Backward-Staple-Fix**):**
+**Ergebnis T15–T18 (Etappe 22b, Leapfrog-Dynamik, nach
+Backward-Staple-Fix und Plaquette-Konjugations-Fix):**
 
 | # | Test | Kriterium | Wert |
 |---|---|---|---|
 | T15 | Link-Norm unter Leapfrog | <1e-5 | **1,80e-08** |
-| T16 | Energieerhaltung (100 T) | <1e-2 | **2,44e-03** |
+| T16 | Energieerhaltung (100 T) | <1e-2 | **1,41e-03** |
 | T17 | R7 — Dynamics aus | byte-identisch | ja |
 | T18 | Dynamics aktiv | Link geändert | ja |
 
@@ -919,12 +925,20 @@ Backward-Staple-Fix**):**
 6. Bei deaktivierter Dynamik bleibt der Link byte-identisch (T17);
    bei aktivierter ändert er sich (T18).
 
-**Backward-Staple-Fix (bestätigt):**
+**Backward-Staple-Fix (bestätigt, Patch 1.23.7):**
 Der Backward-Staple in `su2_force_on_link` hatte fehlende
 `†`-Dagger auf `U_μ(x-ν)`. Der Fix reduzierte T16 von
 8,06e-03 auf 2,44e-03 (Faktor 3,3), T15 von 2,02e-08 auf
-1,80e-08. Die Energiedrift ist jetzt auf dem Niveau, das
-symplektische O(Δ²)-Oszillation für `dt=500, g²=500` hergibt.
+1,80e-08.
+
+**Forward-Plaquette-Konjugations-Fix (Patch 1.23.10):**
+In `su2_plaquette_action_at` wurden `l3br_n`/`l4br_n` berechnet,
+aber `l3br`/`l4br` verwendet. Der Fix reduzierte T16 weiter von
+2,44e-03 auf **1,41e-03** (Faktor 1,7). T11 (rein-imaginäres `b`)
+bleibt unverändert, weil dort `l3br = l4br = 0`.
+
+Die Energiedrift ist jetzt auf dem Niveau, das symplektische
+O(Δ²)-Oszillation für `dt=500, g²=500` hergibt.
 
 **Emergenz:** **Ja** — nicht-abelsche Eichstruktur emergiert aus
 `ProEdge.su2_*`-Feldern. Leapfrog-Dynamik ist eine klassische
@@ -1085,7 +1099,7 @@ example_test_tensor.exe            (Tensor-Regression)
 | Fehlerbalken ~1/√N | Verhältnis ~0,354 | 0,30 / 0,35 |
 | Skalen-Unabhängigkeit | Δ < 1e-3 für dim 16/32/64 | ✅ |
 | V&V-Anker | < 1 % Abweichung | **0,08 %** |
-| Backward-Staple-Fix | T16 < 1e-3 | 2,44e-03 |
+| Backward-Staple-Fix | T16 < 1e-2 | **1,41e-03** |
 
 **Neue Kernel-Funktion:**
 - `ProPhysics_SU2_Link_Plaquette_Sum` (lokale Action um einen Link)
@@ -1093,6 +1107,11 @@ example_test_tensor.exe            (Tensor-Regression)
 **Neue Testdatei:** `alpha_test_running_coupling.c`
 
 **Neuer CLI-Flag:** `--test-running-coupling`
+
+**Konsolidierungs-Serie 1.23.1–1.23.10:**
+- Alle 12 Kernel-Module auf einheitliches Schema.
+- Patch 1.23.7 (Backward-Staple-Fix) vollständig nachgeholt in 1.23.10.
+- Compiler-Warnungen auf **0** reduziert.
 
 ### §10.2 — Was emergent ist
 
@@ -1149,8 +1168,9 @@ example_test_tensor.exe            (Tensor-Regression)
 | Wasserstoff quantitativ | ⚠ 0,296 | 18d-B (optional) |
 | SU(2)-Eichfeld kinematisch | ✅ 14/14 | 22 |
 | SU(2)-Link-Dynamik | ✅ 18/18 | 22b |
-| Backward-Staple-Fix | ✅ bestätigt (T16 2,44e-03) | 22b |
+| Backward-Staple-Fix | ✅ bestätigt (T16 1,41e-03) | 22b + 23 |
 | Running-Coupling | ✅ V&V-Anker (0,08 %) | 23 |
+| Konsolidierungs-Serie 1.23.1–1.23.10 | ✅ | 23 |
 | Creutz-Ratio / β-Funktion | offen | 23b |
 | Pfadintegral | offen | 24 |
 | Hypergraph für GHZ | offen | 25 |
@@ -1159,7 +1179,7 @@ example_test_tensor.exe            (Tensor-Regression)
 | U4' Bad | offen | M1 |
 | U5' Plastizität | offen | M2 |
 
-### §10.5 — Regression nach Etappe 23
+### §10.5 — Regression nach Etappe 23 + 1.23.10
 
 | Prio | Tests | Status |
 |---|---|---|
@@ -1187,8 +1207,9 @@ example_test_tensor.exe            (Tensor-Regression)
 | 1.5 | 2026-09-24 | Etappe 21: Prio 7 (Dirac). 41/41. |
 | 1.6 | 2026-09-25 | Etappe 22: Prio 8 (SU(2)-Eichfeld). 42/42. |
 | 1.7 | 2026-09-25 | Etappe 22b: Link-Dynamik (Leapfrog). Prio 8 auf 18/18 + KA. |
-| **1.8** | **2026-09-25** | **Etappe 23: Running-Coupling (Metropolis auf SU(2)-Links). Prio 8 auf 2 Tests (43/43 gesamt). T15 auf 1,80e-08 und T16 auf 2,44e-03 aktualisiert (Backward-Staple-Fix bestätigt). Neuer §8.2 (Running-Coupling) mit V&V-Anker gegen I₂(2)/I₁(2) = 0,43313 (Abweichung <0,1 %). Laufzeit-Tabelle auf Prio-All-Lauf 2026-09-25 (4 420,6 s) aktualisiert. CI-Empfehlung: Running-Coupling als Nightly-Job (Timeout 2 400 s).** |
+| 1.8 | 2026-09-25 | Etappe 23: Running-Coupling (Metropolis auf SU(2)-Links). Prio 8 auf 2 Tests (43/43 gesamt). T15 auf 1,80e-08 und T16 auf 2,44e-03 aktualisiert (Backward-Staple-Fix bestätigt). Neuer §8.2 (Running-Coupling) mit V&V-Anker. Laufzeit-Tabelle auf Prio-All-Lauf 2026-09-25 (4 420,6 s) aktualisiert. |
+| **1.9** | **2026-09-27** | **Patch 1.23.10: Forward-Plaquette-Konjugations-Fix in `su2_plaquette_action_at`. T16 verbessert sich von 2,44e-03 auf 1,41e-03 (Faktor 1,7). T11 (rein-imaginäres `b`) unverändert bei 0,98007. Zusätzlich Compiler-Warnungen auf 0 reduziert (unbenutzte Variablen entfernt, `uint64_t`→`uint32_t`-Casts, `PRO_NODE_*_MASK` eingeführt). Backlog B7 nachträglich geschlossen. Konsolidierungs-Serie 1.23.1–1.23.10. §0 aktualisiert (Regression 14/14 nach Fix).** |
 
 ---
 
-**Ende Testkatalog v1.8.**
+**Ende Testkatalog v1.9.**

@@ -4,9 +4,9 @@
 **Version:** 1.0
 **Kernel:** 1.23.0
 **Etappe:** 23
-**Stand:** 2026-09-26 nach Etappe 23 und Konsolidierungs-Serie
-            1.23.1–1.23.8 (Running-Coupling mit V&V-Anker,
-            Prio-All 43/43)
+**Stand:** 2026-09-27 nach Etappe 23 und Konsolidierungs-Serie
+            1.23.1–1.23.10 (Running-Coupling mit V&V-Anker,
+            Prio-All 43/43, Compiler-Warnungen 0)
 **Nächster Schritt:** Etappe 24 — Euklidisches Pfadintegral
 
 ---
@@ -26,10 +26,13 @@ physikalischen Referenzwert validiert (Etappe 23, V&V-Anker). Bis
 Etappe 22b waren alle Tests **relativ** (Konsistenz, Selbsterhaltung).
 Etappe 23 liefert den ersten **absoluten** Vergleich mit publizierter
 Lattice-QCD-Physik. Zusätzlich wurden in der Konsolidierungs-Serie
-`1.23.1`–`1.23.8` alle Kernel-Module auf ein einheitliches Schema
+`1.23.1`–`1.23.10` alle Kernel-Module auf ein einheitliches Schema
 gebracht (Kernel-/Etappe-Kopf, Modul-Referenz in `docs/project/`,
-keine Etappen-Historie mehr im Quellcode). Siehe `CHANGELOG.md` §2.5
-für die Abbildung alter auf neue Versionen (`3.0.0` → `1.23.0`).
+keine Etappen-Historie mehr im Quellcode), der Patch 1.23.7
+vollständig nachgeholt (Backlog B7), ein Forward-Plaquette-
+Konjugations-Bug gefixt (T16 von 2,44e-03 auf 1,41e-03) und die
+Compiler-Warnungen auf 0 reduziert. Siehe `CHANGELOG.md` §2.5 für
+die Abbildung alter auf neue Versionen (`3.0.0` → `1.23.0`).
 
 ---
 
@@ -76,7 +79,7 @@ ProPhysics\
 | `ProPhysics_Differentiators.md` | Abgrenzung zu anderen Frameworks |
 | `ProPhysics_VersionRegistry.md` | Versionen aller Dateien |
 | `CONFIG.md` | Compile-Time-Konstanten |
-| `VERSIONING.md` | Etappen-Versionierungs-Konzept (geplant, `TODO.md` §1.6) |
+| `VERSIONING.md` | Etappen-Versionierungs-Konzept |
 
 **Modul-Referenzen (`docs/project/`):**
 
@@ -101,12 +104,15 @@ ProPhysics\
 |---|---|
 | `ProPhysics_Testkatalog.md` | alle 43 Tests |
 | `run_alpha_tests.md` | Test-Runner |
+| `BASELINE.md` | Test-Baseline (Kurzfassung) |
+| `WRITING_TESTS.md` | Anleitung zum Test-Schreiben |
 
 **Build-Dokumente (`docs/build/`):**
 
 | Datei | Inhalt |
 |---|---|
 | `BUILD_SCRIPT.md` | Build-Übersicht |
+| `pro_run.md` | zentraler Einstiegspunkt |
 | `main/Makefile.md` | Master-Makefile |
 | `prophysics/Makefile.md` | Kernel-Build |
 | `sdk/Makefile.md` | SDK-Interface-Build |
@@ -114,6 +120,7 @@ ProPhysics\
 | `helper/build.md` | `build.ps1` / `build.cmd` |
 | `helper/export.md` | `export.ps1` / `export.cmd` |
 | `helper/write_build_info.md` | `write_build_info.ps1` |
+| `examples/BUILD_INFO.txt` | Beispiel-Datei |
 
 ### §1.3 — Build-Skripte
 
@@ -125,7 +132,8 @@ ProPhysics\
 
 **Reihenfolge:** `prophysics` → `sdk` → `test`.
 
-**Test-Runner (in `tools\`):** `run_alpha_tests.ps1` + `.cmd`.
+**Test-Runner (in `tools\`):** `run_alpha_tests.ps1` + `.cmd`,
+`pro_run.ps1` + `.cmd`.
 `-ExeDir` Default = `<repo>\bin`, `-LogDir` Default = `<ExeDir>\logs`.
 
 ### §1.4 — Typischer Aufruf
@@ -186,9 +194,9 @@ Für **Refactoring 22**: alle alten SDK-Symbole bleiben funktional
 (`ProPhysics_SDK_Execute_Plastizitaet_Tick` delegiert jetzt an
 `ProPhysics_Tick`; `ProPhysics_ScientificRuleCallback` ist Alias
 für `ProPhysics_RuleCallback`). Für die **Konsolidierungs-Serie
-`1.23.1`–`1.23.8`**: alle Änderungen sind rein intern (Auslagerung
-in `static`-Helfer, Header-Konsolidierung, Modul-Docs), keine
-Signaturänderung.
+`1.23.1`–`1.23.10`**: alle Änderungen sind rein intern (Auslagerung
+in `static`-Helfer, Header-Konsolidierung, Modul-Docs, Warnungs-Fix,
+Forward-Plaquette-Konjugations-Fix), keine Signaturänderung.
 
 ### R6 — Jede Etappe endet mit einem Test
 
@@ -211,7 +219,7 @@ Neue Funktionalität in parallelen Funktionen oder als Dispatch über
 | 22 | `su2_active` | bit-identisch |
 | 22b | `su2_dynamics_active` | bit-identisch |
 | **23** | **nur lesende API-Erweiterung** | **bit-identisch** |
-| **1.23.1–1.23.8** | **reine Konsolidierung** | **bit-identisch** |
+| **1.23.1–1.23.10** | **reine Konsolidierung** | **bit-identisch** (T16 verbessert) |
 
 ---
 
@@ -323,7 +331,7 @@ Ur-Grammatik.
 
 | Kategorie | Umfang |
 |---|---|
-| Kernel-Module | 13 `.c` |
+| Kernel-Module | 12 `.c` |
 | Kernel-Header | 6 `.h` |
 | Test-Module | 18 `.c` (+ 1 Header) |
 | SDK | 1 `.c` + 1 `.h` |
@@ -345,7 +353,7 @@ Ur-Grammatik.
 | Gauge U(1) | ✅ |
 | Gauge SU(2), kinematisch | ✅ seit 22 |
 | Gauge SU(2), dynamisch (Leapfrog) | ✅ seit 22b |
-| Gauge SU(2), thermalisiert (Metropolis) | ✅ neu in 23 |
+| Gauge SU(2), thermalisiert (Metropolis) | ✅ seit 23 |
 | Observer | ✅ |
 | Verschränkung (Tensor, CHSH) | ✅ |
 | U4 Shared Reference | ✅ seit 18e |
@@ -359,7 +367,8 @@ Ur-Grammatik.
 | Phase Plate | ✅ |
 | Coulomb-Field 3D | ✅ |
 | Imaginaerzeit-Prep | ✅ |
-| Wilson-Action-Plaquette-Validierung | ✅ neu in 23 |
+| Wilson-Action-Plaquette-Validierung | ✅ seit 23 |
+| Compiler-Warnungen auf `/W4` (Kernel) | ✅ 0 (seit 1.23.10) |
 
 ### §6.3 — Numerisch hart belegte Resultate
 
@@ -423,7 +432,7 @@ Fehler bei falscher Verteilung **prozentual** wäre, nicht 0,08 %.
   β-Funktions-Messung braucht eine zweite Observable (Creutz-Ratio),
   Etappe 23b optional.
 
-### §6.5 — Prio-all-Regression (2026-09-26 nach Etappe 23 + Konsolidierung)
+### §6.5 — Prio-all-Regression (2026-09-27 nach Etappe 23 + Konsolidierung)
 
 | Prio | Thema | Tests | Status |
 |---|---|---|---|
@@ -449,8 +458,10 @@ Fehler bei falscher Verteilung **prozentual** wäre, nicht 0,08 %.
 - **`Running-Coupling`** als Nightly-Job (Timeout 2 400 s).
 - **Prio 5** (Hydrogen-48) ebenfalls als Nightly-Job.
 
-**Konsolidierungs-Serie:** Die Patches `1.23.1`–`1.23.8` ändern
-**keine** Testergebnisse. Alle 43 Tests bleiben bit-identisch grün.
+**Konsolidierungs-Serie:** Die Patches `1.23.1`–`1.23.10` ändern
+**keine** Testergebnisse. Alle 43 Tests bleiben grün. Ausnahme: T16
+(Energie-Drift) verbessert sich von 2,44e-03 auf 1,41e-03 durch den
+Forward-Plaquette-Konjugations-Fix in `1.23.10`.
 
 ---
 
@@ -543,11 +554,17 @@ Neue API: `Verify_Gamma_Algebra`, `Apply_Dirac_Mass_Term`,
 
 **Neues Modul:** `ProPhysics_SU2_Dynamics.c` (13. Kernel-Modul).
 
-**Backward-Staple-Fix (in Etappe 23 verifiziert):**
+**Backward-Staple-Fix (Patch 1.23.7, in Etappe 23 verifiziert):**
 Der Backward-Staple in `su2_force_on_link` hatte fehlende
 `†`-Dagger auf `U_μ(x-ν)`. Der Fix reduzierte:
 - T15: 2,02e-08 → **1,80e-08**
 - T16: 8,06e-03 → **2,44e-03** (Faktor 3,3)
+
+**Forward-Plaquette-Konjugations-Fix (Patch 1.23.10):**
+In `su2_plaquette_action_at` wurden `l3br_n`/`l4br_n` berechnet,
+aber `l3br`/`l4br` verwendet. Der Fix reduzierte T16 weiter von
+2,44e-03 auf **1,41e-03** (Faktor 1,7). T11 (rein-imaginäres `b`)
+bleibt unverändert, weil dort `l3br = l4br = 0`.
 
 Die Energiedrift ist jetzt auf dem Niveau, das symplektische
 O(Δ²)-Oszillation für `dt=500, g²=500` hergibt.
@@ -744,6 +761,7 @@ Ein Link-Update-Tick ist Etappe 22b oder 23+.
 | `su2_yang_mills_q15` (Kopplung) | ✅ |
 | `pro_su2_mul/conj/norm_sq` in `Internal.h` | ✅ |
 | `pro_su2_exp_apply` in `Internal.h` | ✅ |
+| `pro_su2_edge*` in `Internal.h` (Patch 1.23.10) | ✅ |
 | `test_su2_wilson_loop` T15–T18 | ✅ 4/4 |
 
 ### §12b.2 — Physikalische Bedeutung
@@ -751,7 +769,7 @@ Ein Link-Update-Tick ist Etappe 22b oder 23+.
 | Kriterium | Inhalt | Ergebnis |
 |---|---|---|
 | Link-Norm unter Leapfrog | unitär bis auf Q30-Rundung | **1,80e-08** |
-| Energieerhaltung | symplektisch (O(dt²)) | **2,44e-03** |
+| Energieerhaltung | symplektisch (O(dt²)) | **1,41e-03** |
 | R7-Konformität | `su2_dynamics_active == 0` | byte-identisch |
 | Aktive Dynamik | Link ändert sich | ja |
 
@@ -775,8 +793,13 @@ Ein Link-Update-Tick ist Etappe 22b oder 23+.
 nicht auf einer kanonischen Verteilung. Etappe 23 schließt diese
 Lücke durch Metropolis im Test.
 
-**Backward-Staple-Fix:** In Etappe 23 bestätigt. T16 von 8,06e-03
-auf 2,44e-03 (Faktor 3,3), T15 von 2,02e-08 auf 1,80e-08.
+**Backward-Staple-Fix:** In Etappe 23 bestätigt (Patch 1.23.7).
+T16 von 8,06e-03 auf 2,44e-03 (Faktor 3,3), T15 von 2,02e-08 auf
+1,80e-08.
+
+**Forward-Plaquette-Konjugations-Fix:** In Patch 1.23.10 behoben.
+T16 weiter von 2,44e-03 auf 1,41e-03 (Faktor 1,7). T11
+(rein-imaginäres `b`) unverändert, weil dort `l3br = l4br = 0`.
 
 **Kein Link-Update basierend auf `amp_grid`.** Die Links und die
 Amplituden sind bisher unabhängig.
@@ -929,8 +952,9 @@ dominiert). Nicht in normalen CI-Läufen.
 | Refactoring 22 | ✅ | 22 |
 | SU(2)-Link-Dynamik | ✅ 18/18 | 22b |
 | Backward-Staple-Fix | ✅ bestätigt (T16 2,44e-03) | 22b |
+| Forward-Plaquette-Konjugations-Fix | ✅ bestätigt (T16 1,41e-03) | 1.23.10 |
 | SU(2)-Metropolis / V&V-Anker | ✅ 0,08 % | 23 |
-| Konsolidierungs-Serie `1.23.1`–`1.23.8` | ✅ | 23 |
+| Konsolidierungs-Serie `1.23.1`–`1.23.10` | ✅ | 23 |
 | Wasserstoff quantitativ | ⚠ 0,296 | 18d-B |
 | Creutz-Ratio / β-Funktion | offen | 23b |
 | Euklidisches Pfadintegral | offen | 24 |
@@ -1071,11 +1095,13 @@ nicht-terminierte Strukturen. Optional Etappe 23b für β-Funktion.
 | `pro_su2_mul` / `pro_su2_conj` / `pro_su2_norm_sq` (Internal.h) | 22b | refactoring |
 | `pro_su2_exp_apply` (Internal.h) | 22b | realisiert |
 | `ProPhysics_SU2_Dynamics.c` | 22b | neues Modul |
-| **Backward-Staple-Fix (`su2_force_on_link`)** | **23** | **Bug-Fix bestätigt** |
+| **Backward-Staple-Fix (`su2_force_on_link`)** | **1.23.7** | **Bug-Fix** |
 | **`alpha_test_running_coupling.c`** | **23** | **neuer Test** |
-| **Konsolidierung aller 12 Kernel-Module** | **1.23.1–1.23.8** | **rein intern, bit-identisch** |
-| **12 neue Modul-Docs (`docs/project/*.md`)** | **1.23.1–1.23.8** | **vollständig** |
-| **`pro_su2_edge*` nach `Internal.h` (B7-Auflösung)** | **1.23.7** | **refactoring** |
+| **Konsolidierung aller 12 Kernel-Module** | **1.23.1–1.23.10** | **rein intern** |
+| **12 neue Modul-Docs (`docs/project/*.md`)** | **1.23.1–1.23.10** | **vollständig** |
+| **`pro_su2_edge*` nach `Internal.h` (B7-Auflösung)** | **1.23.7 + 1.23.10** | **refactoring** |
+| **Forward-Plaquette-Konjugations-Fix (`su2_plaquette_action_at`)** | **1.23.10** | **Bug-Fix** |
+| **Compiler-Warnungen auf 0 reduziert** | **1.23.10** | **cleanup** |
 
 ---
 
@@ -1100,7 +1126,8 @@ nicht-terminierte Strukturen. Optional Etappe 23b für β-Funktion.
 | 2.8 | 2026-09-25 | Etappe 22 + Refactoring: SU(2)-Eichfeld (14/14 + KA). Prio-All 42/42. |
 | 2.9 | 2026-09-25 | Etappe 22b: SU(2)-Link-Dynamik (Leapfrog). Prio-8 auf 18/18 + KA. |
 | 3.0 | 2026-09-25 | Etappe 23: SU(2)-Metropolis / Wilson-Action-Validierung. Prio-All 43/43. 1 neue read-only Funktion `SU2_Link_Plaquette_Sum`. Neuer Test `alpha_test_running_coupling.c`. **Erste absolute Validierung gegen externe Lattice-QCD-Physik** (V&V-Anker: ⟨P⟩(β=2) = 0,43346 vs. Referenz 0,43313, Abweichung 0,08 %). |
-| **1.0** | **2026-09-26** | **Schema-Wechsel auf Etappen-basierte Versionierung (Kernel 1.23.0, Etappe 23). Doc-Version von `3.0` auf `1.0`. Konsolidierungs-Serie `1.23.1`–`1.23.8`: alle 12 Kernel-Module auf einheitliches Schema (Kernel-/Etappe-Kopf, Modul-Referenz, keine Etappen-Historie im Quellcode), 12 neue Modul-Docs in `docs/project/`, Header konsolidiert, Backlog B7 (SU(2)-Edge-Zugriff) gelöst. Alle Änderungen bit-identisch, 43/43 PASS. Siehe `CHANGELOG.md` §2.5 für die Abbildung alter auf neue Versionen.** |
+| **1.0** | **2026-09-26** | **Schema-Wechsel auf Etappen-basierte Versionierung (Kernel 1.23.0, Etappe 23). Doc-Version von `3.0` auf `1.0`. Konsolidierungs-Serie `1.23.1`–`1.23.8`: alle 12 Kernel-Module auf einheitliches Schema, 12 neue Modul-Docs in `docs/project/`, Header konsolidiert, Backlog B7 (SU(2)-Edge-Zugriff) teilweise gelöst. Alle Änderungen bit-identisch, 43/43 PASS.** |
+| **1.0** | **2026-09-27** | **Nachtrag Konsolidierungs-Serie `1.23.9` und `1.23.10`. `1.23.9`: Release-Vorbereitung (SDK-Versionierung, Build-Skripte, Sub-Makefiles, Build-Docs auf Etappe 23; Lizenz-URL, VERSIONING.md, Repo-Hygiene, BASELINE.md, Beispiel-BUILD_INFO). `1.23.10`: Reparatur des unvollständigen Patch 1.23.7 (`pro_su2_edge*` nach `Internal.h`, Bugfix `LNK2001`); Forward-Plaquette-Konjugations-Fix in `su2_plaquette_action_at` (T16 verbessert von 2,44e-03 auf 1,41e-03, Faktor 1,7); ungenutzte Variablen entfernt; `uint64_t`→`uint32_t`-Casts; `PRO_NODE_*_MASK` eingeführt. Compiler-Warnungen auf 0. Regression 14/14 PASS.** |
 
 ---
 

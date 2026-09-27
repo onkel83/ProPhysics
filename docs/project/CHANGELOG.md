@@ -1,10 +1,10 @@
 # ProPhysics — Änderungsprotokoll
 
 **Datei:** `CHANGELOG.md`
-**Version:** 1.23.8
+**Version:** 1.23.10
 **Kernel:** 1.23.0
 **Etappe:** 23
-**Stand:** 2026-09-26
+**Stand:** 2026-09-27
 **Repository:** https://github.com/onkel83/prophysics
 **Format:** Orientiert an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/),
 angepasst auf Etappen-Struktur.
@@ -46,6 +46,8 @@ Die drei Ziffern bedeuten:
 | `1.23.6` | Phase 1, Etappe 23, Konsolidierungs-Fix 6 (SU2) |
 | `1.23.7` | Phase 1, Etappe 23, Konsolidierungs-Fix 7 (SU2_Dynamics) |
 | `1.23.8` | Phase 1, Etappe 23, Konsolidierungs-Fix 8 (Tensor) |
+| `1.23.9` | Phase 1, Etappe 23, Konsolidierungs-Fix 9 (Release-Vorbereitung) |
+| `1.23.10` | Phase 1, Etappe 23, Konsolidierungs-Fix 10 (Bugfix 1.23.7 + Plaquette-Konjugation) |
 | `1.22.1` | Phase 1, Etappe 22, Fix 1 (Etappe 22b) |
 | `1.18.0` | Phase 1, Etappe 18, kein Fix |
 
@@ -113,13 +115,92 @@ Build-Skripte sind unabhängige Werkzeuge.
 
 ---
 
-# [1.23.9] — 2026-09-27 — Konsolidierung
+## [1.23.10] — 2026-09-27 — Bugfix
+
+**Etappen:** 23 (Konsolidierung)
+**Tests:** 43/43 PASS (Prio 1/6/7 nachgeprüft: 14/14)
+**Fokus:** Reparatur des unvollständigen Patch 1.23.7 plus
+Verbesserung der SU(2)-Leapfrog-Energieerhaltung.
+
+**Hintergrund:** Nach `1.23.9` (Release-Vorbereitung) scheiterte der
+komplette Rebuild mit `LNK2001: pro_su2_edge / pro_su2_edge_mut`.
+Die Verschiebung der beiden Helfer von `ProPhysics_SU2.c` nach
+`ProPhysics_Internal.h` war im Patch `1.23.7` **angekündigt**, aber
+nicht durchgeführt worden. Beim Reparieren fiel zusätzlich ein
+latenter Konjugations-Bug in `su2_plaquette_action_at` auf.
+
+**Versions-Kopplung:**
+
+| Komponente | Version | Bemerkung |
+|---|---|---|
+| Kernel | `1.23.0` | unverändert (keine ABI-Änderung) |
+| SDK | `1.23.0` | folgt Kernel |
+| Doku | `1.23.0` | folgt Kernel |
+| Tests | `1.0.0` | unverändert |
+| Build / Tools | `1.0.0` | unverändert |
+
+### Fixed
+
+- **`ProPhysics_Internal.h`** — `pro_su2_edge` und `pro_su2_edge_mut`
+  als `static inline` ergänzt (Bounds-Checks eingebaut).
+  **`ProPhysics_SU2.c`** — lokale `static`-Definitionen entfernt.
+  Behebt den Link-Fehler `LNK2001: pro_su2_edge / pro_su2_edge_mut`,
+  der den Patch `1.23.7` unvollständig machte.
+- **`ProPhysics_SU2_Dynamics.c`** — Konjugation in
+  `su2_plaquette_action_at` korrigiert (`l3br_n`, `l4br_n` statt
+  `l3br`, `l4br`). Latenter Bug für Links mit `b_re != 0`. T16
+  verbessert sich von 2,44e-03 auf **1,41e-03** (Faktor 1,7).
+  T11 (Plaquette-Näherung mit rein-imaginärem `b`) bleibt unverändert.
+- **`ProPhysics_SU2.c`** — ungenutzte Variablen `Ui10_re`, `Ui10_im`,
+  `Ui11_re`, `Ui11_im` in `pro_su2_verify_product` entfernt
+  (C4189-Warnungen).
+- **`ProPhysics_Density.c`** — explizite `(uint32_t)`-Casts für
+  Kapazitäts-Parameter an den drei `pro_density_find_free_slot`-
+  Aufrufen (C4244-Warnungen).
+- **`ProPhysics_Shared.c`** / **`ProPhysics_Config.h`** —
+  `PRO_NODE_SPIN_FLIP_MASK` und `PRO_NODE_DIRAC_MASK` in der Config
+  eingeführt; `pro_node_set_spin_flip` nutzt jetzt die Maske statt
+  `(uint8_t)~PRO_NODE_SPIN_FLIP_BIT` (C4310-Warnung).
+
+### Changed
+
+- **Compiler-Warnungen auf `/W4` (Kernel), `/W3` (SDK/Test)** —
+  vollständig auf **0** reduziert.
+- **Link-Fehler** — 0.
+
+### Tests
+
+- Unverändert: 43/43 PASS.
+- Nachprüfung Prio 1/6/7: 14/14 PASS in 23,3 s.
+- **T16 verschärft:** 2,44e-03 → **1,41e-03**. T15 bleibt bei 1,80e-08.
+
+### Docs
+
+- `CHANGELOG.md` (diese Datei) auf `1.23.10`.
+- `docs/test/ProPhysics_Testkatalog.md` auf `1.9`.
+- `docs/test/BASELINE.md` auf `1.1`.
+- `docs/physics/README.md` — T16 + Nachtrag.
+- `docs/project/Project.md` — T16 (§7.5, §12b) + Konsolidierungs-Serie
+  `1.23.1`–`1.23.10`.
+- `docs/test/run_alpha_tests.md` — Log-Beispiel §12.1.
+- `docs/project/ProPhysics_VersionRegistry.md` — Konsolidierungsspalte
+  aktualisiert.
+- `TODO.md` — §4.2 B7-Nachtrag, Version 1.4.
+
+### Backlog
+
+- **B7** (SU(2)-Edge-Zugriff) — mit diesem Patch **vollständig**
+  geschlossen (nicht nur angekündigt).
+
+---
+
+## [1.23.9] — 2026-09-27 — Konsolidierung
 
 **Etappen:** 23 (Konsolidierung)
 **Tests:** 43/43 PASS (unverändert)
 **Fokus:** Release-Vorbereitung. SDK-Versionierung, Build-Skripte,
 Sub-Makefiles und Build-Docs auf Etappe 23. Lizenz-URL, VERSIONING.md,
-Git-Tags. Keine Verhaltensänderung, keine API-Änderung.
+Repo-Hygiene, BASELINE.md, Beispiel-BUILD_INFO.
 
 **Hintergrund:** Nach `1.23.8` (Tensor) waren die Kernel-Module
 konsolidiert, aber SDK, Build-Infrastruktur und Projekt-Dokumentation
@@ -205,7 +286,8 @@ und ergänzt die fehlenden Konzept-Dokumente.
 - **`.github\ISSUE_TEMPLATE\bug_report.md`** (neu)
 - **`.github\ISSUE_TEMPLATE\feature_request.md`** (neu)
 - **`.github\PULL_REQUEST_TEMPLATE.md`** (neu)
-- **`.github\workflows\ci.yml`** (neu) — Prio 1, 6, 7 auf jedem Push.
+- **`.github\workflows\ci.yml`** (neu) — Prio 1, 6, 7 +
+  `SU2-Wilson-Loop` auf jedem Push.
 
 ### Fixed
 
@@ -230,6 +312,8 @@ und ergänzt die fehlenden Konzept-Dokumente.
 
 - `CHANGELOG.md` (diese Datei) auf `1.23.9`.
 - `TODO.md` auf `1.2` (alle Release-Blocker erledigt).
+
+---
 
 ## [1.23.8] — 2026-09-26 — Konsolidierung
 
@@ -331,7 +415,10 @@ in `Apply_SU2_Tick` zusammen.
 **`ProPhysics_Internal.h`:**
 - `pro_su2_edge` / `pro_su2_edge_mut` — SU(2)-Edge-Zugriff als
   `static inline`. Löst Backlog B7 (geteilter Zugriff zwischen
-  `SU2.c` und `SU2_Dynamics.c`).
+  `SU2.c` und `SU2_Dynamics.c`). **Hinweis:** Die Verschiebung
+  wurde tatsächlich erst in `1.23.10` vollzogen; `1.23.7` hatte
+  den Aufruf in `SU2_Dynamics.c` umgestellt, aber die Helfer
+  nicht verschoben. `1.23.10` schließt diese Lücke.
 
 **`ProPhysics_SU2_Dynamics.c`:**
 - `su2_leapfrog_kick_E` — E-Kick-Schleife
@@ -363,6 +450,7 @@ in `Apply_SU2_Tick` zusammen.
   `su2_link_exists`).
 - **Backlog B7** — aufgelöst. `SU2.c` und `SU2_Dynamics.c` teilen
   jetzt denselben Edge-Zugriff über `ProPhysics_Internal.h`.
+  **Vollständig abgeschlossen in `1.23.10`.**
 
 ### Tests
 
@@ -1364,7 +1452,7 @@ Detail-Beschreibungen dieser Etappen stehen in `Project.md` §18.
 |---|---|---|---|
 | **MAJOR** | Phase | bei physikalischem Paradigmenwechsel | `1.x → 2.x` wenn Etappe 24–27 abgeschlossen |
 | **MINOR** | Etappe | bei jeder neuen Etappe | `1.22.x → 1.23.0` bei Etappe 23 |
-| **PATCH** | Fix | bei Unter-Etappe, Bugfix oder Konsolidierung | `1.23.7 → 1.23.8` bei weiterer Konsolidierung |
+| **PATCH** | Fix | bei Unter-Etappe, Bugfix oder Konsolidierung | `1.23.9 → 1.23.10` bei weiterer Konsolidierung |
 
 ### §2.2 — Phasen-Übersicht
 
@@ -1392,7 +1480,8 @@ Ein **PATCH**-Sprung passiert, wenn:
   (z.B. `1.23.1` — Header-, Modul- und Doku-Konsolidierung;
   `1.23.2` — EPR + Fock; `1.23.3` — Gauge; `1.23.4` — Observer;
   `1.23.5` — Shared; `1.23.6` — SU2; `1.23.7` — SU2_Dynamics;
-  `1.23.8` — Tensor).
+  `1.23.8` — Tensor; `1.23.9` — Release-Vorbereitung;
+  `1.23.10` — Bugfix + Plaquette-Konjugation).
 
 Ein PATCH-Sprung passiert **nicht** bei:
 
@@ -1469,7 +1558,7 @@ aber die **Kernel-Version** kommt ausschließlich aus
 
 | Dokument | Was es zeigt | Soll-Version |
 |---|---|---|
-| `CHANGELOG.md` (diese Datei) | Versions-Historie | `1.23.8` (folgt Kernel-Patch) |
+| `CHANGELOG.md` (diese Datei) | Versions-Historie | `1.23.10` (folgt Kernel-Patch) |
 | `ProPhysics_VersionRegistry.md` | Versionen **aller** Dateien | `1.23.0` (folgt Kernel) |
 | `Project.md` §18 | Detaillierte Etappen-Historie | `1.23.0` (folgt Kernel) |
 | `ProPhysics_Version.h` | Aktuelle Kernel-Version | `1.23.0` |
@@ -1479,7 +1568,7 @@ aber die **Kernel-Version** kommt ausschließlich aus
 Anker. `CHANGELOG.md` folgt ihm. Alle anderen Dokumente folgen
 `CHANGELOG.md`.
 
-**Hinweis zu PATCH-Versionen:** Die Changelog-Version (z.B. `1.23.8`)
+**Hinweis zu PATCH-Versionen:** Die Changelog-Version (z.B. `1.23.10`)
 kann höher sein als die Kernel-Version (z.B. `1.23.0`), wenn der
 Patch **nur** Doku und interne Refactorings betrifft. Ein PATCH
 **ohne** Kernel-Bump ist erlaubt, wenn keine ABI-Änderung stattfindet.
@@ -1533,8 +1622,10 @@ Wenn die Kernel-Version sich ändert:
 |---|---|
 | Kernel-Version | `src/prophysics/header/ProPhysics_Version.h` |
 | Versions-Register | `docs/project/ProPhysics_VersionRegistry.md` |
+| Versionierungs-Konzept | `docs/project/VERSIONING.md` |
 | Etappen-Historie | `docs/project/Project.md` §18 |
 | Testkatalog | `docs/test/ProPhysics_Testkatalog.md` |
+| Test-Baseline | `docs/test/BASELINE.md` |
 | Build-System | `docs/build/BUILD_SCRIPT.md` |
 | Konfiguration | `docs/project/CONFIG.md` |
 | Amp-Modul | `docs/project/Amp.md` |
@@ -1553,4 +1644,4 @@ Wenn die Kernel-Version sich ändert:
 
 ---
 
-**Ende CHANGELOG v1.23.8.**
+**Ende CHANGELOG v1.23.10.**

@@ -7,16 +7,16 @@
 **Zweck:** Zentrale Übersicht aller Versionen in allen Dateien.
 Dient der Vereinheitlichung und dem schnellen Auffinden von
 Inkonsistenzen.
-**Stand:** 2026-09-26 (Kernel 1.23.0, Konsolidierungs-Serie
-1.23.1–1.23.8 abgeschlossen)
+**Stand:** 2026-09-27 (Kernel 1.23.0, Konsolidierungs-Serie
+1.23.1–1.23.10 abgeschlossen, Changelog-Version 1.23.10)
 
 ---
 
 ## §0 — Versionierungs-Philosophie
 
 ProPhysics verwendet ein **etappen-basiertes** Schema, nicht SemVer.
-Die vollständige Definition steht in `CHANGELOG.md` §0 und
-`CHANGELOG.md` §2.
+Die vollständige Definition steht in `docs/project/VERSIONING.md`
+und `CHANGELOG.md` §0 und §2.
 
 ### §0.1 — Drei Ebenen
 
@@ -25,7 +25,7 @@ Die vollständige Definition steht in `CHANGELOG.md` §0 und
 | **Kernel** | `1.23.0` (MAJOR.MINOR.PATCH) | Phase.Etappe.Fix |
 | **SDK** | `1.23.0` | folgt Kernel |
 | **Module-Docs** | `1.0` pro Dokument | eigenständig; referenziert `Kernel:` |
-| **CHANGELOG** | `1.23.8` | Kernel + Konsolidierungs-Patch-Serie |
+| **CHANGELOG** | `1.23.10` | Kernel + Konsolidierungs-Patch-Serie |
 | **Tests** | `1.0.0` | eigenständig (Test-Suite-Version) |
 | **Build / Tools** | `1.0.0` | eigenständig (Infrastruktur-Version) |
 
@@ -38,7 +38,7 @@ Die vollständige Definition steht in `CHANGELOG.md` §0 und
 |---|---|---|
 | MAJOR | Phase | `1` = Fundament, `2` = komplette QM, `3` = Makrophysik |
 | MINOR | Etappen-Nummer | `1`, `2`, …, `23`, `24`, … |
-| PATCH | Fix / Konsolidierung | `0`, `1`, `2`, … |
+| PATCH | Fix / Konsolidierung | `0`, `1`, `2`, …, `10` |
 
 ### §0.3 — Kein `3.0.0` mehr
 
@@ -52,7 +52,7 @@ alle Dateien tragen jetzt `Kernel: 1.23.0` / `Etappe: 23`.
 
 ---
 
-## §1 — Kernel-Module (`src/prophysics/kernel/`)
+## §1 — Kernel-Module (`src/prophysics/`)
 
 **Status:** ✅ vollständig konsolidiert
 
@@ -65,15 +65,15 @@ Quellcode-Kommentaren; Verweise auf `CHANGELOG.md` und
 |---|---|---|---|---|
 | `ProPhysics_Amp.c` | 1.23.0 | 23 | 1.23.1 | 7 `static`-Helfer (Rotation, Norm, Transport-Cores) |
 | `ProPhysics_Core.c` | 1.23.0 | 23 | 1.23.1 | `pro_registers_self_init` |
-| `ProPhysics_Density.c` | 1.23.0 | 23 | 1.23.1 | `pro_lindblad_2x2` |
+| `ProPhysics_Density.c` | 1.23.0 | 23 | 1.23.1 + 1.23.10 | `pro_lindblad_2x2`; Cast-Fix C4244 |
 | `ProPhysics_Dirac.c` | 1.23.0 | 23 | 1.23.1 | `pro_gamma_op_init` |
 | `ProPhysics_EPR.c` | 1.23.0 | 23 | 1.23.2 | 3 `static`-Helfer |
 | `ProPhysics_Fock.c` | 1.23.0 | 23 | 1.23.2 | 4 `static`-Helfer |
 | `ProPhysics_Gauge.c` | 1.23.0 | 23 | 1.23.3 | `pro_amp_vector_rotate_q16` |
 | `ProPhysics_Observer.c` | 1.23.0 | 23 | 1.23.4 | 4 `static`-Helfer |
-| `ProPhysics_Shared.c` | 1.23.0 | 23 | 1.23.5 | `pro_shared_pair_rotate_q31` |
-| `ProPhysics_SU2.c` | 1.23.0 | 23 | 1.23.6 | `pro_su2_axis_angle_to_quat` |
-| `ProPhysics_SU2_Dynamics.c` | 1.23.0 | 23 | 1.23.7 | `su2_leapfrog_kick_E` (löst B7) |
+| `ProPhysics_Shared.c` | 1.23.0 | 23 | 1.23.5 + 1.23.10 | `pro_shared_pair_rotate_q31`; `PRO_NODE_*_MASK` |
+| `ProPhysics_SU2.c` | 1.23.0 | 23 | 1.23.6 + 1.23.10 | `pro_su2_axis_angle_to_quat`; Edge-Zugriff nach Internal.h |
+| `ProPhysics_SU2_Dynamics.c` | 1.23.0 | 23 | 1.23.7 + 1.23.10 | `su2_leapfrog_kick_E`; Plaquette-Konjugations-Fix |
 | `ProPhysics_Tensor.c` | 1.23.0 | 23 | 1.23.8 | 3 `static`-Helfer |
 
 **Soll-Header pro Datei:**
@@ -81,6 +81,11 @@ Quellcode-Kommentaren; Verweise auf `CHANGELOG.md` und
 * Kernel: 1.23.0
 * Etappe: 23
 ```
+
+**Anmerkung zu 1.23.10:** Der Patch hat `pro_su2_edge` /
+`pro_su2_edge_mut` nach `ProPhysics_Internal.h` verschoben
+(nachgeholt aus 1.23.7) und den Forward-Plaquette-Konjugations-Bug
+in `su2_plaquette_action_at` gefixt.
 
 ---
 
@@ -91,52 +96,49 @@ Quellcode-Kommentaren; Verweise auf `CHANGELOG.md` und
 | Datei | Kernel | Etappe | Konsolidiert mit | Anmerkung |
 |---|---|---|---|---|
 | `ProPhysics.h` | 1.23.0 | 23 | 1.23.1 | Öffentliche API, gruppierte Sektionen |
-| `ProPhysics_Config.h` | 1.23.0 | 23 | 1.23.1 | Verweis auf `CONFIG.md` |
-| `ProPhysics_Exports.h` | 1.23.0 | 23 | 1.23.1 | Build-Modus-Kommentar (dllexport/dllimport/statisch) |
-| `ProPhysics_Internal.h` | 1.23.0 | 23 | 1.23.1 + 1.23.7 | `pro_su2_edge*` nach B7-Auflösung |
+| `ProPhysics_Config.h` | 1.23.0 | 23 | 1.23.1 + 1.23.10 | `PRO_NODE_*_MASK` eingeführt; `PRO_Q31_HALF_SQRT2` kommentiert |
+| `ProPhysics_Exports.h` | 1.23.0 | 23 | 1.23.1 | Build-Modus-Kommentar |
+| `ProPhysics_Internal.h` | 1.23.0 | 23 | 1.23.1 + 1.23.7 + 1.23.10 | `pro_su2_edge*` final verschoben; C2-Kommentar präzisiert |
 | `ProPhysics_Types.h` | 1.23.0 | 23 | 1.23.1 | Layout-Hinweise (`ProEdge` 40 B) |
 | `ProPhysics_Version.h` | 1.23.0 | 23 | — | **Semantischer Anker** |
 
 **Wichtig:** `ProPhysics_Version.h` ist die **einzige** Datei mit
 einer aktiven `VERSION_MAJOR`/`VERSION_MINOR`/`VERSION_PATCH`-Trias.
 Alle anderen Header tragen `Kernel: 1.23.0` / `Etappe: 23` nur als
-Kommentar. Verweis auf `CHANGELOG.md` folgt mit dem Abschluss-Patch
-`1.23.9` (siehe `TODO.md` §0.1).
+Kommentar.
 
 ---
 
 ## §3 — SDK (`src/sdk/`)
 
-**Status:** ❌ offen (siehe `TODO.md` §1.1)
+**Status:** ✅ erledigt (Patch 1.23.9)
 
-| Datei | Aktuell | Soll | Anmerkung |
+| Datei | Kernel | Etappe | Anmerkung |
 |---|---|---|---|
-| `pro_sdk_interface.c` | (alt, `3.1 (Etappe 22)`) | **`Kernel: 1.23.0` / `Etappe: 23`** | Wrapper um Kernel |
-| `pro_sdk_interface.h` | (alt, `3.1 (Etappe 22)`) | **`Kernel: 1.23.0` / `Etappe: 23`** | Callback-Alias, `PRO_SDK_EXPORTS` |
+| `pro_sdk_interface.c` | 1.23.0 | 23 | Wrapper um Kernel-Tick; Refactoring-22-Doku konsolidiert |
+| `pro_sdk_interface.h` | 1.23.0 | 23 | Version-Re-Export (`PRO_SDK_VERSION_STRING`, `PRO_SDK_ETAPPE`); Doxygen-`@file`; `PRO_SDK_EXPORTS`-Hinweis |
 
-**Zusätzlich geplant** (nicht Version, sondern Inhalt — `TODO.md` §1.1):
+**Geplant (Sitzung A, §5.1 in TODO):**
 
-- `PRO_SDK_VERSION_STRING`, `PRO_SDK_ETAPPE` Re-Export
-- Doxygen-`@file`-Block
-- Usage-Beispiel (10 Zeilen)
-- Kopfzeile in beiden Dateien
+- `main()` aus `pro_sdk_interface.c` auslagern → `pro_sdk_runner.c`
+- `GRID_DIM` als CLI-Parameter
 
 ---
 
 ## §4 — Test-Module (`src/test/`)
 
-**Status:** ❌ offen (siehe `TODO.md` §1.3)
+**Status:** ✅ erledigt (Patch 1.23.9)
 
 ### §4.1 — Test-Infrastruktur
 
-| Datei | Aktuell | Soll |
+| Datei | Kernel | Etappe |
 |---|---|---|
-| `alpha_test_common.h` | (alt, `3.1 (Etappe 22)`) | **`Kernel: 1.23.0` / `Etappe: 23`** |
-| `alpha_test_common.c` | (alt, `3.1 (Etappe 22)`) | **`Kernel: 1.23.0` / `Etappe: 23`** |
+| `alpha_test_common.h` | 1.23.0 | 23 |
+| `alpha_test_common.c` | 1.23.0 | 23 |
 
 ### §4.2 — Test-Module (18)
 
-Alle folgenden Dateien bekommen den Kopf
+Alle folgenden Dateien tragen den Kopf
 `Kernel: 1.23.0` / `Etappe: 23`:
 
 | Datei | Prio | Anmerkung |
@@ -148,7 +150,7 @@ Alle folgenden Dateien bekommen den Kopf
 | `alpha_test_invariance.c` | 2 | U5-Invariante |
 | `alpha_test_soliton.c` | 2 | GP-Soliton |
 | `alpha_test_qm_basics.c` | 2 | QM-Grundlagen |
-| `alpha_test_qm_advanced.c` | 3 | QM erweitert |
+| `alpha_test_qm_advanced.c` | 2 | QM erweitert |
 | `alpha_test_qm_emergent.c` | 3 | Emergenz |
 | `alpha_test_3d.c` | 4 | 3D-Torus |
 | `alpha_test_hydrogen.c` | 5 | Coulomb/Hydrogen |
@@ -156,7 +158,7 @@ Alle folgenden Dateien bekommen den Kopf
 | `alpha_test_spin.c` | 6 | Spin-1/2 |
 | `alpha_test_dirac.c` | 7 | Dirac |
 | `alpha_test_su2.c` | 8 | SU(2)-Wilson-Loop |
-| `alpha_test_running_coupling.c` | 8 | **neu in Etappe 23** |
+| `alpha_test_running_coupling.c` | 8 | Running-Coupling |
 | `example_test_density.c` | — | Beispiel |
 | `example_test_tensor.c` | — | Beispiel |
 
@@ -164,70 +166,70 @@ Alle folgenden Dateien bekommen den Kopf
 
 ## §5 — Tools (`tools/`)
 
-**Status:** ❌ offen (siehe `TODO.md` §1.2)
+**Status:** ✅ erledigt (Patch 1.23.9)
 
-| Datei | Aktuell | Soll |
-|---|---|---|
-| `run_alpha_tests.ps1` | (alt, `3.1 (Etappe 22)`) | **`Kernel: 1.23.0` / `Etappe: 23`** |
-| `run_alpha_tests.cmd` | (keine) | **`Kernel: 1.23.0` / `Etappe: 23`** |
+| Datei | Kernel | Etappe | Anmerkung |
+|---|---|---|---|
+| `pro_run.ps1` | 1.23.0 | 23 | Zentraler Einstiegspunkt |
+| `pro_run.cmd` | 1.23.0 | 23 | UTF-8-Wrapper |
+| `run_alpha_tests.ps1` | 1.23.0 | 23 | Test-Runner |
+| `run_alpha_tests.cmd` | 1.23.0 | 23 | UTF-8-Wrapper |
 
-**Achtung:** `docs/test/run_alpha_tests.md` (Doc) hat
-**Doc-Version 3.2**. Nach dem neuen Schema gehört sie auf `1.0`
-(siehe §7.3).
+**Doc:** `docs/test/run_alpha_tests.md` (Version 1.0.0, Etappe 23).
 
 ---
 
 ## §6 — Build-Infrastruktur (`build/`)
 
-**Status:** ❌ offen (siehe `TODO.md` §1.2, §1.3)
+**Status:** ✅ erledigt (Patch 1.23.9)
 
 ### §6.1 — Master (`build/main/`)
 
-| Datei | Aktuell | Soll |
+| Datei | Kernel | Etappe |
 |---|---|---|
-| `Makefile.nmake` | `3.0` | **`Kernel: 1.23.0` / `Etappe: 23`** |
-| `build.ps1` | (keine) | **`Kernel: 1.23.0` / `Etappe: 23`** |
-| `build.cmd` | (keine) | **`Kernel: 1.23.0` / `Etappe: 23`** |
-| `export.ps1` | (alt, `3.1 (Etappe 22)`) | **`Kernel: 1.23.0` / `Etappe: 23`** |
-| `export.cmd` | (keine) | **`Kernel: 1.23.0` / `Etappe: 23`** |
-| `write_build_info.ps1` | (keine) | **`Kernel: 1.23.0` / `Etappe: 23`** + `Etappe:`-Zeile |
+| `Makefile.nmake` | 1.23.0 | 23 |
+| `build.ps1` | 1.23.0 | 23 |
+| `build.cmd` | 1.23.0 | 23 |
+| `export.ps1` | 1.23.0 | 23 |
+| `export.cmd` | 1.23.0 | 23 |
+| `write_build_info.ps1` | 1.23.0 | 23 |
 
 ### §6.2 — Sub-Makefiles
 
-| Datei | Aktuell | Soll | Anmerkung |
+| Datei | Kernel | Etappe | Anmerkung |
 |---|---|---|---|
-| `build/prophysics/Makefile.nmake` | `3.1`, **12 `.c`** | **`Kernel: 1.23.0` / `Etappe: 23`, 13 `.c`** | `SU2.c` + `SU2_Dynamics.c` fehlen |
-| `build/sdk/Makefile.sdk.nmake` | `3.0` | **`Kernel: 1.23.0` / `Etappe: 23`** | — |
-| `build/test/Makefile.nmake` | `3.1`, **17 `.c`** | **`Kernel: 1.23.0` / `Etappe: 23`, 18 `.c`** | `running_coupling.c` fehlt |
+| `build/prophysics/Makefile.nmake` | 1.23.0 | 23 | **12 Kernel-Module** |
+| `build/sdk/Makefile.sdk.nmake` | 1.23.0 | 23 | `check_core`-Vorprüfung |
+| `build/test/Makefile.nmake` | 1.23.0 | 23 | **19 `.c`** (17 Alpha + 2 Example) |
 
-**Kritisch:** `build/prophysics/Makefile.nmake` zählt aktuell
-12 Module; korrekt sind **13** (mit `ProPhysics_SU2_Dynamics.c`).
+**Kritisch geprüft:** `build/prophysics/Makefile.nmake` zählt 12
+Module (mit `ProPhysics_SU2_Dynamics.c`). `build/test/Makefile.nmake`
+zählt 19 Quellen (mit `alpha_test_running_coupling.c` und den beiden
+Example-Tests).
 
 ---
 
 ## §7 — Modul-Dokumentation (`docs/project/`)
 
-**Status:** ⚠️ überwiegend fertig; Nachzügler bei den in `1.23.1`
-erstellten Docs (Schema-Prüfung) und den in `1.23.2` erstellten
-Docs (`Version:`-Feld)
+**Status:** ✅ vollständig
 
 ### §7.1 — Modul-Docs
 
 | Datei | Doc-Version | Kernel | Etappe | Fock-Schema §0–§8 | Status |
 |---|---|---|---|:-:|---|
-| `CONFIG.md` | 1.0 | 1.23.0 | 23 | — | ⚠️ Sonderfall (kein Modul); Schema prüfen |
-| `Amp.md` | 1.0 | 1.23.0 | 23 | ⚠️ | Schema auf §0–§8 prüfen |
-| `Core.md` | 1.0 | 1.23.0 | 23 | ⚠️ | dito |
-| `Density.md` | 1.0 | 1.23.0 | 23 | ⚠️ | dito |
-| `Dirac.md` | 1.0 | 1.23.0 | 23 | ⚠️ | dito |
-| `EPR.md` | **1.23.0** | 1.23.0 | 23 | ✅ | ❌ Kopf auf `Version: 1.0` |
-| `Fock.md` | **1.23.0** | 1.23.0 | 23 | ✅ | ❌ Kopf auf `Version: 1.0` |
-| `Gauge.md` | 1.0 | 1.23.0 | 23 | ✅ | ✅ fertig |
-| `Observer.md` | 1.0 | 1.23.0 | 23 | ✅ | ✅ fertig |
-| `Shared.md` | 1.0 | 1.23.0 | 23 | ✅ | ✅ fertig |
-| `SU2.md` | 1.0 | 1.23.0 | 23 | ✅ | ✅ fertig |
-| `SU2_Dynamics.md` | 1.0 | 1.23.0 | 23 | ✅ | ✅ fertig |
-| `Tensor.md` | 1.0 | 1.23.0 | 23 | ✅ | ✅ fertig |
+| `CONFIG.md` | 1.0 | 1.23.0 | 23 | — | ⚠️ Sonderfall (kein Modul) |
+| `Amp.md` | 1.0 | 1.23.0 | 23 | ✅ | ✅ |
+| `Core.md` | 1.0 | 1.23.0 | 23 | ✅ | ✅ |
+| `Density.md` | 1.0 | 1.23.0 | 23 | ✅ | ✅ |
+| `Dirac.md` | 1.0 | 1.23.0 | 23 | ✅ | ✅ |
+| `EPR.md` | 1.0 | 1.23.0 | 23 | ✅ | ✅ |
+| `Fock.md` | 1.0 | 1.23.0 | 23 | ✅ | ✅ |
+| `Gauge.md` | 1.0 | 1.23.0 | 23 | ✅ | ✅ |
+| `Observer.md` | 1.0 | 1.23.0 | 23 | ✅ | ✅ |
+| `Shared.md` | 1.0 | 1.23.0 | 23 | ✅ | ✅ |
+| `SU2.md` | 1.0 | 1.23.0 | 23 | ✅ | ✅ |
+| `SU2_Dynamics.md` | 1.0 | 1.23.0 | 23 | ✅ | ✅ |
+| `Tensor.md` | 1.0 | 1.23.0 | 23 | ✅ | ✅ |
 
 **Soll-Header pro Modul-Doc:**
 ```
@@ -235,49 +237,58 @@ Docs (`Version:`-Feld)
 **Version:** 1.0
 **Kernel:** 1.23.0
 **Etappe:** 23
-**Quelldatei:** `src/prophysics/kernel/ProPhysics_<Name>.c`
+**Quelldatei:** `src/prophysics/ProPhysics_<Name>.c`
 **Zweck:** …
 ```
 
 ### §7.2 — Projekt-Docs (nicht Modul)
 
-| Datei | Aktuell | Soll |
-|---|---|---|
-| `Project.md` | 3.0 | **1.0** (Doc-Version) + `Kernel: 1.23.0` / `Etappe: 23` |
-| `ProPhysics_Differentiators.md` | 1.0 | `Kernel:` / `Etappe:` ergänzen |
-| `ProPhysics_VersionRegistry.md` | **1.0** (diese Datei) | ✅ |
-| `VERSIONING.md` | — | **neu anlegen** (`TODO.md` §1.6) |
+| Datei | Doc-Version | Kernel | Etappe | Status |
+|---|---|---|---|---|
+| `Project.md` | 1.0 | 1.23.0 | 23 | ✅ |
+| `ProPhysics_API.md` | 1.0 | 1.23.0 | 23 | ✅ |
+| `ProPhysics_Differentiators.md` | 1.0 | 1.23.0 | 23 | ✅ |
+| `ProPhysics_VersionRegistry.md` | 1.0 | 1.23.0 | 23 | ✅ (diese Datei) |
+| `ARCHITECTURE.md` | 1.0 | 1.23.0 | 23 | ✅ |
+| `VERSIONING.md` | 1.0 | 1.23.0 | 23 | ✅ (Patch 1.23.9) |
+| `SDK_API.md` | 1.0 | 1.23.0 | 23 | ✅ |
+| `README.md` (Root) | 1.0 | 1.23.0 | 23 | ✅ |
 
 ### §7.3 — Test-Docs
 
-| Datei | Aktuell | Soll |
-|---|---|---|
-| `docs/test/ProPhysics_Testkatalog.md` | 1.8 | `Kernel:` / `Etappe:` ergänzen |
-| `docs/test/run_alpha_tests.md` | 3.2 | **1.0** + `Kernel:` / `Etappe:` |
+| Datei | Doc-Version | Kernel | Etappe |
+|---|---|---|---|
+| `docs/test/ProPhysics_Testkatalog.md` | 1.9 | 1.23.0 | 23 |
+| `docs/test/run_alpha_tests.md` | 1.0.0 | 1.23.0 | 23 |
+| `docs/test/BASELINE.md` | 1.1 | 1.23.0 | 23 |
+| `docs/test/WRITING_TESTS.md` | 1.0 | 1.23.0 | 23 |
 
 ### §7.4 — Build-Docs
 
-| Datei | Aktuell | Soll |
-|---|---|---|
-| `docs/build/BUILD_SCRIPT.md` | 3.3 | **1.0** + `Kernel:` / `Etappe:` |
-| `docs/build/main/Makefile.md` | unbekannt | **1.0** + Etappe 23 |
-| `docs/build/prophysics/Makefile.md` | 11 `.c` | **13 `.c`** + Etappe 23 |
-| `docs/build/sdk/Makefile.md` | unbekannt | **1.0** + Etappe 23 |
-| `docs/build/test/Makefile.md` | 17 `.c` | **18 `.c`** + Etappe 23 |
-| `docs/build/helper/build.md` | unbekannt | Etappe 23 + Pfad-Korrektur (`docs/test/run_alpha_tests.md`) |
-| `docs/build/helper/export.md` | unbekannt | Etappe 23, 41 → 43 Tests, `bin\` → `tools\` |
-| `docs/build/helper/write_build_info.md` | unbekannt | Etappe 23 + Pfad-Korrektur |
+| Datei | Doc-Version | Kernel | Etappe |
+|---|---|---|---|
+| `docs/build/BUILD_SCRIPT.md` | 1.0 | 1.23.0 | 23 |
+| `docs/build/pro_run.md` | 1.0.0 | 1.23.0 | 23 |
+| `docs/build/main/Makefile.md` | 1.0.0 | 1.23.0 | 23 |
+| `docs/build/prophysics/Makefile.md` | 1.0.0 | 1.23.0 | 23 |
+| `docs/build/sdk/Makefile.md` | 1.0.0 | 1.23.0 | 23 |
+| `docs/build/test/Makefile.md` | 1.0.0 | 1.23.0 | 23 |
+| `docs/build/helper/build.md` | 1.0.0 | 1.23.0 | 23 |
+| `docs/build/helper/export.md` | 1.0.0 | 1.23.0 | 23 |
+| `docs/build/helper/write_build_info.md` | 1.0.0 | 1.23.0 | 23 |
 
 ---
 
 ## §8 — Changelog-Historie
 
-**Aktuelle Changelog-Version:** `1.23.8`
+**Aktuelle Changelog-Version:** `1.23.10`
 
 | Version | Datum | Fokus |
 |---|---|---|
+| `1.23.10` | 2026-09-27 | Bugfix: 1.23.7 nachgeholt (B7); SU(2)-Plaquette-Konjugations-Fix (T16 1,41e-03); 0 Warnungen |
+| `1.23.9` | 2026-09-27 | Release-Vorbereitung: SDK, Build-Skripte, Sub-Makefiles, Build-Docs; Lizenz, VERSIONING, Repo-Hygiene |
 | `1.23.8` | 2026-09-26 | Modul-Konsolidierung Tensor |
-| `1.23.7` | 2026-09-26 | Modul-Konsolidierung SU2_Dynamics; B7 gelöst |
+| `1.23.7` | 2026-09-26 | Modul-Konsolidierung SU2_Dynamics; B7 angekündigt |
 | `1.23.6` | 2026-09-26 | Modul-Konsolidierung SU2 |
 | `1.23.5` | 2026-09-26 | Modul-Konsolidierung Shared |
 | `1.23.4` | 2026-09-26 | Modul-Konsolidierung Observer |
@@ -286,48 +297,51 @@ Docs (`Version:`-Feld)
 | `1.23.1` | 2026-09-26 | Header + Amp, Core, Density, Dirac |
 | `1.23.0` | 2026-09-26 | Etappe 23 (SU(2)-Metropolis, V&V-Anker 0,08 %) |
 
-**Nächster geplanter Eintrag:** `1.23.9` als Abschluss-Patch
-(`ProPhysics_Version.h`-Verweis + `ProPhysics_VersionRegistry.md`-
-Umstellung), oder direkt `1.24.0` bei Etappe 24.
+**Nächster geplanter Eintrag:** `1.24.0` bei Etappe 24.
 
 ---
 
 ## §9 — Zusammenfassung: Was ist fertig, was ist offen
 
-### §9.1 — Fertig (Stand heute)
+### §9.1 — Fertig (Stand 2026-09-27)
 
 1. ✅ **12 Kernel-Module** auf `Kernel: 1.23.0` / `Etappe: 23`
-2. ✅ **5 Kernel-Header** auf `Kernel: 1.23.0` / `Etappe: 23`
-3. ✅ **7 Modul-Docs** im Fock-Schema §0–§8
-   (`Gauge`, `Observer`, `Shared`, `SU2`, `SU2_Dynamics`, `Tensor`
-   sowie `Fock`/`EPR` aus `1.23.2`)
-4. ✅ **`CHANGELOG.md`** auf `1.23.8` mit vollständiger Patch-Serie
-5. ✅ **Backlog B7** (SU(2)-Edge-Zugriff) gelöst
+2. ✅ **6 Kernel-Header** auf `Kernel: 1.23.0` / `Etappe: 23`
+3. ✅ **13 Modul-Docs** (`Amp`, `Core`, `Density`, `Dirac`, `EPR`,
+   `Fock`, `Gauge`, `Observer`, `Shared`, `SU2`, `SU2_Dynamics`,
+   `Tensor`, `CONFIG`)
+4. ✅ **`CHANGELOG.md`** auf `1.23.10` mit vollständiger Patch-Serie
+5. ✅ **Backlog B7** (SU(2)-Edge-Zugriff) gelöst (1.23.10)
 6. ✅ **Backlog D, B3** (Dirac-Massenterm, Lindblad-2x2) gelöst
+7. ✅ **Compiler-Warnungen 0** (Patch 1.23.10)
+8. ✅ **Link-Fehler 0** (Patch 1.23.10)
+9. ✅ **SDK-Versionierung** (`pro_sdk_interface.h`/`.c`)
+10. ✅ **Build-Skripte** (`build.ps1`, `export.ps1`, `pro_run.ps1`)
+11. ✅ **Sub-Makefiles** (12 Kernel-Module, 19 Test-Dateien)
+12. ✅ **Build-Docs** auf Etappe 23
+13. ✅ **Lizenz** (Issue-URL, Zitierweise)
+14. ✅ **VERSIONING.md** angelegt
+15. ✅ **Repo-Hygiene** (`.gitignore`, `.github/`, CI-Workflow)
+16. ✅ **BASELINE.md** und **Beispiel-BUILD_INFO.txt**
+17. ✅ **TODO.md** auf v1.5
 
-### §9.2 — Offen (Release-Vorbereitung)
+### §9.2 — Offen
 
-7. ❌ **SDK-Versionierung** (`TODO.md` §1.1)
-8. ❌ **Build-Skripte** (`TODO.md` §1.2)
-9. ❌ **Sub-Makefiles** (`TODO.md` §1.3) — 12 → 13 `.c`, 17 → 18 `.c`
-10. ❌ **Build-Docs** inhaltlich auf Etappe 23 (`TODO.md` §1.4)
-11. ❌ **Lizenz-Platzhalter** (`TODO.md` §1.5)
-12. ❌ **`VERSIONING.md`** — Konzept-Dokument (`TODO.md` §1.6)
-13. ❌ **Git-Tags** `v1.23.0`, `etappe-23` (`TODO.md` §1.7)
-14. ❌ **Modul-Doc-Nachzügler** (Schema-Prüfung für `Amp.md`,
-    `Core.md`, `Density.md`, `Dirac.md`, `CONFIG.md`;
-    `Version:`-Kopf für `EPR.md`, `Fock.md`)
-15. ❌ **`ProPhysics_Version.h`** — Verweis auf `CHANGELOG.md`
+| Punkt | Priorität | Sektion |
+|---|---|---|
+| **Git-Tags** (`v1.23.0`, `etappe-23`) | Release-Blocker | TODO §1.7 |
+| Refactoring B1, B2, B4, B5, B6, B8 | kann | TODO §4.1 |
+| Refactoring C1, C4 | kann | TODO §4.2 |
+| SDK-Roadmap | optional | TODO §5 |
+| Etappen 24+ | Roadmap | TODO §6 |
 
 ### §9.3 — Empfohlene Reihenfolge
 
-1. **Jetzt:** `ProPhysics_Version.h` + Registry (dieser Patch)
-2. **Danach:** `TODO.md` §1.1 (SDK) und §1.2 (Build-Skripte)
-3. **Danach:** `TODO.md` §1.3 (Sub-Makefiles) und §1.4 (Build-Docs)
-4. **Danach:** `TODO.md` §1.5–§1.7 (Lizenz, VERSIONING.md, Tags)
-5. **Danach:** `TODO.md` §2 (Versionsregister, CHANGELOG, Konsistenz)
-
-**Nach Schritt 4 ist das Repo öffentlich publizierbar.**
+1. **Jetzt:** Git-Tags setzen (TODO §1.7).
+2. **Danach:** Merge `rewrite` → `origin` (Push).
+3. **Danach:** `.github/workflows/ci.yml` läuft (~1,5 min).
+4. **Danach:** Repo ist offiziell release-ready.
+5. **Optional:** Refactorings (§4), SDK-Roadmap (§5), Etappen 24+ (§6).
 
 ---
 
@@ -337,6 +351,7 @@ Umstellung), oder direkt `1.24.0` bei Etappe 24.
 |---|:-:|---|
 | 2026-09-25 | 0.9 | Erste Fassung (alte SemVer-Logik, Anker `3.0.0`) |
 | 2026-09-26 | 1.0 | Auf Etappen-Schema umgestellt; Kernel `1.23.0`; Konsolidierungs-Serie `1.23.1`–`1.23.8` eingetragen; §7 (Modul-Docs) und §8 (Changelog-Historie) neu; §9 (Status) neu |
+| 2026-09-27 | 1.0 | Konsolidierungs-Serie `1.23.9` + `1.23.10` eingetragen; §1 Konsolidierungsspalte SU2/SU2_Dynamics auf `1.23.7 + 1.23.10` aktualisiert; §2 Header-Konsolidierung ergänzt; §9 Status-Liste auf 17 fertige Punkte erweitert, nur Git-Tags offen |
 
 ---
 

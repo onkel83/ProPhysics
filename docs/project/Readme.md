@@ -4,8 +4,8 @@
 **Version:** 1.0
 **Kernel:** 1.23.0
 **Etappe:** 23
-**Stand:** 2026-09-26 (Kernel 1.23.0, Konsolidierungs-Serie
-1.23.1–1.23.8 abgeschlossen)
+**Stand:** 2026-09-27 (Kernel 1.23.0, Konsolidierungs-Serie
+1.23.1–1.23.10 abgeschlossen)
 **Zweck:** Kompakte Einführung in die Physik von ProPhysics. Für Leser,
 die verstehen wollen, **was** der Kernel physikalisch tut, ohne den
 Testkatalog zu lesen oder den Code zu studieren.
@@ -377,10 +377,17 @@ Vorzeichen-String. Die Antikommutatoren sind **nicht** eincodiert.
 | T8 | Eichinvarianz | <1e-9 | 0,0 |
 | T9 | Nicht-Abelsch | >0.1 | 1,074719 |
 | T15 | Link-Norm unter Leapfrog | <1e-5 | 1,80e-08 |
-| T16 | Energieerhaltung (100 T) | <1e-2 | 2,44e-03 |
+| T16 | Energieerhaltung (100 T) | <1e-2 | **1,41e-03** |
 
 **Emergenz:** **Ja.** Die nicht-abelsche Eichstruktur emergiert aus
 `ProEdge.su2_*`-Feldern. Der Kommutator ist ≠ 0 auf `1,07`.
+
+**Nachtrag (Patch 1.23.10):** Ein Forward-Plaquette-Konjugations-Bug
+in `su2_plaquette_action_at` (fehlende `†`-Anwendung auf die
+rückwärtigen Links `l3†`, `l4†`) wurde gefixt. T16 verbessert sich
+dadurch von 2,44e-03 auf **1,41e-03** (Faktor 1,7). T11
+(Plaquette-Näherung) bleibt unverändert, weil der Test nur
+rein-imaginäres `b` (`b_re = 0`) verwendet.
 
 **Grenze:** Nur SU(2). Für SU(3) bräuchte man 8 Komponenten
 (Gell-Mann), nicht 4.
@@ -748,13 +755,15 @@ Forschungs-Programms.
 | Thema | Datei |
 |---|---|
 | Testkatalog (Rohwerte) | `docs/test/ProPhysics_Testkatalog.md` |
+| Test-Baseline (Kurzfassung) | `docs/test/BASELINE.md` |
 | Test-Runner | `docs/test/run_alpha_tests.md` |
 | Projekt-Roadmap | `docs/project/Project.md` |
 | Architektur | `docs/project/ARCHITECTURE.md` |
 | API-Referenz Kernel | `docs/project/ProPhysics_API.md` |
-| API-Referenz SDK | `docs/project/SDK_API.md` (geplant, `TODO.md` §5.3) |
+| API-Referenz SDK | `docs/project/SDK_API.md` |
 | Abgrenzung | `docs/project/ProPhysics_Differentiators.md` |
 | Versions-Register | `docs/project/ProPhysics_VersionRegistry.md` |
+| Versionierungs-Konzept | `docs/project/VERSIONING.md` |
 | Konfiguration | `docs/project/CONFIG.md` |
 | Changelog | `CHANGELOG.md` |
 
@@ -789,6 +798,7 @@ Forschungs-Programms.
 |---|---|---|
 | 1.0 | 2026-09-25 | Erste Fassung, Etappe 23, Kernel-Version 3.0.0 |
 | 1.0 | 2026-09-26 | Header auf Etappen-Schema umgestellt (Kernel 1.23.0, Etappe 23); §8.3 Größenrechnung korrigiert (904 → 1 032 B × N — `amp_grid` und `amp_scratch` fehlten in der Summe); §12 um alle 12 Modul-Docs und Versions-Register/Konfiguration erweitert; `SDK_API.md` als geplant markiert |
+| 1.0 | 2026-09-27 | §4.7 T16-Wert auf 1,41e-03 aktualisiert; Nachtrag zum Forward-Plaquette-Konjugations-Fix (Patch 1.23.10) ergänzt; Header-Stand auf Konsolidierungs-Serie 1.23.1–1.23.10 umgestellt |
 
 **Hinweis zum Schema-Wechsel:** Frühere Versionen dieses Dokuments
 trugen `Kernel-Version 3.0.0` (SemVer-ähnlich). Mit der Umstellung auf
