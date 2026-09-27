@@ -90,8 +90,9 @@ jobs:
       - name: Generate Web-Docs
         shell: cmd
         run: |
-              bin\prowb\prowb.exe --manifest "%GITHUB_WORKSPACE%\docs\web\src" "%GITHUB_WORKSPACE%\docs\web\manifest.txt" "%GITHUB_WORKSPACE%\out\web"
-
+          bin\prowb\prowb.exe --manifest docs\web\src docs\web\manifest.txt out\web 2>&1
+          echo ExitCode: %ERRORLEVEL%
+      
       # Verifiziert, dass die index.html entstanden ist
       - name: Verify output exists
         shell: cmd
