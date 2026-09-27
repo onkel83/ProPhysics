@@ -446,7 +446,7 @@ bin/logs/
 *.log
 
 # Build-Info (auto-generiert)
-#BUILD_INFO.txt
+BUILD_INFO.txt
 
 # IDE
 .vs/

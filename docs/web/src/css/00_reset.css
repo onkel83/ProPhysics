@@ -1,0 +1,35 @@
+/* 00_reset.css — W3C Reset */
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6, p, figure, blockquote, dl, dd {
+    margin: 0 0 1rem 0;
+}
+
+ul[role='list'], ol[role='list'] {
+    list-style: none;
+    padding: 0;
+}
+
+img, picture {
+    max-width: 100%;
+    display: block;
+}
+
+input, button, textarea, select {
+    font: inherit;
+}

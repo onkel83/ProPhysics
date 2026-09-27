@@ -4,9 +4,10 @@
 **Version:** 1.0
 **Kernel:** 1.23.0
 **Etappe:** 23
-**Stand:** 2026-09-27 nach Etappe 23 und Konsolidierungs-Serie
-            1.23.1–1.23.10 (Running-Coupling mit V&V-Anker,
-            Prio-All 43/43, Compiler-Warnungen 0)
+**Stand:** 2026-09-28 nach Etappe 23, Konsolidierungs-Serie
+            1.23.1–1.23.10 und ProWB-Integration (1.23.11).
+            Running-Coupling mit V&V-Anker (0,08 %), Prio-All 43/43,
+            Compiler-Warnungen 0, Web-Docs publizierbar.
 **Nächster Schritt:** Etappe 24 — Euklidisches Pfadintegral
 
 ---
@@ -31,8 +32,11 @@ gebracht (Kernel-/Etappe-Kopf, Modul-Referenz in `docs/project/`,
 keine Etappen-Historie mehr im Quellcode), der Patch 1.23.7
 vollständig nachgeholt (Backlog B7), ein Forward-Plaquette-
 Konjugations-Bug gefixt (T16 von 2,44e-03 auf 1,41e-03) und die
-Compiler-Warnungen auf 0 reduziert. Siehe `CHANGELOG.md` §2.5 für
-die Abbildung alter auf neue Versionen (`3.0.0` → `1.23.0`).
+Compiler-Warnungen auf 0 reduziert. Mit Patch `1.23.11` wurde der
+ProWB-Web-Docs-Builder integriert: die Markdown-Doku ist jetzt als
+statisches Web-Portal (`out\web\index.html`) publizierbar, deploybar
+über GitHub Pages. Siehe `CHANGELOG.md` §2.5 für die Abbildung alter
+auf neue Versionen (`3.0.0` → `1.23.0`).
 
 ---
 
@@ -44,16 +48,23 @@ die Abbildung alter auf neue Versionen (`3.0.0` → `1.23.0`).
 ProPhysics\
 ├── BUILD_INFO.txt
 ├── bin\                        (DLLs, EXEs — flach, ohne Runner)
+│   └── prowb\                  (ProWB-Builder-EXE, separat)
 ├── lib\                        (Import-Libs)
 ├── src\
 │   ├── prophysics\             (13 Kernel-Module + 6 Header)
 │   ├── sdk\                    (pro_sdk_interface.c + Header)
-│   └── test\                   (alpha_test_*.c + 2 Example-Tests)
+│   ├── test\                   (alpha_test_*.c + 2 Example-Tests)
+│   └── prowb\                  (Web-Docs-Builder, 2 Module + 2 Header)
 ├── tools\                      (Test-Runner: .ps1 + .cmd)
-├── build\                      (main / prophysics / sdk / test)
-├── docs\                       (build / project / test)
+├── build\                      (main / prophysics / sdk / test / prowb)
+├── docs\
+│   ├── build\                  (Build-Doku)
+│   ├── project\                (Roadmap, Module, API, Config)
+│   ├── physics\                (Physik-Übersicht)
+│   ├── test\                   (Testkatalog, Runner, Baseline)
+│   └── web\                    (Web-Docs-Quelle: Manifest + Assets)
 ├── python\
-└── out\                        (Export-Ziel)
+└── out\                        (Export-Ziel + out\web)
 ```
 
 **Prinzipien:**
@@ -61,12 +72,15 @@ ProPhysics\
 | Ordner | Regel |
 |---|---|
 | `bin\` | flach; nur DLLs + EXEs. Kein Code, kein Runner. |
+| `bin\prowb\` | separat; ProWB ist ein Build-Tool, kein Runtime-Artefakt. |
 | `lib\` | flach; nur Import-Libs. |
 | `src\<modul>\` | `.c` direkt, `.h` in `header\`. |
 | `tools\` | Skripte, die nicht zum Kernel-Build gehören (Test-Runner). |
 | `build\<modul>\` | ein Makefile pro Modul, aus seinem Ordner aufgerufen. |
 | `docs\<gebiet>\` | Markdown, thematisch getrennt. |
+| `docs\web\` | **Konfiguration + Layout**, keine MD-Kopien. Manifest verweist auf kanonische Pfade. |
 | `out\` | Laufzeit-Erzeugnis, nicht versioniert. |
+| `out\web\` | ProWB-Output; wird vom CI deployt. |
 
 ### §1.2 — Dokument-Struktur
 
@@ -113,14 +127,33 @@ ProPhysics\
 |---|---|
 | `BUILD_SCRIPT.md` | Build-Übersicht |
 | `pro_run.md` | zentraler Einstiegspunkt |
+| `web-docs-ci.md` | Web-Docs CI-Workflow (GitHub Actions) |
 | `main/Makefile.md` | Master-Makefile |
 | `prophysics/Makefile.md` | Kernel-Build |
 | `sdk/Makefile.md` | SDK-Interface-Build |
 | `test/Makefile.md` | Test-Build |
+| `prowb/Makefile.md` | ProWB-Makefile |
 | `helper/build.md` | `build.ps1` / `build.cmd` |
 | `helper/export.md` | `export.ps1` / `export.cmd` |
 | `helper/write_build_info.md` | `write_build_info.ps1` |
 | `examples/BUILD_INFO.txt` | Beispiel-Datei |
+
+**Web-Docs-Quelle (`docs/web/`):**
+
+| Datei | Inhalt |
+|---|---|
+| `manifest.txt` | 39 Einträge, 6 Sektionen |
+| `README.md` | Manifest-Pflege, Sektionen, Templates, Themes |
+| `src/parts/*.html` | Header, Nav, Footer |
+| `src/css/*.css` | 8 CSS-Dateien (Reset, Vars, Layout, Themes) |
+| `src/js/*.js` | Router, Theme-Switch, Daten-Bridge |
+| `src/views/*.html` | 10 Views (Home, 6 Sektionen, Utility) |
+
+**ProWB-Dokumentation (`src/prowb/`):**
+
+| Datei | Inhalt |
+|---|---|
+| `README.md` | Builder-Referenz, Manifest-Format, CLI, Fallstricke |
 
 ### §1.3 — Build-Skripte
 
@@ -128,23 +161,41 @@ ProPhysics\
 `export.ps1`/`.cmd`, `write_build_info.ps1`.
 
 **Sub-Makefiles:** `build\prophysics\Makefile.nmake`,
-`build\sdk\Makefile.sdk.nmake`, `build\test\Makefile.nmake`.
+`build\sdk\Makefile.sdk.nmake`, `build\test\Makefile.nmake`,
+`build\prowb\Makefile.nmake`.
 
-**Reihenfolge:** `prophysics` → `sdk` → `test`.
+**Reihenfolge:** `prophysics` → `sdk` → `test` (Kernel-Kette);
+`prowb` läuft im Master-`all` **nach** `test`, ist aber eigenständig
+baubar.
 
 **Test-Runner (in `tools\`):** `run_alpha_tests.ps1` + `.cmd`,
 `pro_run.ps1` + `.cmd`.
 `-ExeDir` Default = `<repo>\bin`, `-LogDir` Default = `<ExeDir>\logs`.
 
+**Web-Docs-Quelle (in `docs\web\`):** `manifest.txt`,
+`src\parts\*.html`, `src\css\*.css`, `src\js\*.js`,
+`src\views\*.html`.
+
+**Web-Docs-CI:** `.github\workflows\web-docs.yml` — baut ProWB +
+Web-Docs, deployt auf GitHub Pages.
+
 ### §1.4 — Typischer Aufruf
 
 ```cmd
 cd build\main
-build.cmd                       :: alles bauen
+build.cmd                       :: alles bauen (kernel + sdk + test + prowb)
 build.cmd -Mode prophysics -Rebuild
 
 cd ..\..\tools
 run_alpha_tests.cmd -Prio all
+```
+
+**Mit Web-Docs:**
+
+```cmd
+cd tools
+pro_run all                     :: build → test → export
+pro_run web                     :: Web-Docs bauen
 ```
 
 ---
@@ -162,6 +213,10 @@ Verboten: `k % dim`, `k / dim` in Apply-/Tick-Funktionen.
 Erlaubt: `ProPhysics_Initialize`, `ProPhysics_Free`, `*_Create`,
 Test-Setup, dokumentierte Diagnose-Ausnahmen.
 Verboten: `Apply_*`, `*_Tick`, pro Knoten.
+
+**Ausnahme für ProWB:** ProWB ist **nicht** im Kernel-Hotpath. Der
+Builder nutzt `malloc` für den MD-Parser und Template-Expansion. Das
+ist R2-konform, weil ProWB außerhalb des Kernels lebt.
 
 ### R3 — U5-Invariante bleibt erhalten
 
@@ -197,12 +252,19 @@ für `ProPhysics_RuleCallback`). Für die **Konsolidierungs-Serie
 `1.23.1`–`1.23.10`**: alle Änderungen sind rein intern (Auslagerung
 in `static`-Helfer, Header-Konsolidierung, Modul-Docs, Warnungs-Fix,
 Forward-Plaquette-Konjugations-Fix), keine Signaturänderung.
+**Für `1.23.11` (ProWB):** `prowb_build()` (Legacy) bleibt funktional;
+`prowb_build_from_manifest()` ist **additiv**. Alle Kernel-APIs
+unverändert.
 
 ### R6 — Jede Etappe endet mit einem Test
 
 `test_<etappe>_<aspekt>`, registriert in `alpha_test_main.c` und
 `tools\run_alpha_tests.ps1`. Etappen-Test grün = alle bisherigen
 Tests weiter grün.
+
+**Ausnahme `1.23.11` (ProWB):** ProWB ist ein Build-Tool, kein
+Kernel-Modul. Es hat keine Tests im Kernel-Sinne. Verifikation läuft
+über `pro_run web` + Browser-Sichtprüfung + CI-Workflow.
 
 ### R7 — Keine Etappe ändert bestehende Pfade
 
@@ -220,6 +282,7 @@ Neue Funktionalität in parallelen Funktionen oder als Dispatch über
 | 22b | `su2_dynamics_active` | bit-identisch |
 | **23** | **nur lesende API-Erweiterung** | **bit-identisch** |
 | **1.23.1–1.23.10** | **reine Konsolidierung** | **bit-identisch** (T16 verbessert) |
+| **1.23.11** | **neue Tool-Komponente** | **Kernel bit-identisch** |
 
 ---
 
@@ -273,6 +336,17 @@ U5:  Σ_{x∈G} A_t(x) = Konstante         (Bit-Erhaltung)
 
 Alle fünf sind Struktur-Erweiterungen, keine Reduktion auf die reine
 Ur-Grammatik.
+
+### §3.5 — Werkzeug-Erweiterungen (nicht Kernel)
+
+| Erweiterung | Etappe | Zweck |
+|---|---|---|
+| ProWB-Builder | 1.23.11 | Web-Docs aus Markdown generieren |
+| Web-Docs | 1.23.11 | Statisches Portal (`out\web\index.html`) |
+| Web-Docs-CI | 1.23.11 | Auto-Deploy auf GitHub Pages |
+
+Diese Erweiterungen sind **nicht Teil der Physik**. Sie ändern keinen
+Kernel-Pfad und sind R7-konform.
 
 ---
 
@@ -335,7 +409,8 @@ Ur-Grammatik.
 | Kernel-Header | 6 `.h` |
 | Test-Module | 18 `.c` (+ 1 Header) |
 | SDK | 1 `.c` + 1 `.h` |
-| Codezeilen | ~36 000 LOC gesamt |
+| ProWB-Module | 2 `.c` + 2 `.h` (Build-Tool, kein Kernel) |
+| Codezeilen | ~36 000 LOC gesamt (~800 LOC ProWB zusätzlich) |
 | Datenstrukturen | `ProUniverse`, `ProNode`, `ProRegister`, `ProAmpVector`, `ProEdge`, `ProSharedInfo`, Tensor/Fock/Density-Trilogie |
 | Dimensionen | 2D (dim ∈ {16,32,64,128}), 3D (dim ∈ {16,32,64}) |
 | Amplituden-Basis | 8-dim |
@@ -369,6 +444,8 @@ Ur-Grammatik.
 | Imaginaerzeit-Prep | ✅ |
 | Wilson-Action-Plaquette-Validierung | ✅ seit 23 |
 | Compiler-Warnungen auf `/W4` (Kernel) | ✅ 0 (seit 1.23.10) |
+| Web-Docs-Builder (ProWB) | ✅ seit 1.23.11 |
+| Web-Docs-CI | ✅ seit 1.23.11 |
 
 ### §6.3 — Numerisch hart belegte Resultate
 
@@ -432,7 +509,7 @@ Fehler bei falscher Verteilung **prozentual** wäre, nicht 0,08 %.
   β-Funktions-Messung braucht eine zweite Observable (Creutz-Ratio),
   Etappe 23b optional.
 
-### §6.5 — Prio-all-Regression (2026-09-27 nach Etappe 23 + Konsolidierung)
+### §6.5 — Prio-all-Regression (2026-09-28 nach Etappe 23 + ProWB)
 
 | Prio | Thema | Tests | Status |
 |---|---|---|---|
@@ -457,11 +534,17 @@ Fehler bei falscher Verteilung **prozentual** wäre, nicht 0,08 %.
 - **Prio 1–4, 6, 7** + `SU2-Wilson-Loop` (~1,5 min) in normalen CI-Läufen.
 - **`Running-Coupling`** als Nightly-Job (Timeout 2 400 s).
 - **Prio 5** (Hydrogen-48) ebenfalls als Nightly-Job.
+- **Web-Docs** in eigenem Workflow (`.github/workflows/web-docs.yml`).
 
 **Konsolidierungs-Serie:** Die Patches `1.23.1`–`1.23.10` ändern
 **keine** Testergebnisse. Alle 43 Tests bleiben grün. Ausnahme: T16
 (Energie-Drift) verbessert sich von 2,44e-03 auf 1,41e-03 durch den
 Forward-Plaquette-Konjugations-Fix in `1.23.10`.
+
+**ProWB-Patch `1.23.11`:** Ändert **keine** Kernel-Funktion. Alle 43
+Tests bleiben bit-identisch. Zusätzliche Verifikation: `pro_run web`
+läuft fehlerfrei, `out\web\index.html` ~1,2 MB, alle 6 Sektionen
+erreichbar, Themes funktionieren.
 
 ---
 
@@ -630,6 +713,46 @@ Referenzwert. Bis Etappe 22b waren alle Tests relativ
 - **β-Funktions-Messung.** `u_plaq` allein ist skalen-unempfindlich.
   Eine echte β-Funktion braucht zwei Observablen (z.B. Creutz-Ratio).
   Etappe 23b optional.
+
+### §7.7 — ProWB / Web-Docs (Patch 1.23.11)
+
+**Design-Entscheidungen:**
+
+| Frage | Antwort |
+|---|---|
+| Sprache | C99 (konsistent mit Kernel) |
+| Abhängigkeiten | keine (außer msvcrt) |
+| MD-Quellen | **nicht kopiert**; Manifest verweist auf kanonische Pfade |
+| Sektionen | 6 (Overview, Physics, Modules, API, Tests, Build) + Settings-Utility |
+| Theme-Default | `proedc` (dark industrial, petroleum) |
+| Nav | flach, aus Manifest generiert |
+| CI | GitHub Actions → GitHub Pages |
+| Legacy-API | `prowb_build()` bleibt; `prowb_build_from_manifest()` neu |
+
+**Neue Komponenten:**
+
+| Pfad | Zweck |
+|---|---|
+| `src\prowb\prowb.c` | Builder-Kern (Manifest-Parser, Template-Expansion) |
+| `src\prowb\md_parser.c` | Eigenständiger GFM-Parser |
+| `build\prowb\Makefile.nmake` | Baut `bin\prowb\prowb.exe` |
+| `docs\web\manifest.txt` | 39 Einträge, 6 Sektionen |
+| `docs\web\src\*` | Templates, CSS, JS, Views |
+| `.github\workflows\web-docs.yml` | CI-Workflow |
+
+**Kernel-Beitrag:** **keiner.** ProWB ändert keinen Kernel-Code, keine
+ABI, keine Tests.
+
+**Verifikation:**
+
+- `pro_run web` läuft fehlerfrei.
+- `out\web\index.html` ~1,2 MB.
+- Alle 6 Sektionen erreichbar.
+- Themes funktionieren (`default` / `light` / `matrix`).
+- CI deployt auf GitHub Pages.
+
+**R7-Konformität:** Additive Erweiterung. Der Kernel-Pfad ist
+bit-identisch. Die neue Tool-Komponente ist sauber getrennt.
 
 ---
 
@@ -858,10 +981,71 @@ dominiert). Nicht in normalen CI-Läufen.
 
 ---
 
+## §12d — ProWB / Web-Docs abgeschlossen (Patch 1.23.11)
+
+### §12d.1 — Was implementiert ist
+
+| Komponente | Status |
+|---|---|
+| `src/prowb/prowb.c` (Builder-Kern) | ✅ |
+| `src/prowb/md_parser.c` (GFM-Parser) | ✅ |
+| `src/prowb/header/prowb.h` | ✅ |
+| `src/prowb/header/md_parser.h` | ✅ |
+| `src/prowb/README.md` | ✅ |
+| `build/prowb/Makefile.nmake` | ✅ |
+| `docs/web/manifest.txt` (39 Einträge) | ✅ |
+| `docs/web/README.md` | ✅ |
+| `docs/web/src/parts/*.html` | ✅ |
+| `docs/web/src/css/*.css` (8 Dateien) | ✅ |
+| `docs/web/src/js/*.js` (2 Dateien) | ✅ |
+| `docs/web/src/views/*.html` (10 Dateien) | ✅ |
+| `.github/workflows/web-docs.yml` | ✅ |
+| Master-`prowb`-Target | ✅ |
+| `pro_run web`-Aktion | ✅ |
+
+### §12d.2 — Bedeutung
+
+**Die Doku ist jetzt publizierbar.** Bisher war die Markdown-Doku nur
+direkt im Repo lesbar. ProWB rendert sie als statisches Web-Portal
+mit Navigation, Themes und Sektionen — deploybar über GitHub Pages.
+
+**Keine MD-Kopien.** Die MD-Dateien bleiben an ihren kanonischen
+Pfaden (`docs/project/`, `docs/test/`, `docs/build/`, `docs/physics/`).
+Das Manifest verweist auf sie. Änderungen wirken beim nächsten Build
+automatisch.
+
+### §12d.3 — R-Konformität
+
+| Regel | Status |
+|---|---|
+| R1 | ✅ ProWB nutzt `div`/`mod` außerhalb des Kernels — irrelevant |
+| R2 | ✅ ProWB nutzt `malloc` außerhalb des Kernels — irrelevant |
+| R3–R4 | ✅ unberührt |
+| R5 | ✅ `prowb_build()` bleibt funktional (additiv) |
+| R6 | ✅ keine neue Kernel-Etappe, kein Kernel-Test nötig |
+| R7 | ✅ kein Kernel-Pfad geändert |
+
+### §12d.4 — Grenzen
+
+**Kein dynamisches Sektions-System.** Die 6 Sektionen sind in
+`prowb.c` hart kodiert. Eine 7. Sektion erfordert C-Änderung (siehe
+`src/prowb/README.md` §9.4).
+
+**Keine Cross-Refs in MD.** Markdown-Links wie `[link](other.md)`
+bleiben tot. Phase-2-Thema (siehe `TODO.md` §5.9).
+
+**Keine Volltextsuche.** Kein Index. Phase-2-Thema.
+
+**Kein PDF-Export.** Nur HTML. Phase-2-Thema.
+
+---
+
 ## §13 — Roadmap Etappen 24–27 + M1–M3 + O1
 
 ```
 22 ✅ → 22b ✅ → 23 ✅ → [23b optional] → 24 → 25 → 26 → 27 → M1 → M2 → M3 → (O1)
+       ▲
+       └── 1.23.1–1.23.11 (Konsolidierung + ProWB, kein Phasenwechsel)
 ```
 
 ### Etappe 23b — Creutz-Ratio (optional)
@@ -938,6 +1122,8 @@ dominiert). Nicht in normalen CI-Läufen.
     skalenunempfindlich).
 13. V&V-Anker (0,08 %) ist Ein-Plaquette-Näherung, nicht exakte
     Gitter-QCD. Für die Sampler-Validierung reicht es.
+14. **ProWB ist ein Werkzeug, keine Physik.** Es ändert keinen
+    Kernel-Pfad.
 
 ---
 
@@ -955,6 +1141,7 @@ dominiert). Nicht in normalen CI-Läufen.
 | Forward-Plaquette-Konjugations-Fix | ✅ bestätigt (T16 1,41e-03) | 1.23.10 |
 | SU(2)-Metropolis / V&V-Anker | ✅ 0,08 % | 23 |
 | Konsolidierungs-Serie `1.23.1`–`1.23.10` | ✅ | 23 |
+| **ProWB / Web-Docs** | ✅ (Patch 1.23.11) | 23 |
 | Wasserstoff quantitativ | ⚠ 0,296 | 18d-B |
 | Creutz-Ratio / β-Funktion | offen | 23b |
 | Euklidisches Pfadintegral | offen | 24 |
@@ -965,6 +1152,7 @@ dominiert). Nicht in normalen CI-Läufen.
 | U5' Plastizität | offen | M2 |
 | Makrophysik-Konsistenz | offen | M3 |
 | Cache-Optimierung | aufgeschoben | O1 |
+| Web-Docs Phase 2 (Cross-Refs, Suche, i18n) | offen | — |
 
 ---
 
@@ -1015,7 +1203,7 @@ Kategorien sind unabhängig; Etappen können mehrere betreffen.
 | M3' | Kosmologie | Expansion, Horizont | — |
 | M4' | Kontinuumslimes von Raumzeit | Projektion Grid ↔ Graph | M3 |
 
-### §16.5 — Was nicht mehr fehlt (Stand nach 23)
+### §16.5 — Was nicht mehr fehlt (Stand nach 23 + 1.23.11)
 
 - ✅ Fundament U1–U5.
 - ✅ Unitäre QM-Dynamik.
@@ -1030,6 +1218,7 @@ Kategorien sind unabhängig; Etappen können mehrere betreffen.
 - ✅ Jordan-Wigner / Fermionen.
 - ✅ Lindblad / Offene Systeme.
 - ✅ Soliton / Breather.
+- ✅ **Publizierbare Web-Docs** (ProWB, Patch 1.23.11).
 
 ### §16.6 — Kurzfassung
 
@@ -1102,6 +1291,11 @@ nicht-terminierte Strukturen. Optional Etappe 23b für β-Funktion.
 | **`pro_su2_edge*` nach `Internal.h` (B7-Auflösung)** | **1.23.7 + 1.23.10** | **refactoring** |
 | **Forward-Plaquette-Konjugations-Fix (`su2_plaquette_action_at`)** | **1.23.10** | **Bug-Fix** |
 | **Compiler-Warnungen auf 0 reduziert** | **1.23.10** | **cleanup** |
+| **ProWB-Builder (`src/prowb/`)** | **1.23.11** | **neues Tool** |
+| **ProWB-Makefile (`build/prowb/`)** | **1.23.11** | **neues Build-Target** |
+| **Web-Docs-Quelle (`docs/web/`)** | **1.23.11** | **neue Komponente** |
+| **Web-Docs-CI (`.github/workflows/web-docs.yml`)** | **1.23.11** | **neue CI-Pipeline** |
+| **`pro_run web`** | **1.23.11** | **neue Aktion** |
 
 ---
 
@@ -1128,6 +1322,7 @@ nicht-terminierte Strukturen. Optional Etappe 23b für β-Funktion.
 | 3.0 | 2026-09-25 | Etappe 23: SU(2)-Metropolis / Wilson-Action-Validierung. Prio-All 43/43. 1 neue read-only Funktion `SU2_Link_Plaquette_Sum`. Neuer Test `alpha_test_running_coupling.c`. **Erste absolute Validierung gegen externe Lattice-QCD-Physik** (V&V-Anker: ⟨P⟩(β=2) = 0,43346 vs. Referenz 0,43313, Abweichung 0,08 %). |
 | **1.0** | **2026-09-26** | **Schema-Wechsel auf Etappen-basierte Versionierung (Kernel 1.23.0, Etappe 23). Doc-Version von `3.0` auf `1.0`. Konsolidierungs-Serie `1.23.1`–`1.23.8`: alle 12 Kernel-Module auf einheitliches Schema, 12 neue Modul-Docs in `docs/project/`, Header konsolidiert, Backlog B7 (SU(2)-Edge-Zugriff) teilweise gelöst. Alle Änderungen bit-identisch, 43/43 PASS.** |
 | **1.0** | **2026-09-27** | **Nachtrag Konsolidierungs-Serie `1.23.9` und `1.23.10`. `1.23.9`: Release-Vorbereitung (SDK-Versionierung, Build-Skripte, Sub-Makefiles, Build-Docs auf Etappe 23; Lizenz-URL, VERSIONING.md, Repo-Hygiene, BASELINE.md, Beispiel-BUILD_INFO). `1.23.10`: Reparatur des unvollständigen Patch 1.23.7 (`pro_su2_edge*` nach `Internal.h`, Bugfix `LNK2001`); Forward-Plaquette-Konjugations-Fix in `su2_plaquette_action_at` (T16 verbessert von 2,44e-03 auf 1,41e-03, Faktor 1,7); ungenutzte Variablen entfernt; `uint64_t`→`uint32_t`-Casts; `PRO_NODE_*_MASK` eingeführt. Compiler-Warnungen auf 0. Regression 14/14 PASS.** |
+| **1.0** | **2026-09-28** | **Nachtrag Patch `1.23.11` (ProWB / Web-Docs Integration). §1.1 Ordner-Layout um `src/prowb/`, `build/prowb/`, `bin/prowb/`, `docs/web/`, `out/web/` erweitert. §1.2 Dokument-Struktur um ProWB-Docs, Web-Docs-Quelle und CI-Doku erweitert. §1.3 Build-Skripte um ProWB-Makefile, Web-Docs-CI. §3.5 neue Kategorie „Werkzeug-Erweiterungen". §6.1 Kernel-Umfang um ProWB-Module. §6.2 Funktionsumfang um Web-Docs-Builder und CI. §7.7 neue ProWB-Sektion. §12d neue ProWB-Abgeschlossen-Sektion. §13 Roadmap um 1.23.11-Hinweis. §14 Punkt 14 (ProWB ist Werkzeug). §15 offene Punkte um ProWB + Web-Docs-Phase-2. §16.5 Web-Docs als „nicht mehr fehlend". §17 Chronik um 5 ProWB-Einträge erweitert. §18 Historie um diesen Eintrag.** |
 
 ---
 

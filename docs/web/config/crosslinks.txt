@@ -1,0 +1,64 @@
+# =============================================================
+# crosslinks.txt — Auflösung von .md-Links im Markdown
+# =============================================================
+# Notation:   Thema|Name|Ort
+#   Thema = Sektion      (Overview, Physics, Modules, API, Tests, Build)
+#   Name  = Dokument-ID  (z.B. SU2, ARCHITECTURE)
+#   Ort   = Pfad wie im Markdown-Link verwendet (z.B. docs/project/SU2.md)
+#
+# Der Builder löst einen Link wie [x](docs/project/SU2.md) auf zu
+#   href="#doc_Modules_SU2"
+# und [x](docs/project/SU2.md#setup) zu
+#   href="#doc_Modules_SU2-setup"
+# =============================================================
+
+# --- Overview ---
+Overview|Readme|docs/README.md
+Overview|Project|docs/project/Project.md
+Overview|ARCHITECTURE|docs/project/ARCHITECTURE.md
+Overview|Differentiators|docs/project/ProPhysics_Differentiators.md
+Overview|VersionRegistry|docs/project/ProPhysics_VersionRegistry.md
+Overview|VERSIONING|docs/project/VERSIONING.md
+Overview|Changelog|CHANGELOG.md
+Overview|TODO|TODO.md
+Overview|Contributing|CONTRIBUTING.md
+Overview|Commercial|COMMERCIAL.md
+
+# --- Physics ---
+Physics|Readme|docs/physics/README.md
+Physics|CONFIG|docs/project/CONFIG.md
+
+# --- Modules ---
+Modules|Amp|docs/project/Amp.md
+Modules|Core|docs/project/Core.md
+Modules|Density|docs/project/Density.md
+Modules|Dirac|docs/project/Dirac.md
+Modules|EPR|docs/project/EPR.md
+Modules|Fock|docs/project/Fock.md
+Modules|Gauge|docs/project/Gauge.md
+Modules|Observer|docs/project/Observer.md
+Modules|Shared|docs/project/Shared.md
+Modules|SU2|docs/project/SU2.md
+Modules|SU2_Dynamics|docs/project/SU2_Dynamics.md
+Modules|Tensor|docs/project/Tensor.md
+
+# --- API ---
+API|ProPhysics_API|docs/project/ProPhysics_API.md
+API|SDK_API|docs/project/SDK_API.md
+
+# --- Tests ---
+Tests|Testkatalog|docs/test/ProPhysics_Testkatalog.md
+Tests|BASELINE|docs/test/BASELINE.md
+Tests|Runner|docs/test/run_alpha_tests.md
+Tests|WritingTests|docs/test/WRITING_TESTS.md
+
+# --- Build ---
+Build|BUILD_SCRIPT|docs/build/BUILD_SCRIPT.md
+Build|pro_run|docs/build/pro_run.md
+Build|Makefile_Main|docs/build/main/Makefile.md
+Build|Makefile_Prophysics|docs/build/prophysics/Makefile.md
+Build|Makefile_SDK|docs/build/sdk/Makefile.md
+Build|Makefile_Test|docs/build/test/Makefile.md
+Build|Helper_Build|docs/build/helper/build.md
+Build|Helper_Export|docs/build/helper/export.md
+Build|Helper_WriteBuildInfo|docs/build/helper/write_build_info.md

@@ -1,0 +1,42 @@
+</head>
+<body data-theme="prophysics">
+
+    <header class="app-header">
+        <div class="header-content">
+            <h1 class="brand-title" onclick="app.navigate('view_home')">
+                ⚛️ ProPhysics <span class="version">// KERNEL DOCS</span>
+            </h1>
+
+            <div class="status-indicator" id="status">
+                KERNEL: 1.23.0 / ETAPPE 23
+            </div>
+        </div>
+    </header>
+
+    <nav class="app-nav">
+        <div class="nav-container nav-flex-bar">
+            <div class="nav-group">
+                <span class="nav-label">SYSTEM</span>
+                <div class="nav-flex">
+                    <button class="nav-btn" onclick="app.navigate('view_home')">🏠 HOME</button>
+                </div>
+            </div>
+
+            <div class="nav-group">
+                <span class="nav-label">DOKUMENTATION</span>
+                <div class="nav-flex">
+                    {{NAV_DOCS}}
+                </div>
+            </div>
+
+            <div class="nav-group sys-group sys-push-right">
+                <button class="nav-btn" onclick="app.navigate('view_settings')" title="Einstellungen">⚙️</button>
+                <button class="nav-btn theme-toggle"
+                        onclick="app.toggleTheme()"
+                        title="Theme umschalten">
+                    ☀/☾
+                </button>
+            </div>
+        </div>
+    </nav>
+    <main id="app-view-container">

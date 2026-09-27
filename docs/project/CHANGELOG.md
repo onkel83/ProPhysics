@@ -1,10 +1,10 @@
 # ProPhysics — Änderungsprotokoll
 
 **Datei:** `CHANGELOG.md`
-**Version:** 1.23.10
+**Version:** 1.23.12
 **Kernel:** 1.23.0
 **Etappe:** 23
-**Stand:** 2026-09-27
+**Stand:** 2026-09-28
 **Repository:** https://github.com/onkel83/prophysics
 **Format:** Orientiert an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/),
 angepasst auf Etappen-Struktur.
@@ -48,6 +48,8 @@ Die drei Ziffern bedeuten:
 | `1.23.8` | Phase 1, Etappe 23, Konsolidierungs-Fix 8 (Tensor) |
 | `1.23.9` | Phase 1, Etappe 23, Konsolidierungs-Fix 9 (Release-Vorbereitung) |
 | `1.23.10` | Phase 1, Etappe 23, Konsolidierungs-Fix 10 (Bugfix 1.23.7 + Plaquette-Konjugation) |
+| `1.23.11` | Phase 1, Etappe 23, Konsolidierungs-Fix 11 (ProWB / Web-Docs Integration) |
+| `1.23.12` | Phase 1, Etappe 23, Konsolidierungs-Fix 12 (CI-Dokumentation) |
 | `1.22.1` | Phase 1, Etappe 22, Fix 1 (Etappe 22b) |
 | `1.18.0` | Phase 1, Etappe 18, kein Fix |
 
@@ -69,10 +71,12 @@ Die drei Ziffern bedeuten:
 | Dokumentation | `1.23.0` | **folgt dem Kernel 1:1** |
 | Tests | `1.0.0` | eigenständig, wächst mit Test-Suite |
 | Build-Skripte / Helfer / Tools | `1.0.0` | eigenständig, wächst mit Infrastruktur |
+| ProWB (Builder + Web-Docs) | `1.0.0` | eigenständig, wächst mit Web-Infrastruktur |
+| CI-Workflows | `1.0.0` | eigenständig, wächst mit CI-Infrastruktur |
 
 **Warum diese Kopplung?** SDK und Doku beschreiben den Kernel. Wenn
-der Kernel sich ändert, ändert sich auch die Beschreibung. Tests und
-Build-Skripte sind unabhängige Werkzeuge.
+der Kernel sich ändert, ändert sich auch die Beschreibung. Tests,
+Build-Skripte, ProWB und CI sind unabhängige Werkzeuge.
 
 **Kategorien:**
 
@@ -112,6 +116,284 @@ Build-Skripte sind unabhängige Werkzeuge.
 ### Added (geplant, aufgeschoben)
 
 - Etappe O1 — Cache-Optimierung (`CHANNELS_MAX` 16 → 8, SoA-Layout)
+
+---
+
+## [1.23.12] — 2026-09-28 — CI-Dokumentation
+
+**Etappen:** 23 (Konsolidierung)
+**Tests:** 43/43 PASS (unverändert)
+**Fokus:** Vollständige Dokumentation der drei GitHub-Actions-Workflows.
+Konsolidierung der ProWB-Doku über alle Build-Dokumente hinweg.
+
+**Hintergrund:** Nach `1.23.11` (ProWB) waren zwei CI-Workflows
+(`ci.yml`, `web-docs.yml`) und ein dritter im Entwurf
+(`alpha-nightly.yml`) vorhanden, aber nur einer dokumentiert
+(`web-docs-ci.md`). Dieser Patch schließt die Lücke: neue Doku für
+Standard-CI und Alpha-Nightly, Querverweise zwischen den drei
+CI-Dokumenten, und ein Website-README als Home-Einstiegspunkt.
+
+**Versions-Kopplung:**
+
+| Komponente | Version | Bemerkung |
+|---|---|---|
+| Kernel | `1.23.0` | unverändert (keine ABI-Änderung) |
+| SDK | `1.23.0` | folgt Kernel |
+| Doku | `1.23.0` | folgt Kernel |
+| Tests | `1.0.0` | unverändert |
+| Build / Tools | `1.0.0` | unverändert |
+| ProWB | `1.0.0` | unverändert |
+| CI-Workflows | `1.0.0` | eigenständig (neue Komponente) |
+
+### Added — CI-Dokumentation
+
+- **`docs\build\ci.md`** (neu) — Referenz für `.github\workflows\ci.yml`.
+  Trigger (Push + PR auf `main`), Job-Struktur, Permissions, Steps,
+  Artefakt-Upload, Fehlersuche. Version 1.0.0.
+- **`docs\build\alpha-nightly.md`** (neu) — Referenz für
+  `.github\workflows\alpha-nightly.yml`. Manueller Trigger, Scope-Auswahl
+  (`all-long` | `prio-5` | `running-coupling`), Laufzeit, Log-Upload.
+  Version 1.0.0.
+
+### Added — CI-Workflow
+
+- **`.github\workflows\alpha-nightly.yml`** (neu) — Manueller Nightly-Workflow.
+  `workflow_dispatch`, Scope-Auswahl, Log-Upload (30 Tage).
+  Kein Cron-Trigger (bewusste Entscheidung, siehe `docs\build\alpha-nightly.md` §3.3).
+
+### Added — Website-Einstieg
+
+- **`docs\project\README.md`** (neu) — Website-Version des README, als
+  Home-Einstiegspunkt für das ProWB-Portal. Aufbau in fünf Fragen
+  (Was/Warum/Wie/Wo/Wer). Eigenständig vom Root-README, das
+  GitHub-optimiert bleibt. Vorstellung von BrainAI als Herausgeber.
+
+### Changed — CI-Doku-Querverweise
+
+- **`docs\build\web-docs-ci.md`** — Version 1.0.0 → **1.0.1**. Neuer §15
+  (Workflow-Übersicht mit den drei Workflows im Vergleich).
+  §1, §3–§7, §10, §12–§14 um Abgrenzungen zu `ci.yml` und
+  `alpha-nightly.yml` erweitert.
+- **`docs\build\BUILD_SCRIPT.md`** — Version 1.1 → **1.2**. Neuer §3.7
+  (CI-Workflows als Build-Komponente). Neuer §12.6 (CI-Workflows und
+  CI-Doku). §2 (Ordner-Layout) um `.github\workflows\`. §4.4 (Aufruf
+  über GitHub Actions). §7.6 (CI-Umgebung). §8.4 (CI-Artefakte).
+  §9 (Fehlersuche) um sechs CI-Symptome. §10 (Doku-Struktur).
+  §13 (Siehe-auch).
+- **`docs\test\run_alpha_tests.md`** — Version 1.0.0 → **1.1.0**.
+  §16 komplett neu geschrieben: die drei tatsächlichen CI-Workflows
+  statt hypothetischer YAML-Snippets. §1, §3.1, §13, §14, §15, §17,
+  §18, §20 um `pro_run`-Workflow und CI-Verweise.
+- **`CONTRIBUTING.md`** — Version 1.0 → **1.1**. Setup, Build, Tests,
+  Pre-Commit-Regression, PR-Checkliste auf `pro_run`-Workflow
+  umgestellt. §0.2 (Pflicht-Lektüre um `pro_run.md`). §6.6 (neue
+  Build-Targets brauchen `pro_run`-Integration). §13 (Siehe-auch um
+  ProWB + CI-Docs).
+- **`README.md`** (Root) — Version 1.0 → **1.1**. §5 auf
+  `pro_run`-Workflow umgestellt. §3.3 (Versionsnummern korrigiert:
+  `3.1.0` → `2.0.0`, `3.2.0` → `3.0.0`). §5.5 (Web-Docs-Sektion).
+  §6 (Dokumentations-Liste). §7 (Projekt-Struktur um ProWB + CI).
+  §11 (Publikations-Status). §13 (Versions-Tabelle).
+
+### Changed — Manifest
+
+- **`docs\web\manifest.txt`** — 44 → **46 Einträge**. Sektion `Build`
+  um `docs/build/ci.md` (Doc-ID `CICD`) und
+  `docs/build/alpha-nightly.md` (Doc-ID `AlphaNightly`) erweitert.
+
+### Changed — Version-Register
+
+- **`docs\project\ProPhysics_VersionRegistry.md`** — Version 1.1 → **1.2**.
+  Neue Sektion §6.5 (CI-Dokumentation). §5b, §5c (ProWB) bleiben. §7.4
+  (Build-Docs) um `ci.md`, `alpha-nightly.md`. §7.5 (Web-Docs-Docs)
+  um `docs/project/README.md`. §8 (Changelog-Historie) um `1.23.12`.
+  §9 (Status) erweitert.
+
+### Changed — Projekt
+
+- **`docs\project\Project.md`** — Version 1.0 (Stand-Datum
+  aktualisiert). §1.1 (Ordner-Layout um `.github\workflows\`).
+  §1.2 (Dokument-Struktur um CI-Docs). §1.3 (Build-Skripte um
+  drei Workflows). §3.5 (Werkzeug-Erweiterungen um CI).
+
+### Changed — TODO
+
+- **`TODO.md`** — Version 1.7 → **1.8**. Neuer §6 (CI / GitHub
+  Actions). §6.5 (offene CI-Themen Phase 2). §11 (Nächste Schritte
+  um Nightly-Test und `v1.23.12`-Tag).
+
+### Fixed
+
+- Keine. Der Patch ist rein additiv und dokumentarisch. Kein
+  Kernel-Code, keine ABI-Änderung, keine Test-Modifikation.
+
+### Tests
+
+- Unverändert: 43/43 PASS.
+- Neue Verifikation (kein Test im Kernel-Sinne):
+  - `.github/workflows/alpha-nightly.yml` läuft manuell durch.
+  - Alle drei CI-Workflows sind dokumentiert.
+  - `out\web\index.html` zeigt 46 Docs.
+
+### Docs
+
+- `CHANGELOG.md` (diese Datei) auf `1.23.12`.
+- `TODO.md` auf `1.8`.
+- 3 neue Dokumente: `docs\build\ci.md`, `docs\build\alpha-nightly.md`,
+  `docs\project\README.md`.
+- 7 Dokumente aktualisiert: `docs\build\web-docs-ci.md`,
+  `docs\build\BUILD_SCRIPT.md`, `docs\test\run_alpha_tests.md`,
+  `CONTRIBUTING.md`, `README.md`, `docs\web\manifest.txt`,
+  `docs\project\ProPhysics_VersionRegistry.md`,
+  `docs\project\Project.md`.
+
+### R-Konformität
+
+| Regel | Status |
+|---|---|
+| R1–R4 | ✅ unberührt |
+| R5 | ✅ keine API-Änderung |
+| R6 | ✅ keine neue Etappe, kein Kernel-Test nötig |
+| R7 | ✅ kein Kernel-Pfad geändert |
+
+### Backlog
+
+- Nightly-Schedule (`schedule` statt `workflow_dispatch`) — Phase 2.
+- Prio 2/3/4 in Standard-CI aufnehmen? — Phase 2.
+- Web-Docs Phase 2 (Cross-Refs, Suche, i18n).
+
+---
+
+## [1.23.11] — 2026-09-28 — ProWB / Web-Docs Integration
+
+**Etappen:** 23 (Konsolidierung)
+**Tests:** 43/43 PASS (unverändert)
+**Fokus:** Integration des ProWB-Web-Docs-Builders als neues
+Build-Werkzeug. Markdown-Dokumente werden als statisches Web-Portal
+(`out\web\index.html`) publizierbar.
+
+**Hintergrund:** Nach `1.23.10` war das Repo release-ready. Die
+Markdown-Doku war jedoch nur direkt im Repo lesbar. ProWB schließt
+diese Lücke: ein C99-Builder, der die MD-Dateien **an ihren
+kanonischen Pfaden** liest (kein Kopieren), über ein Manifest
+gruppiert und als Web-Portal rendert. Der Builder ist ein
+Standalone-Tool (`bin\prowb\prowb.exe`), nicht Teil des Kernels.
+
+**Versions-Kopplung:**
+
+| Komponente | Version | Bemerkung |
+|---|---|---|
+| Kernel | `1.23.0` | unverändert (keine ABI-Änderung) |
+| SDK | `1.23.0` | folgt Kernel |
+| Doku | `1.23.0` | folgt Kernel |
+| Tests | `1.0.0` | unverändert |
+| Build / Tools | `1.0.0` | unverändert |
+| ProWB | `1.0.0` | eigenständig (neues Tool) |
+
+### Added — ProWB-Builder (`src/prowb/`)
+
+- **`src\prowb\prowb.c`** (neu) — Builder-Kern: Manifest-Parser,
+  Template-Expansion, MD-Rendering via `md_parser.c`.
+- **`src\prowb\header\prowb.h`** (neu) — öffentliche Builder-API.
+  Enthält `prowb_build()` (Legacy) und
+  `prowb_build_from_manifest()` (neu).
+- **`src\prowb\md_parser.c`** (neu) — eigenständiger GFM-Parser
+  (Überschriften, Fett/Kursiv, Code-Blöcke, Listen, Tabellen,
+  Links, Blockquotes).
+- **`src\prowb\header\md_parser.h`** (neu) — Parser-API.
+- **`src\prowb\README.md`** (neu) — Builder-Übersicht,
+  Manifest-Format, Sektionen, CLI, Fallstricke.
+
+### Added — Build-Integration
+
+- **`build\prowb\Makefile.nmake`** (neu) — baut
+  `bin\prowb\prowb.exe`. Targets: `all`, `setup`, `help`, `clean`.
+  `CONFIG=release|debug`.
+- **`build\main\Makefile.nmake`** — Target `prowb` ergänzt.
+  `all` ruft `prowb` **nach** `test` auf.
+- **`tools\pro_run.ps1`** / **`pro_run.cmd`** — neue Aktion `web`
+  (`-Rebuild`-Support).
+- **`.github\workflows\web-docs.yml`** (neu) — CI-Workflow:
+  baut ProWB + Web-Docs, deployt auf GitHub Pages bei Push auf
+  `main` mit Änderungen an `docs/**`, `src/prowb/**` oder
+  `build/prowb/**`.
+
+### Added — Web-Docs-Quelle (`docs/web/`)
+
+- **`docs\web\manifest.txt`** (neu) — Manifest mit **44 Einträgen**
+  über **6 Sektionen** (`Overview`, `Physics`, `Modules`, `API`,
+  `Tests`, `Build`). Zeilen-Format:
+  `<Quellpfad>|<Sektion>|<Doc-ID>`.
+- **`docs\web\README.md`** (neu) — Manifest-Pflege-Anleitung.
+- **`docs\web\src\parts\header.html`** (neu) — Branding, Version,
+  Theme-Umschalter.
+- **`docs\web\src\parts\nav.html`** (neu) — Navigations-Struktur.
+- **`docs\web\src\parts\footer.html`** (neu) — Copyright, Links.
+- **`docs\web\src\css\*.css`** (neu, 8 Dateien) — Reset, Vars,
+  Layout, ProPhysics-Theme, Home, Light, Matrix, Default.
+- **`docs\web\src\js\00_bridge.js`** / **`10_app.js`** (neu) —
+  Router, Theme-Umschaltung, `localStorage`.
+- **`docs\web\src\views\*.html`** (neu, 10 Dateien) — Home, 6
+  Sektions-Übersichten, Lizenz, Datenschutz, Settings.
+
+### Added — Build-Dokumentation
+
+- **`docs\build\prowb\Makefile.md`** (neu) — ProWB-Makefile-Referenz.
+- **`docs\build\web-docs-ci.md`** (neu) — CI-Workflow-Referenz.
+
+### Changed
+
+- **`docs\build\pro_run.md`** — Aktion `web` dokumentiert.
+- **`docs\build\BUILD_SCRIPT.md`** — ProWB als vierte
+  Build-Komponente ergänzt.
+- **`docs\project\ProPhysics_VersionRegistry.md`** — ProWB-Dateien
+  eingetragen (§5b, §5c, §6.3, §6.4, §7.5).
+- **`docs\project\Project.md`** §1.1 (Ordner-Layout), §1.2
+  (Dokument-Struktur), §1.3 (Build-Skripte) um ProWB erweitert;
+  §3.5 (Werkzeug-Erweiterungen), §7.7 (ProWB-Abschnitt), §12d
+  (ProWB-Abgeschlossen), §17 (Chronik) ergänzt.
+- **`TODO.md`** §5.1–§5.8 als `[x]` markiert, Version 1.7.
+
+### Fixed
+
+- Keine. Der Patch ist rein additiv. Kein Kernel-Code, keine
+  ABI-Änderung, keine Test-Modifikation.
+
+### Tests
+
+- Unverändert: 43/43 PASS.
+- Neue **Verifikation** (kein Test im Kernel-Sinne):
+  - `pro_run web` läuft fehlerfrei durch.
+  - `out\web\index.html` existiert, Größe ~1,2 MB.
+  - Alle 6 Sektionen im Portal erreichbar.
+  - Theme-Umschaltung funktioniert (`default` / `light` / `matrix`).
+  - CI: `prowb`-Target bricht Prio-1/6/7-Tests nicht.
+
+### Docs
+
+- `CHANGELOG.md` (diese Datei) auf `1.23.11`.
+- `TODO.md` auf `1.7` (ProWB erledigt).
+- 4 neue Dokumente: `src\prowb\README.md`,
+  `docs\build\prowb\Makefile.md`, `docs\web\README.md`,
+  `docs\build\web-docs-ci.md`.
+- `docs\build\pro_run.md` und `docs\build\BUILD_SCRIPT.md`
+  aktualisiert.
+
+### R-Konformität
+
+| Regel | Status |
+|---|---|
+| R1 | ✅ ProWB nutzt `div`/`mod` außerhalb des Kernels — irrelevant |
+| R2 | ✅ ProWB nutzt `malloc` — außerhalb des Kernels — irrelevant |
+| R3–R4 | ✅ unberührt |
+| R5 | ✅ `prowb_build()` bleibt funktional (additiv) |
+| R6 | ✅ keine neue Kernel-Etappe, kein Kernel-Test nötig |
+| R7 | ✅ kein Kernel-Pfad geändert |
+
+### Backlog
+
+- **§5.9** aus `TODO.md` — Cross-Refs in MD-Dateien (Phase 2).
+- Optional: Landing-Hero-Bild, Icons feinjustieren.
 
 ---
 
@@ -1452,7 +1734,7 @@ Detail-Beschreibungen dieser Etappen stehen in `Project.md` §18.
 |---|---|---|---|
 | **MAJOR** | Phase | bei physikalischem Paradigmenwechsel | `1.x → 2.x` wenn Etappe 24–27 abgeschlossen |
 | **MINOR** | Etappe | bei jeder neuen Etappe | `1.22.x → 1.23.0` bei Etappe 23 |
-| **PATCH** | Fix | bei Unter-Etappe, Bugfix oder Konsolidierung | `1.23.9 → 1.23.10` bei weiterer Konsolidierung |
+| **PATCH** | Fix | bei Unter-Etappe, Bugfix oder Konsolidierung | `1.23.11 → 1.23.12` bei weiterer Konsolidierung |
 
 ### §2.2 — Phasen-Übersicht
 
@@ -1481,7 +1763,9 @@ Ein **PATCH**-Sprung passiert, wenn:
   `1.23.2` — EPR + Fock; `1.23.3` — Gauge; `1.23.4` — Observer;
   `1.23.5` — Shared; `1.23.6` — SU2; `1.23.7` — SU2_Dynamics;
   `1.23.8` — Tensor; `1.23.9` — Release-Vorbereitung;
-  `1.23.10` — Bugfix + Plaquette-Konjugation).
+  `1.23.10` — Bugfix + Plaquette-Konjugation;
+  `1.23.11` — ProWB / Web-Docs Integration;
+  `1.23.12` — CI-Dokumentation).
 
 Ein PATCH-Sprung passiert **nicht** bei:
 
@@ -1489,6 +1773,20 @@ Ein PATCH-Sprung passiert **nicht** bei:
 - Test-Erweiterungen ohne Kernel-Änderung.
 - Internen Refactorings ohne API-Bruch **und ohne substanzielle
   Struktur-Änderungen**.
+
+**Besonderheit `1.23.11` und `1.23.12`:** Beide Patches sind
+**Infrastruktur-Patches** ohne Kernel-Änderung. Sie bekommen einen
+PATCH-Sprung, weil sie:
+
+- neue **Build-Werkzeuge** einführen (`bin\prowb\prowb.exe`),
+- neue **Build-Targets** etablieren (`prowb` in `build\main\Makefile.nmake`),
+- neue **CI-Pipelines** hinzufügen (`.github\workflows\*.yml`),
+- neue **Ausgabe-Dimensionen** etablieren (`out\web\`, CI-Artefakte),
+- neue **Dokumentations-Kategorien** etablieren (CI-Docs).
+
+Reine Doku-Änderungen ohne Infrastruktur-Wirkung bekommen keinen
+PATCH-Sprung. Ein neues Build-Werkzeug oder eine neue CI-Pipeline
+ist **strukturell** und qualifiziert für einen Patch.
 
 ### §2.4 — Was zählt als „Paradigmenwechsel" (MAJOR)?
 
@@ -1543,9 +1841,12 @@ unten).
 | **Dokumentation** | Kernel | beschreibt Kernel-Status |
 | **Tests** | eigenständig (`1.0.0`) | wächst mit Test-Suite, nicht mit Kernel |
 | **Build / Tools / Helfer** | eigenständig (`1.0.0`) | wächst mit Infrastruktur |
+| **ProWB** | eigenständig (`1.0.0`) | wächst mit Web-Infrastruktur |
+| **CI-Workflows** | eigenständig (`1.0.0`) | wächst mit CI-Infrastruktur |
 
 **Regel:** Wenn die Kernel-Version sich ändert, müssen SDK und Doku
-nachziehen. Tests und Build-Skripte **können**, müssen aber nicht.
+nachziehen. Tests, Build-Skripte, ProWB und CI-Workflows **können**,
+müssen aber nicht.
 
 ---
 
@@ -1558,20 +1859,22 @@ aber die **Kernel-Version** kommt ausschließlich aus
 
 | Dokument | Was es zeigt | Soll-Version |
 |---|---|---|
-| `CHANGELOG.md` (diese Datei) | Versions-Historie | `1.23.10` (folgt Kernel-Patch) |
+| `CHANGELOG.md` (diese Datei) | Versions-Historie | `1.23.12` (folgt Kernel-Patch) |
 | `ProPhysics_VersionRegistry.md` | Versionen **aller** Dateien | `1.23.0` (folgt Kernel) |
 | `Project.md` §18 | Detaillierte Etappen-Historie | `1.23.0` (folgt Kernel) |
 | `ProPhysics_Version.h` | Aktuelle Kernel-Version | `1.23.0` |
 | `BUILD_INFO.txt` | Aktuelle Build-Metadaten | auto-generiert |
+| `TODO.md` | Aufgaben-Register | `1.8` (folgt Changelog) |
 
 **Bei Inkonsistenz:** `ProPhysics_Version.h` ist der semantische
 Anker. `CHANGELOG.md` folgt ihm. Alle anderen Dokumente folgen
 `CHANGELOG.md`.
 
-**Hinweis zu PATCH-Versionen:** Die Changelog-Version (z.B. `1.23.10`)
+**Hinweis zu PATCH-Versionen:** Die Changelog-Version (z.B. `1.23.12`)
 kann höher sein als die Kernel-Version (z.B. `1.23.0`), wenn der
-Patch **nur** Doku und interne Refactorings betrifft. Ein PATCH
-**ohne** Kernel-Bump ist erlaubt, wenn keine ABI-Änderung stattfindet.
+Patch **nur** Doku, Infrastruktur und interne Refactorings betrifft.
+Ein PATCH **ohne** Kernel-Bump ist erlaubt, wenn keine ABI-Änderung
+stattfindet.
 
 ---
 
@@ -1614,6 +1917,17 @@ Wenn die Kernel-Version sich ändert:
 3. Alle anderen Dokumente **unverändert** lassen.
 4. Ggf. `ProPhysics_VersionRegistry.md` mit Hinweis ergänzen.
 
+**Wenn ein neues Tool oder eine neue CI-Pipeline hinzukommt
+(wie `1.23.11` ProWB oder `1.23.12` CI-Doku):**
+
+1. `CHANGELOG.md` erweitern.
+2. `ProPhysics_Version.h` **unverändert** lassen (Kernel unberührt).
+3. `ProPhysics_VersionRegistry.md` um neue Tool-Sektion erweitern.
+4. `TODO.md` um erledigte Punkte markieren.
+5. Neue Doku-Dateien anlegen (`src/prowb/README.md`,
+   `docs/build/ci.md` etc.).
+6. Querverweise in bestehenden Doku-Dateien ergänzen.
+
 ---
 
 ## §5 — Siehe auch
@@ -1627,6 +1941,12 @@ Wenn die Kernel-Version sich ändert:
 | Testkatalog | `docs/test/ProPhysics_Testkatalog.md` |
 | Test-Baseline | `docs/test/BASELINE.md` |
 | Build-System | `docs/build/BUILD_SCRIPT.md` |
+| ProWB-README | `src/prowb/README.md` |
+| ProWB-Makefile | `docs/build/prowb/Makefile.md` |
+| Web-Docs-Manifest | `docs/web/README.md` |
+| Web-Docs-CI | `docs/build/web-docs-ci.md` |
+| Standard-CI | `docs/build/ci.md` |
+| Alpha-Nightly | `docs/build/alpha-nightly.md` |
 | Konfiguration | `docs/project/CONFIG.md` |
 | Amp-Modul | `docs/project/Amp.md` |
 | Core-Modul | `docs/project/Core.md` |
@@ -1644,4 +1964,4 @@ Wenn die Kernel-Version sich ändert:
 
 ---
 
-**Ende CHANGELOG v1.23.10.**
+**Ende CHANGELOG v1.23.12.**

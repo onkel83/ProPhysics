@@ -1,0 +1,68 @@
+# =============================================================
+# docs/web/manifest.txt
+# ProPhysics — Web-Docs Manifest
+# Format: <Quellpfad>|<Sektion>|<Doc-ID>
+# Pfade relativ zum Repo-Root.
+# Reihenfolge der Sektionen = Reihenfolge im Nav.
+# Kommentare mit '#' am Zeilenanfang.
+# Stand: 2026-09-28 (Kernel 1.23.0, Etappe 23, ProWB integriert)
+# Eintraege: 44
+# =============================================================
+
+# --- Overview -------------------------------------------------
+docs/README.md                                  |Overview|Readme
+docs/project/Project.md                         |Overview|Project
+docs/project/ARCHITECTURE.md                    |Overview|ARCHITECTURE
+docs/project/ProPhysics_Differentiators.md      |Overview|Differentiators
+docs/project/ProPhysics_VersionRegistry.md      |Overview|VersionRegistry
+docs/project/VERSIONING.md                      |Overview|VERSIONING
+docs/project/CHANGELOG.md                       |Overview|Changelog
+docs/todo/ToDo.md                               |Overview|TODO
+CONTRIBUTING.md                                 |Overview|Contributing
+CONTRIBUTORS.md                                 |Overview|Contributors
+COMMERCIAL.md                                   |Overview|Commercial
+
+# --- Physics --------------------------------------------------
+docs/physics/README.md                          |Physics|Readme
+docs/physics/CONFIG.md                          |Physics|CONFIG
+
+# --- Kernel-Module -------------------------------------------
+docs/project/Amp.md                             |Modules|Amp
+docs/project/Core.md                            |Modules|Core
+docs/project/Density.md                         |Modules|Density
+docs/project/Dirac.md                           |Modules|Dirac
+docs/project/EPR.md                             |Modules|EPR
+docs/project/Fock.md                            |Modules|Fock
+docs/project/Gauge.md                           |Modules|Gauge
+docs/project/Observer.md                        |Modules|Observer
+docs/project/Shared.md                          |Modules|Shared
+docs/project/SU2.md                             |Modules|SU2
+docs/project/SU2_Dynamics.md                    |Modules|SU2_Dynamics
+docs/project/Tensor.md                          |Modules|Tensor
+
+# --- API ------------------------------------------------------
+docs/project/ProPhysics_API.md                  |API|ProPhysics_API
+docs/project/SDK_API.md                         |API|SDK_API
+
+# --- Tests ----------------------------------------------------
+docs/test/ProPhysics_Testkatalog.md             |Tests|Testkatalog
+docs/test/BASELINE.md                           |Tests|BASELINE
+docs/test/run_alpha_tests.md                    |Tests|Runner
+docs/test/WRITING_TESTS.md                      |Tests|WritingTests
+
+# --- Build ----------------------------------------------------
+docs/build/BUILD_SCRIPT.md                      |Build|BUILD_SCRIPT
+docs/build/pro_run.md                           |Build|pro_run
+docs/build/ci.md                                |Build|CICD
+docs/build/alpha-nightly.md                     |Build|AlphaNightly
+docs/build/main/Makefile.md                     |Build|Makefile_Main
+docs/build/prophysics/Makefile.md               |Build|Makefile_Prophysics
+docs/build/sdk/Makefile.md                      |Build|Makefile_SDK
+docs/build/test/Makefile.md                     |Build|Makefile_Test
+docs/build/prowb/Makefile.md                    |Build|Makefile_ProWB
+docs/build/web-docs-ci.md                       |Build|WebDocsCI
+docs/build/helper/build.md                      |Build|Helper_Build
+docs/build/helper/export.md                     |Build|Helper_Export
+docs/build/helper/write_build_info.md           |Build|Helper_WriteBuildInfo
+docs/prowb/README.md                             |Build|ProWBBuilder
+docs/web/README.md                              |Build|WebDocsManifest

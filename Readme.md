@@ -7,7 +7,8 @@ Amplituden-Basis und einer einzigen shared-reference-Regel.
 **Version:** 1.0
 **Kernel:** 1.23.0
 **Etappe:** 23
-**Stand:** 2026-09-27 (Konsolidierungs-Serie 1.23.1–1.23.8 abgeschlossen)
+**Stand:** 2026-09-28 (Konsolidierungs-Serie 1.23.1–1.23.11 abgeschlossen,
+ProWB integriert)
 **Lizenz:** siehe `LICENSE.md`
 **Status:** validierter Forschungs-Prototyp
 
@@ -44,6 +45,7 @@ kennen?
 - Lorentz-Zeitdilatation aus Tick-Unitariät
 - Born-Verteilung aus Projektion
 - Tsirelson-Korrelation aus U4
+- **Web-Docs** (ProWB-Builder, publizierbar)
 
 **Was er bewusst nicht ist:**
 
@@ -108,6 +110,7 @@ ob diese Darstellung **sparsamer** oder **tiefer** ist.
 | Fermionen (Jordan-Wigner) | ✅ abgeschlossen |
 | Lindblad / Dichte-Matrizen | ✅ abgeschlossen |
 | **Tests** | **43/43 PASS** |
+| **Web-Docs (ProWB)** | ✅ abgeschlossen |
 
 ### 3.2 — Was Etappe 23 erreicht hat
 
@@ -133,8 +136,10 @@ falscher Sampler würde auf Prozent-Ebene abweichen, nicht auf 0,08 %.
 | M2 | U5' — Plastizität | Dynamische Topologie |
 | M3 | Makrophysik | Klassischer Limes |
 
-**Nach Etappe 24–27:** Kernel-Version 3.1.0 (komplette QM).
-**Nach M1–M3:** Kernel-Version 3.2.0 (Makrophysik).
+**Nach Etappe 27:** Kernel-Version **2.0.0** (Phase 2, „komplette QM").
+**Nach M1–M3:** Kernel-Version **3.0.0** (Phase 3, Makrophysik).
+
+Siehe `docs\project\VERSIONING.md` für das vollständige Schema.
 
 ---
 
@@ -159,9 +164,10 @@ falscher Sampler würde auf Prozent-Ebene abweichen, nicht auf 0,08 %.
 
 **Speicherplatz für Artefakte:**
 
-- Build (`bin\`, `lib\`): ~5 MB
+- Build (`bin\`, `lib\`, `bin\prowb\`): ~6 MB
 - Logs (nach Prio-All): ~10 MB
-- Export (`out\`): ~30–50 MB je nach Modus
+- Export (`out\`, ohne `out\web\`): ~30–50 MB je nach Modus
+- Web-Docs (`out\web\`): ~1,5 MB
 
 ### 4.2 — Software (Build)
 
@@ -171,7 +177,7 @@ falscher Sampler würde auf Prozent-Ebene abweichen, nicht auf 0,08 %.
 |---|---|---|
 | **Visual Studio** | 2019 oder 2022 | Compiler `cl.exe`, Linker `link.exe`, `nmake.exe` |
 | **Windows SDK** | 10 oder 11 | Für `cl.exe` Abhängigkeiten |
-| **PowerShell** | 5.0+ | Build-Wrapper (`build.ps1`, `export.ps1`) |
+| **PowerShell** | 5.0+ | `pro_run`, Build-Wrapper, Export-Wrapper |
 | **cmd.exe** | Windows 10+ | Wrapper für `.cmd`-Skripte |
 
 **Optional:**
@@ -182,7 +188,12 @@ falscher Sampler würde auf Prozent-Ebene abweichen, nicht auf 0,08 %.
 | **signtool.exe** | Für `build.cmd -Sign` (DLL-Signierung, aus Windows SDK) |
 
 **Build-Reihenfolge:** `prophysics` → `sdk` → `test`.
+ProWB ist eigenständig und läuft im Master-`all` **nach** `test`.
 Wird automatisch durch das Master-Makefile erzwungen.
+
+**Empfohlener Einstiegspunkt:** `pro_run` (in `tools\`). Dispatcht
+auf `build.ps1`, `export.ps1`, `run_alpha_tests.ps1` und den
+ProWB-Builder. Details siehe `docs\build\pro_run.md`.
 
 ### 4.3 — Software (Ausführung)
 
@@ -191,6 +202,11 @@ Wird automatisch durch das Master-Makefile erzwungen.
 - Nur Windows (EXEs sind x86-64-Binaries)
 - Keine zusätzlichen Laufzeit-Abhängigkeiten
 - Alle DLLs liegen in `bin\` neben den EXEs
+
+**Zum Ansehen der Web-Docs:**
+
+- Jeder moderne Browser (Chrome, Firefox, Edge, Safari)
+- Kein Server nötig — `out\web\index.html` ist eine statische Datei
 
 **Zum Ausführen von `analysis.py` (CSV-Auswertung, optional):**
 
@@ -243,6 +259,14 @@ where link
 Alle drei müssen gefunden werden. Wenn nicht, ist der Developer
 Prompt nicht aktiv.
 
+**Empfohlener Workflow:**
+
+```cmd
+cd tools
+pro_run build            :: Kernel + SDK + Tests + ProWB
+pro_run test -Prio 1     :: schnelle Regression
+```
+
 ---
 
 ## 5. Build & Run — Schnellstart
@@ -250,44 +274,71 @@ Prompt nicht aktiv.
 ### 5.1 — Build (5 Sekunden bis 2 Minuten)
 
 ```cmd
-cd build\main
-build.cmd
+cd tools
+pro_run build
 ```
 
-Baut Kernel + SDK + Tests. Ergebnis in `bin\` und `lib\`.
+Baut Kernel + SDK + Tests + ProWB. Ergebnis in `bin\`, `lib\`,
+`bin\prowb\`.
 
 **Weitere Aufrufe:**
 
 ```cmd
-build.cmd -Mode prophysics        :: nur Kernel
-build.cmd -Mode all -Rebuild      :: clean + alles neu
-build.cmd -Clean                  :: alles weg
-build.cmd -Rebuild -GitStamp      :: mit Git-Info
+pro_run build -Mode kernel        :: nur Kernel
+pro_run build -Mode all -Rebuild  :: clean + alles neu
+pro_run build -Config debug       :: Debug-Konfiguration
+pro_run build -DryRun             :: nur auflisten
+```
+
+**Legacy-Aufrufe** (bleiben funktional, sind aber nicht mehr der
+empfohlene Weg):
+
+```cmd
+cd build\main
+build.cmd
+build.cmd -Mode prophysics
+build.cmd -Mode all -Rebuild
+build.cmd -Clean
+build.cmd -Rebuild -GitStamp
 ```
 
 ### 5.2 — Test (2 Sekunden bis 74 Minuten)
 
 ```cmd
-cd ..\..\tools
-run_alpha_tests.cmd -Prio all     :: alle 43 Tests, ~74 min
+cd tools
+pro_run test -Prio all    :: alle 43 Tests, ~74 min
 ```
 
 **Für schnelle Regressionen:**
 
 ```cmd
-run_alpha_tests.cmd -Prio 1       :: 2D-Basis, ~5 s
-run_alpha_tests.cmd -Prio 7       :: Dirac, ~15 s
+pro_run test -Prio 1      :: 2D-Basis, ~5 s
+pro_run test -Prio 7      :: Dirac, ~15 s
 ```
 
 **Für die volle Physik-Prüfung:**
 
 ```cmd
-run_alpha_tests.cmd -Prio 8       :: SU(2), ~24 min (lang!)
+pro_run test -Prio 8      :: SU(2) + Running-Coupling, ~24 min
+```
+
+**Achtung:** Prio 8 enthält zwei Tests. Der zweite
+(`Running-Coupling`) läuft ~23 min. Für CI-Zwecke:
+
+```cmd
+pro_run test -Test SU2-Wilson-Loop    :: nur der kurze Test, ~2 s
 ```
 
 Siehe `docs\test\run_alpha_tests.md` für Details.
 
 ### 5.3 — Einzelner Test (manuell)
+
+```cmd
+cd tools
+pro_run test -Test Running-Coupling -LogDir C:\logs
+```
+
+**Alternativ direkt:**
 
 ```cmd
 cd bin
@@ -298,36 +349,110 @@ example_alpha_test.exe --test-running-coupling   :: ~23 min
 ### 5.4 — Export (optional)
 
 ```cmd
-cd build\main
-export.cmd sdk -Scope all -Clean  :: SDK-Paket nach out\sdk\
-export.cmd exe                    :: Runtime-Paket nach out\exe\
-export.cmd src                    :: Quellcode-Snapshot nach out\src\
+cd tools
+pro_run export -Export sdk -Clean      :: SDK-Paket nach out\sdk\
+pro_run export -Export exe             :: Runtime-Paket nach out\exe\
+pro_run export -Export kit             :: SDK + Beispiele + Docs
+pro_run export -Export all             :: alle drei
 ```
+
+**Legacy-Aufruf:**
+
+```cmd
+cd build\main
+export.cmd sdk -Scope all -Clean
+export.cmd kit -Version 1.23.0
+```
+
+### 5.5 — Web-Docs (optional)
+
+```cmd
+cd tools
+pro_run web                :: Web-Docs nach out\web\
+pro_run web -Rebuild       :: clean + ProWB-Build + Web-Docs
+pro_run web -OutDir D:\portal
+```
+
+Ergebnis: `out\web\index.html` (~1,2 MB bei 44 Docs).
+Öffne die Datei im Browser (Doppelklick) — keine Server nötig.
+
+Details siehe `docs\build\prowb\Makefile.md`, `src\prowb\README.md`,
+`docs\web\README.md`.
 
 ---
 
 ## 6. Dokumentation
 
+### Kern-Dokumente
+
+| Dokument | Inhalt |
+|---|---|
+| `README.md` (Root) | **diese Datei** |
+| `CHANGELOG.md` | Änderungsprotokoll |
+| `TODO.md` | Aufgaben-Register |
+| `CONTRIBUTING.md` | Beitragen |
+| `CONTRIBUTORS.md` | Beitragende |
+| `LICENSE.md` | Lizenz |
+| `COMMERCIAL.md` | Kommerzielle Lizenzierung |
+
+### Projekt-Dokumente
+
 | Dokument | Inhalt |
 |---|---|
 | `docs\project\Project.md` | Ontologie, Roadmap, Regeln, Etappen-Historie |
-| `docs\project\README.md` | **diese Datei** |
+| `docs\project\ARCHITECTURE.md` | Kernel-Aufbau, Tick-Ablauf |
+| `docs\project\ProPhysics_API.md` | Vollständige Funktions-Referenz |
+| `docs\project\ProPhysics_Differentiators.md` | Abgrenzung zu anderen Frameworks |
+| `docs\project\ProPhysics_VersionRegistry.md` | Versionen aller Dateien |
+| `docs\project\CONFIG.md` | Compile-Time-Konstanten |
+| `docs\project\VERSIONING.md` | Versionsschema |
+| `docs\project\SDK_API.md` | SDK-Interface-Referenz |
+| `docs\project\<Modul>.md` | 12 Modul-Referenzen |
+
+### Test-Dokumente
+
+| Dokument | Inhalt |
+|---|---|
 | `docs\test\ProPhysics_Testkatalog.md` | Alle 43 Tests mit Kriterien |
 | `docs\test\run_alpha_tests.md` | Test-Runner-Bedienung |
+| `docs\test\BASELINE.md` | Test-Baseline (Kurzfassung) |
+| `docs\test\WRITING_TESTS.md` | Anleitung zum Test-Schreiben |
+
+### Build-Dokumente
+
+| Dokument | Inhalt |
+|---|---|
 | `docs\build\BUILD_SCRIPT.md` | Build-System-Übersicht |
-| `docs\build\main\Makefile.md` | Master-Makefile-Details |
+| `docs\build\pro_run.md` | Zentraler Einstiegspunkt |
+| `docs\build\web-docs-ci.md` | Web-Docs CI-Workflow |
+| `docs\build\main\Makefile.md` | Master-Makefile |
 | `docs\build\prophysics\Makefile.md` | Kernel-Build |
 | `docs\build\sdk\Makefile.md` | SDK-Interface-Build |
 | `docs\build\test\Makefile.md` | Test-Build |
+| `docs\build\prowb\Makefile.md` | ProWB-Build |
 | `docs\build\helper\*.md` | PowerShell-Wrapper |
+
+### Web-Docs / ProWB
+
+| Dokument | Inhalt |
+|---|---|
+| `src\prowb\README.md` | Builder-Referenz |
+| `docs\web\README.md` | Manifest-Pflege |
+
+### Physik
+
+| Dokument | Inhalt |
+|---|---|
+| `docs\physics\README.md` | Physik-Übersicht |
 
 **Empfohlene Lesereihenfolge für neue Mitwirkende:**
 
 1. **diese Datei** (Überblick)
 2. `docs\project\Project.md` (was das Projekt ist)
-3. `docs\build\BUILD_SCRIPT.md` (wie man baut)
+3. `docs\build\pro_run.md` (wie man baut, testet, exportiert)
 4. `docs\test\ProPhysics_Testkatalog.md` (was getestet wird)
 5. `docs\test\run_alpha_tests.md` (wie man Tests fährt)
+6. `src\prowb\README.md` (wie die Web-Docs entstehen)
 
 ---
 
@@ -339,25 +464,46 @@ ProPhysics\
 ├── BUILD_INFO.txt               # Build-Metadaten (auto-generiert)
 │
 ├── bin\                         # DLLs + EXEs (flach)
+│   └── prowb\                   # ProWB-Builder (separat)
+│       └── prowb.exe
 ├── lib\                         # Import-Libs (flach)
 │
 ├── src\
-│   ├── prophysics\              # Kernel (13 Module)
+│   ├── prophysics\              # Kernel (12 Module + 6 Header)
 │   ├── sdk\                     # SDK-Interface
-│   └── test\                    # Test-Module (18 + 2 Example)
+│   ├── test\                    # Test-Module (18 + 2 Example)
+│   └── prowb\                   # Web-Docs-Builder (2 Module + 2 Header)
 │
-├── tools\                       # Test-Runner (PS1 + CMD)
+├── tools\                       # pro_run + Test-Runner (PS1 + CMD)
 ├── build\                       # Build-Infrastruktur
+│   ├── main\                    # Master-Orchestrierung
+│   ├── prophysics\              # Kernel-Makefile
+│   ├── sdk\                     # SDK-Makefile
+│   ├── test\                    # Test-Makefile
+│   └── prowb\                   # ProWB-Makefile
 ├── docs\                        # Dokumentation
-└── python\                      # analysis.py (CSV-Auswertung)
+│   ├── project\                 # Roadmap, Module, API
+│   ├── test\                    # Testkatalog + Runner
+│   ├── build\                   # Build-Doku
+│   ├── physics\                 # Physik-Übersicht
+│   └── web\                     # Web-Docs-Quelle (Manifest + Assets)
+├── python\                      # analysis.py (CSV-Auswertung)
+└── out\                         # Export-Ziel
+    ├── exe\
+    ├── sdk\
+    ├── kit\
+    └── web\                     # Web-Docs (ProWB-Output)
 ```
 
 **Prinzipien:**
 
 - `bin\` und `lib\` flach (Windows-Loader)
+- `bin\prowb\` separat (ProWB ist ein Build-Tool, kein Runtime-Artefakt)
 - `.c` direkt, `.h` in `header\`
 - Keine OBJ-Reste (cleanup nach Link)
-- Test-Runner in `tools\`, nicht in `bin\`
+- Test-Runner und `pro_run` in `tools\`, nicht in `bin\`
+- `docs\web\` ist Konfiguration + Layout, keine MD-Kopien
+- `out\web\` wird vom CI deployt (GitHub Pages)
 
 ---
 
@@ -430,7 +576,7 @@ Details in `docs\project\Project.md` §2.
 - **Kein Bell-Bruch** (S > 2 wäre Superdeterminismus-Loop)
 - **Keine Behauptung, dass die Urregeln „wahr" sind**
 - **Keine Alternative zu etablierten Lattice-QFT-Codes** (ITensor, QDP++, MILC)
-- **Keine publizierte Physik** (Stand 2026-09-25; Preprint in Vorbereitung)
+- **Keine publizierte Physik** (Stand 2026-09-28; Preprint in Vorbereitung)
 
 ---
 
@@ -447,44 +593,72 @@ Details in `docs\project\Project.md` §2.
 2. **Überblick:** „A computational exploration of quantum structures
    from discrete signed permutations" — Ziel: arXiv:quant-ph
 
+3. **Software:** ProPhysics als C99-Kernel mit deterministischer
+   Q31-Arithmetik und externem V&V-Anker
+   — Ziel: CPC oder JOSS (in Erwägung)
+
 **Was für ein Paper noch fehlt:**
 
 - Zwei Observablen (Creutz-Ratio) für echte β-Funktion
 - Größere Gitter (dim ≥ 128)
 - Vergleich mit etablierten Lattice-QCD-Werten
+- Benchmark gegen ITensor / QuSpin / Qiskit
 
 ---
 
 ## 12. Kontakt und Mitwirkung
 
-**Repository:** (https://github.com/onkel83/ProPhysics)
-**Issue-Tracker:** (https://github.com/onkel83/ProPhysics/issues)
-**Lizenz:** [siehe LICENSE](LICENSE.md)
+**Repository:** https://github.com/onkel83/prophysics
+**Issue-Tracker:** https://github.com/onkel83/prophysics/issues
+**Lizenz:** siehe `LICENSE.md`
 
 **Beiträge willkommen.** Vor dem ersten Commit bitte lesen:
 
+- `CONTRIBUTING.md` — Beitragenden-Anleitung
 - `docs\project\Project.md` §2 (Projekt-Regeln)
 - `docs\test\ProPhysics_Testkatalog.md` (Test-Philosophie)
-- `docs\build\BUILD_SCRIPT.md` (Build-Konventionen)
+- `docs\build\pro_run.md` (Build-Workflow)
+
+**Schnelleinstieg für Mitwirkende:**
+
+```cmd
+git clone https://github.com/onkel83/prophysics.git
+cd prophysics
+
+:: Visual Studio Developer Prompt öffnen
+cd tools
+pro_run build            :: alles bauen
+pro_run test -Prio 1     :: 12/12 PASS in ~5 s
+```
 
 ---
 
 ## 13. Versionierung
 
-**Kernel-Version** (`ProPhysics_Version.h`):
+**Kernel-Version** (`src\prophysics\header\ProPhysics_Version.h`):
 
 | Version | Bedeutung |
 |---|---|
-| 1.23.0 | **jetzt** — validierter Kernel |
-| 2.27.0 | komplette QM (nach Etappe 24–27) |
-| 3.XX.X | Makrophysik (nach M1–M3) |
+| `1.23.0` | **jetzt** — Phase 1, Etappe 23, validierter Kernel |
+| `2.0.0` | Phase 2, „komplette QM" (nach Etappe 24–27) |
+| `3.0.0` | Phase 3, Makrophysik (nach M1–M3) |
+
+**Changelog-Version:** `1.23.11` (Konsolidierungs-Serie abgeschlossen).
 
 **Doc-Versionen** sind unabhängig und niedriger nummeriert
-(z.B. `Project.md` v1.x).
+(z. B. `Project.md` v1.x).
 
 **Regel:** Kernel-Version springt **nur** bei physikalischem
-Paradigmenwechsel.
+Paradigmenwechsel (Phase). PATCH-Sprünge innerhalb einer Etappe
+ändern die Kernel-Version **nicht**.
+
+Details siehe `docs\project\VERSIONING.md`.
 
 ---
 
-**Ende README v1.0.**
+![CI](https://github.com/onkel83/prophysics/actions/workflows/ci.yml/badge.svg)
+![Web-Docs](https://github.com/onkel83/prophysics/actions/workflows/web-docs.yml/badge.svg)
+
+---
+
+**Ende README v1.1.**

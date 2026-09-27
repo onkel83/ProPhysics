@@ -1,0 +1,109 @@
+# =============================================================
+# .github/workflows/web-docs.yml
+# Baut die ProWB-Web-Docs aus docs\web\ und deployed sie auf
+# GitHub Pages.
+#
+# Trigger:
+#   - Push auf main mit Aenderungen an docs\, src\prowb\ oder
+#     build\prowb\
+#   - Manuell via Actions-Tab (workflow_dispatch)
+#
+# Ausgabe: GitHub Pages (https://<user>.github.io/<repo>/)
+# =============================================================
+name: Web-Docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'src/prowb/**'
+      - 'build/prowb/**'
+      - '.github/workflows/web-docs.yml'
+  workflow_dispatch:
+
+# GitHub Pages benoetigt diese Permissions
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Verhindert parallele Deploys in dieselbe Pages-Umgebung
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  # -----------------------------------------------------------
+  # Job 1: Bauen
+  # -----------------------------------------------------------
+  build:
+    name: Build ProWB + Web-Docs
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Setzt die MSVC-Umgebung (cl.exe, link.exe, nmake.exe im PATH)
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      # Baut bin\prowb\prowb.exe aus src\prowb\*
+      - name: Build ProWB Builder
+        shell: cmd
+        run: |
+          cd build\prowb
+          nmake /f Makefile.nmake CONFIG=release
+
+      # Verifiziert, dass die EXE existiert
+      - name: Verify builder exists
+        shell: cmd
+        run: |
+          if not exist "bin\prowb\prowb.exe" (
+            echo [FEHLER] bin\prowb\prowb.exe wurde nicht gebaut
+            exit /b 1
+          )
+          echo [OK] bin\prowb\prowb.exe existiert
+
+      # Generiert out\web\index.html aus dem Manifest
+      - name: Generate Web-Docs
+        shell: cmd
+        run: |
+          bin\prowb\prowb.exe --manifest docs\web\src docs\web\manifest.txt out\web
+
+      # Verifiziert, dass die index.html entstanden ist
+      - name: Verify output exists
+        shell: cmd
+        run: |
+          if not exist "out\web\index.html" (
+            echo [FEHLER] out\web\index.html wurde nicht erzeugt
+            exit /b 1
+          )
+          for %%F in (out\web\index.html) do set SIZE=%%~zF
+          echo [OK] out\web\index.html erzeugt (%%~zF Bytes)
+
+      # Baut das Pages-Artefakt aus out\web\
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: out/web
+
+  # -----------------------------------------------------------
+  # Job 2: Deployen
+  # -----------------------------------------------------------
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

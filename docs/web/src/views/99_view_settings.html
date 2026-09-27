@@ -1,0 +1,65 @@
+<section id="view_settings" class="view-content" style="display:none;">
+
+    <div class="view-header">
+        <h2>PORTAL SETTINGS <small>// UI &amp; Preferences</small></h2>
+        <div class="status-indicator">SYSTEM: SECURE</div>
+    </div>
+
+    <div class="dashboard-grid">
+
+        <div class="dash-card">
+            <h3>VISUALISIERUNG (THEME)</h3>
+            <p>Wählen Sie das Interface-Design für Ihre Arbeitsumgebung. Das Theme wird lokal in Ihrem Browser gespeichert.</p>
+            <div class="dashboard-actions">
+                <button class="action-btn" onclick="app.setTheme('prophysics')">⚛️ PROPHYSICS (Default)</button>
+                <button class="action-btn" onclick="app.setTheme('light')">🏢 OFFICE (Light Mode)</button>
+                <button class="action-btn" onclick="app.setTheme('matrix')">📟 TERMINAL (High Contrast)</button>
+            </div>
+        </div>
+
+        <div class="dash-card">
+            <h3>SYSTEM MAINTENANCE</h3>
+            <p>Setzt alle lokalen Einstellungen und Themes auf den Standardwert zurück.</p>
+            <div class="dashboard-actions">
+                <button class="action-btn warning" onclick="if(confirm('Wirklich alle lokalen Einstellungen zurücksetzen?')){localStorage.clear(); location.reload();}">
+                    🗑️ RESET UI PREFERENCES
+                </button>
+            </div>
+        </div>
+
+        <div class="dash-card">
+            <h3>SYSTEM-INFORMATION</h3>
+            <div class="license-text-container">
+                <p><strong>Kernel:</strong> 1.23.0 (Etappe 23)</p>
+                <p><strong>Portal:</strong> ProWB v4.2.0 (Manifest / GFM)</p>
+                <p><strong>Theme aktiv:</strong> <span id="settings-current-theme">prophysics</span></p>
+                <p><strong>Renderer:</strong> W3C HTML5 / Native CSS Custom Properties</p>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="utility-section">
+        <h3 class="section-title">LEGAL &amp; COMPLIANCE</h3>
+        <div class="utility-grid">
+
+            <div class="utility-box" onclick="app.navigate('view_lizenz')">
+                <div class="util-icon">📜</div>
+                <div class="util-text">
+                    <h4>DUAL-LICENSING</h4>
+                    <p>Frei für Forschung &amp; Lehre, kommerziell mit Vertrag.</p>
+                </div>
+            </div>
+
+            <div class="utility-box" onclick="app.navigate('view_datenschutz')">
+                <div class="util-icon">⚖️</div>
+                <div class="util-text">
+                    <h4>DATENSCHUTZ</h4>
+                    <p>DSGVO-Konformität und Privacy Policy.</p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+</section>

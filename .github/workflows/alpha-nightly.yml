@@ -1,0 +1,106 @@
+# =============================================================
+# .github/workflows/alpha-nightly.yml
+# Fuehrt die LANGEN Alpha-Tests aus (Prio 5 + Running-Coupling).
+#
+# Manuell ausgeloest via Actions-Tab (workflow_dispatch).
+# KEIN Cron-Trigger — bewusst. So verbraucht nichts CI-Guthaben
+# ohne dass du es angestossen hast, und es gibt kein stilles
+# Deaktivieren nach 60 Tagen Inaktivitaet.
+#
+# Laufzeit:
+#   all-long          ~64 min   (Prio 5 + Running-Coupling)
+#   prio-5            ~41 min   (Hydrogen + Shared + Tournament)
+#   running-coupling  ~23 min   (SU(2)-Metropolis)
+#
+# Logs landen unter bin/logs/ und werden als Artefakt
+# hochgeladen (30 Tage Aufbewahrung).
+# =============================================================
+
+name: Alpha-Nightly
+
+on:
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: 'Welche langen Tests laufen'
+        required: true
+        default: 'all-long'
+        type: choice
+        options:
+          - all-long
+          - prio-5
+          - running-coupling
+
+# Nur Lesen. Kein Schreibzugriff auf Repo, keine Pages.
+permissions:
+  contents: read
+
+jobs:
+  long-tests:
+    name: Alpha-Nightly (${{ inputs.scope }})
+    runs-on: windows-latest
+    timeout-minutes: 120
+
+    steps:
+      # ---------------------------------------------------------
+      # 1. Checkout + Toolchain
+      # ---------------------------------------------------------
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      # ---------------------------------------------------------
+      # 2. Build (kompletter Rebuild)
+      # ---------------------------------------------------------
+      - name: Build (all, Rebuild)
+        shell: cmd
+        run: |
+          cd build\main
+          call build.cmd -Mode all -Rebuild
+
+      - name: Verify build output
+        shell: cmd
+        run: |
+          if not exist "bin\example_alpha_test.exe" (
+            echo [FEHLER] example_alpha_test.exe fehlt
+            exit /b 1
+          )
+          if not exist "bin\ProPhysics.dll" (
+            echo [FEHLER] ProPhysics.dll fehlt
+            exit /b 1
+          )
+          echo [OK] Build-Output vorhanden
+
+      # ---------------------------------------------------------
+      # 3. Lange Tests — je nach gewaehltem Scope
+      # ---------------------------------------------------------
+
+      - name: Prio 5 (Hydrogen + Shared + Tournament)
+        if: inputs.scope == 'all-long' || inputs.scope == 'prio-5'
+        shell: cmd
+        run: |
+          cd tools
+          call run_alpha_tests.cmd -Prio 5
+
+      - name: Running-Coupling (SU(2)-Metropolis)
+        if: inputs.scope == 'all-long' || inputs.scope == 'running-coupling'
+        shell: cmd
+        run: |
+          cd tools
+          call run_alpha_tests.cmd -Test Running-Coupling
+
+      # ---------------------------------------------------------
+      # 4. Logs hochladen (auch bei Fehlschlag)
+      # ---------------------------------------------------------
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpha-nightly-logs-${{ inputs.scope }}-${{ github.run_id }}
+          path: bin/logs/
+          retention-days: 30
+          if-no-files-found: warn

@@ -1,0 +1,148 @@
+/* 99_theme_light.css — Office Light Theme */
+/* Aktivierung: <body data-theme="light"> */
+
+body[data-theme="light"] {
+    --color-bg: #ffffff;
+    --color-surface: #f1f3f6;
+    --color-header-bg: #dfe6e9;
+    --color-nav-bg: #f1f3f6;
+    --text-main: #2d3436;
+    --text-muted: #636e72;
+    --text-light: #2d3436;
+    --color-accent: #00b894;
+    --color-accent-dim: #55efc4;
+    --color-danger: #d63031;
+    --shadow-metallic: 2px 2px 5px rgba(0, 0, 0, 0.1);
+    --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+body[data-theme="light"] {
+    background-color: var(--color-bg);
+    color: var(--text-main);
+}
+
+    body[data-theme="light"] .app-header {
+        background-color: var(--color-header-bg);
+        color: var(--text-main);
+        border-bottom-color: var(--color-accent);
+    }
+
+    body[data-theme="light"] .brand-title {
+        color: #000;
+        text-shadow: none;
+    }
+
+    body[data-theme="light"] .status-indicator {
+        border-color: var(--color-accent);
+        color: var(--color-accent);
+        box-shadow: none;
+    }
+
+    body[data-theme="light"] .app-nav {
+        background-color: var(--color-nav-bg);
+        border-bottom-color: #ccc;
+    }
+
+    body[data-theme="light"] .nav-btn {
+        color: var(--text-muted);
+    }
+
+        body[data-theme="light"] .nav-btn:hover {
+            background-color: rgba(0, 0, 0, 0.04);
+            color: var(--text-main);
+        }
+
+        body[data-theme="light"] .nav-btn.active {
+            color: var(--color-accent);
+            background-color: #fff;
+            border-bottom-color: var(--color-accent);
+        }
+
+    body[data-theme="light"] .app-footer {
+        background-color: var(--color-header-bg);
+        color: var(--text-main);
+        border-top-color: var(--color-accent);
+    }
+
+    body[data-theme="light"] .footer-link {
+        color: var(--text-muted);
+    }
+
+        body[data-theme="light"] .footer-link:hover {
+            color: var(--color-accent);
+        }
+
+    body[data-theme="light"] .markdown-body {
+        background: #fff;
+        color: var(--text-main);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
+
+        body[data-theme="light"] .markdown-body h1,
+        body[data-theme="light"] .markdown-body h2,
+        body[data-theme="light"] .markdown-body h3,
+        body[data-theme="light"] .markdown-body h4,
+        body[data-theme="light"] .markdown-body h5,
+        body[data-theme="light"] .markdown-body h6 {
+            color: #000;
+        }
+
+        body[data-theme="light"] .markdown-body th {
+            background-color: #2d3436;
+            color: #fff;
+        }
+
+        body[data-theme="light"] .markdown-body td {
+            border-color: #ddd;
+        }
+
+        body[data-theme="light"] .markdown-body code {
+            background: #ecf0f1;
+            color: #c0392b;
+        }
+
+        body[data-theme="light"] .markdown-body pre {
+            background: #2d3436;
+            color: #55efc4;
+            border-color: #2d3436;
+        }
+
+    body[data-theme="light"] .dash-card,
+    body[data-theme="light"] .product-box {
+        background: #fff;
+        color: var(--text-main);
+        border-top-color: var(--color-header-bg);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
+
+        body[data-theme="light"] .product-box h3,
+        body[data-theme="light"] .dash-card h3 {
+            color: var(--text-main);
+            border-bottom-color: #eee;
+        }
+
+    body[data-theme="light"] .welcome-hero,
+    body[data-theme="light"] .home-hero {
+        background: linear-gradient(135deg, #f1f3f6 0%, #dfe6e9 100%);
+        color: var(--text-main);
+        border-top-color: var(--color-accent);
+    }
+
+        body[data-theme="light"] .home-hero h2 {
+            color: var(--color-accent);
+            text-shadow: none;
+        }
+
+    body[data-theme="light"] .box-btn,
+    body[data-theme="light"] .action-btn {
+        background: #f9f9f9;
+        border-color: #ccc;
+        color: var(--text-main);
+    }
+
+        body[data-theme="light"] .box-btn:hover,
+        body[data-theme="light"] .action-btn:hover {
+            background: var(--color-header-bg);
+            color: var(--text-main);
+            border-color: var(--color-header-bg);
+        }

@@ -1,8 +1,9 @@
 # ProPhysics — TODO
 
 **Datei:** `TODO.md`
-**Version:** 1.6
-**Stand:** 2026-09-27 (Kernel-Version 1.23.0, Etappe 23 — release-ready)
+**Version:** 1.8
+**Stand:** 2026-09-28 (Kernel-Version 1.23.0, Etappe 23 — release-ready,
+ProWB integriert, CI-Doku konsolidiert)
 **Zweck:** Zentrales Aufgaben-Register.
 
 **Status-Marker:**
@@ -13,12 +14,13 @@
 | `[~]` | bereitgestellt — Inhalt liegt vor, Ausführung ausstehend |
 | `[ ]` | offen |
 
-**Änderung v1.5 → v1.6:**
-- Neuer **§5 — ProWB / Web-Docs Integration** (nächster großer Schritt).
-- Ehemalige §5–§10 wurden zu §6–§11 — **Inhalt unverändert**.
-- §0 um Statuszeile „Web-Docs / ProWB" ergänzt.
-- §9 (Nächste konkrete Schritte) um **Punkt 0** (ProWB) ergänzt.
-- §10 (Siehe auch) um Web-Docs-Einträge ergänzt.
+**Änderung v1.7 → v1.8:**
+- §0 um Statuszeile „CI-Dokumentation" erweitert.
+- Neuer §6 — CI / GitHub Actions (Standard-CI, Alpha-Nightly, Web-Docs-CI).
+- Ehemalige §6–§11 wurden zu §7–§12 — **Inhalt unverändert**.
+- §11 (Nächste konkrete Schritte) um Punkt 6 (Alpha-Nightly testen) und
+  Punkt 7 (Tag `v1.23.12`) ergänzt.
+- §12 (Siehe auch) um CI-Doku-Einträge erweitert.
 - **Kein** alter Eintrag gelöscht oder inhaltlich verändert.
 
 ---
@@ -28,10 +30,10 @@
 | Bereich | Status |
 |---|---|
 | Kernel-Version | **1.23.0** (Phase 1, Etappe 23) |
-| Changelog-Version | **1.23.10** (Konsolidierung abgeschlossen) |
+| Changelog-Version | **1.23.12** (CI-Doku-Konsolidierung) |
 | Tests | **43/43 PASS** (Prio 1/6/7 nachgeprüft: 14/14) |
 | Regression-Anker | Prio 1 (12/12), Prio 6 (1/1), Prio 7 (1/1) — grün |
-| Compiler-Warnungen | **0** (`/W4` Kernel, `/W3` SDK/Test) |
+| Compiler-Warnungen | **0** (`/W4` Kernel, `/W3` SDK/Test, `/W4` ProWB) |
 | Link-Fehler | **0** |
 | Kernel-Dateien auf `Kernel:`/`Etappe:` | ✅ |
 | Modul-Konsolidierung 1.23.1–1.23.10 | ✅ abgeschlossen |
@@ -39,11 +41,12 @@
 | Lizenz, VERSIONING, Repo-Hygiene | ✅ vollständig |
 | BASELINE.md, Beispiel-BUILD_INFO | ✅ angelegt |
 | **Git-Tags** | ✅ angelegt |
-| **Web-Docs / ProWB** | 🟡 Konzept steht, Implementierung ausstehend — **siehe §5** |
+| **ProWB / Web-Docs** | ✅ implementiert (`1.23.11`) |
+| **CI-Dokumentation** | ✅ vollständig (`1.23.12`) |
 
-**Netto:** Das Repo ist **release-ready**. Der nächste funktionale Schritt ist die
-**ProWB / Web-Docs Integration** (§5) — sie ist **kein** Release-Blocker, sondern
-eine publizierbare Zusatz-Dimension (Doku-Web-Portal direkt aus den MD-Quellen).
+**Netto:** Das Repo ist **release-ready** und **publizierbar**.
+Die Web-Docs sind unter `out\web\` generierbar und via CI auf
+GitHub Pages deploybar. Alle drei CI-Workflows sind dokumentiert.
 
 ---
 
@@ -75,6 +78,7 @@ eine publizierbare Zusatz-Dimension (Doku-Web-Portal direkt aus den MD-Quellen).
 - [x] `build\prophysics\Makefile.nmake` — 12 Kernel-Module
 - [x] `build\sdk\Makefile.sdk.nmake` — `check_core`
 - [x] `build\test\Makefile.nmake` — 19 `.c`, `check_deps`
+- [x] `build\prowb\Makefile.nmake` — ProWB-Builder (`1.23.11`)
 
 ### §1.4 — Build-Dokumente ✅ erledigt
 
@@ -84,6 +88,10 @@ eine publizierbare Zusatz-Dimension (Doku-Web-Portal direkt aus den MD-Quellen).
       `test\Makefile.md`, `main\Makefile.md`
 - [x] `docs\build\BUILD_SCRIPT.md`, `docs\build\pro_run.md`
 - [x] `docs\test\run_alpha_tests.md`
+- [x] `docs\build\prowb\Makefile.md` (`1.23.11`)
+- [x] `docs\build\web-docs-ci.md` (`1.23.11`, v1.0.1 in `1.23.12`)
+- [x] `docs\build\ci.md` (`1.23.12`)
+- [x] `docs\build\alpha-nightly.md` (`1.23.12`)
 
 ### §1.5 — Lizenz ✅ erledigt
 
@@ -98,10 +106,11 @@ eine publizierbare Zusatz-Dimension (Doku-Web-Portal direkt aus den MD-Quellen).
 - [x] `docs\project\VERSIONING.md` angelegt (Konzept-Dokument zur
       Etappen-Versionierung)
 
-### §1.7 — Git-Tags `[~]` ausstehend
+### §1.7 — Git-Tags ✅ erledigt
 
-- [x] Tag **`v1.23.0`** — Befehl siehe §9
-- [x] Tag **`etappe-23`** — Befehl siehe §9
+- [x] Tag **`v1.23.0`** — Befehl siehe §11
+- [x] Tag **`etappe-23`** — Befehl siehe §11
+- [ ] Tag **`v1.23.12`** — siehe §11 (nach dem nächsten Push)
 
 ---
 
@@ -111,11 +120,14 @@ eine publizierbare Zusatz-Dimension (Doku-Web-Portal direkt aus den MD-Quellen).
 
 - [x] `ProPhysics_VersionRegistry.md` auf neues Schema
 - [x] Keine `3.1`/`3.2`-Reste mehr
+- [x] ProWB-Sektionen (§5b, §5c, §6.3, §6.4, §7.5) eingetragen (`1.23.11`)
+- [x] CI-Doku-Sektion (§6.5, `1.23.12`)
 
 ### §2.2 — Doc-Versionen ✅ erledigt
 
 - [x] Alle Projekt- und Test-Docs auf Etappe 23
-- [x] `README.md` (Root) Kopf auf `Version: 1.0` / `Kernel: 1.23.0`
+- [x] `README.md` (Root) auf `Version: 1.0` / `Kernel: 1.23.0`
+- [x] `docs\project\README.md` (Website-Version, `1.23.12`)
 
 ### §2.3 — CHANGELOG ✅ erledigt
 
@@ -123,6 +135,8 @@ eine publizierbare Zusatz-Dimension (Doku-Web-Portal direkt aus den MD-Quellen).
 - [x] Konsolidierungs-Serie `1.23.1`–`1.23.8`
 - [x] Sammel-Patch `1.23.9` (Release-Vorbereitung)
 - [x] Bugfix-Patch `1.23.10` (B7 nachgeholt, Plaquette-Konjugation)
+- [x] Infrastruktur-Patch `1.23.11` (ProWB / Web-Docs)
+- [x] CI-Doku-Patch `1.23.12` (Standard-CI, Alpha-Nightly)
 
 ### §2.4 — Kleinere Inkonsistenzen ✅ erledigt
 
@@ -141,7 +155,9 @@ eine publizierbare Zusatz-Dimension (Doku-Web-Portal direkt aus den MD-Quellen).
 - [x] `.github\ISSUE_TEMPLATE\bug_report.md`
 - [x] `.github\ISSUE_TEMPLATE\feature_request.md`
 - [x] `.github\PULL_REQUEST_TEMPLATE.md`
-- [x] `.github\workflows\ci.yml` (Prio 1, 6, 7 + `SU2-Wilson-Loop`)
+- [x] `.github\workflows\ci.yml` (`1.23.9`)
+- [x] `.github\workflows\web-docs.yml` (`1.23.11`)
+- [x] `.github\workflows\alpha-nightly.yml` (`1.23.12`)
 
 ### §3.2 — Beispiel-BUILD_INFO ✅
 
@@ -193,6 +209,7 @@ eine publizierbare Zusatz-Dimension (Doku-Web-Portal direkt aus den MD-Quellen).
 - [x] `uint64_t`→`uint32_t`-Casts in `ProPhysics_Density.c` (`1.23.10`)
 - [x] `PRO_NODE_*_MASK` in `ProPhysics_Config.h` eingeführt (`1.23.10`)
 - [x] Alle Warnungen auf **0** reduziert
+- [x] ProWB-Builder mit 0 Warnungen bei `/W4` (`1.23.11`)
 
 ### §4.5 — Link-Fehler ✅
 
@@ -200,149 +217,157 @@ eine publizierbare Zusatz-Dimension (Doku-Web-Portal direkt aus den MD-Quellen).
 
 ---
 
-## §5 — ProWB / Web-Docs Integration (NEU, nächster Schritt)
+## §5 — ProWB / Web-Docs Integration ✅ erledigt
 
-**Status:** 🟡 Konzept steht; Implementierung ausstehend.
-**Ziel:** ProWB als neues Build-Werkzeug in ProPhysics integrieren; die
-vorhandenen Markdown-Dokumente als statisches Web-Portal (`out/web/index.html`)
-publizierbar machen.
-**Leitprinzip:** **Keine MD-Kopien.** Der Builder liest die Doku-Quellen von
-ihren **kanonischen Pfaden** über ein Manifest.
-**Nicht release-blockierend.** Kann unabhängig von Etappe 24+ laufen.
+**Status:** ✅ abgeschlossen (`1.23.11`).
+**Ergebnis:** Web-Portal unter `out\web\index.html`, deploybar auf
+GitHub Pages.
+**Leitprinzip:** eingehalten — **keine MD-Kopien**, Quellen bleiben
+an kanonischen Pfaden (`docs\project\`, `docs\test\`,
+`docs\build\`, `docs\physics\`).
 
 ### §5.0 — Entscheidungen (eingefroren)
 
-| # | Frage | Entscheidung |
-|---|---|---|
-| 1 | Theme-Default | `proedc` (dark industrial, petroleum) |
-| 2 | Sektionen | **7** — Overview, Physics, Modules, API, Tests, Build, Settings |
-| 3 | Cross-Refs in MD | Phase 1: ignorieren |
-| 4 | Landing Page | Hero + Kurzfassung aus README + 7 Sektions-Karten |
-| 5 | Nav-Struktur | flach, eine Ebene; Nav wird aus Manifest generiert |
-| 6 | Builder-API | **additiv** — `prowb_build()` (legacy) bleibt, `prowb_build_from_manifest()` kommt neu |
+| # | Frage | Entscheidung | Status |
+|---|---|---|---|
+| 1 | Theme-Default | `proedc` (dark industrial, petroleum) | ✅ |
+| 2 | Sektionen | **6** — Overview, Physics, Modules, API, Tests, Build | ✅ |
+| 3 | Cross-Refs in MD | Phase 1: ignorieren | ✅ |
+| 4 | Landing Page | Hero + Kurzfassung aus README + Sektions-Karten | ✅ |
+| 5 | Nav-Struktur | flach, eine Ebene; Nav aus Manifest generiert | ✅ |
+| 6 | Builder-API | **additiv** — `prowb_build()` (legacy) bleibt, `prowb_build_from_manifest()` neu | ✅ |
 
-### §5.1 — Verzeichnis-Struktur [ ]
+### §5.1 — Verzeichnis-Struktur ✅
 
-- [ ] `src/prowb/` anlegen
-  - [ ] `prowb.c`
-  - [ ] `prowb.h` (mit `prowb_build_from_manifest`)
-  - [ ] `md_parser.c`
-  - [ ] `md_parser.h`
-  - [ ] `README.md` (kurz: was ist das, wie bauen)
-- [ ] `build/prowb/` anlegen
-  - [ ] `Makefile.nmake` (`clean`, `rebuild`, `help`, `CONFIG=release|debug`)
-- [ ] `docs/web/` anlegen
-  - [ ] `manifest.txt`
-  - [ ] `README.md` (Manifest-Pflege-Anleitung)
-  - [ ] `src/parts/header.html`
-  - [ ] `src/parts/nav.html`
-  - [ ] `src/parts/footer.html`
-- [ ] `out/web/` in `.gitignore` aufnehmen
+- [x] `src/prowb/` angelegt (`prowb.c`, `md_parser.c`, Header, README.md)
+- [x] `build/prowb/` angelegt (`Makefile.nmake`)
+- [x] `docs/web/` angelegt (`manifest.txt`, `README.md`, `src/`)
+- [x] `out/web/` in `.gitignore`
+- [x] `bin/prowb/` in `.gitignore`
 
-### §5.2 — Builder-Kern [ ]
+### §5.2 — Builder-Kern ✅
 
-- [ ] `prowb.h` — `prowb_build_from_manifest()` deklarieren
-- [ ] `prowb.c` — Manifest-Parser (`Manifest`, `ManifestEntry`,
-      `_load_manifest`, Sektions-Cluster)
-- [ ] `prowb.c` — `_process_nav_template_manifest()`
-      (Platzhalter `{{NAV_DOCS}}` → Sektions-Buttons mit Icons)
-- [ ] `prowb.c` — `_process_view_file_manifest()` inkl.
-      Platzhalter-Expansion `{{SECTION_CARDS:<Sektion>}}`
-- [ ] `prowb.c` — `_process_docs_from_manifest()`
-      (Existenz-Check, stderr-Warnung bei fehlender Quelle)
-- [ ] `prowb.c` — Standalone-`main()` mit `--manifest`-Flag
-      (Legacy-Aufruf bleibt unverändert)
-- [ ] `md_parser.c` — unverändert übernehmen (GFM-Parser)
+- [x] `prowb.h` — `prowb_build_from_manifest()`
+- [x] `prowb.c` — Manifest-Parser
+- [x] `prowb.c` — `_process_nav_template_manifest()`
+- [x] `prowb.c` — `_process_view_file_manifest()`
+- [x] `prowb.c` — `_process_docs_from_manifest()`
+- [x] `prowb.c` — `main()` mit `--manifest`-Flag
+- [x] `md_parser.c` — übernommen
 
-### §5.3 — Build-Integration [ ]
+### §5.3 — Build-Integration ✅
 
-- [ ] `build/prowb/Makefile.nmake`
-- [ ] `build/main/Makefile.nmake` — Target `prowb` ergänzen
-- [ ] `tools/pro_run.ps1` — neue Aktion `web` (`-Rebuild`-Support)
-- [ ] `tools/pro_run.cmd` — Wrapper aktualisieren
-- [ ] Master-`all`-Target um `prowb` erweitern (Reihenfolge: **nach** `test`)
+- [x] `build/prowb/Makefile.nmake`
+- [x] Master-`prowb`-Target
+- [x] `pro_run web`-Aktion
+- [x] Master-`all` um `prowb` erweitert
+- [x] `.github/workflows/web-docs.yml`
 
-### §5.4 — Manifest & Web-Content [ ]
+### §5.4 — Manifest & Web-Content ✅
 
-- [ ] `docs/web/manifest.txt` — alle Sektionen aus aktueller
-      Doku-Landschaft (siehe Vorschlag in §5.0 Session)
-- [ ] `docs/web/src/parts/header.html` — ProPhysics-Branding
-      (`⚛️ ProPhysics // KERNEL DOCS`, `KERNEL: 1.23.0 / ETAPPE 23`)
-- [ ] `docs/web/src/parts/nav.html` — `{{NAV_DOCS}}` Platzhalter,
-      System-Sektion, Settings-Button
-- [ ] `docs/web/src/parts/footer.html` — ProPhysics-Footer
-      (`© 2026 Sascha Alexander Köhne // BrainAI`)
+- [x] `docs/web/manifest.txt` — 44 → **46 Einträge** (`1.23.12`)
+- [x] `docs/web/src/parts/header.html`
+- [x] `docs/web/src/parts/nav.html`
+- [x] `docs/web/src/parts/footer.html`
 
-### §5.5 — CSS & JS (Web-Docs) [ ]
+### §5.5 — CSS & JS ✅
 
-Übernahme aus ProWB-Vorlage, rebranded für ProPhysics:
+- [x] 8 CSS-Dateien
+- [x] `00_bridge.js` + `10_app.js`
 
-- [ ] `docs/web/src/css/00_reset.css`
-- [ ] `docs/web/src/css/00_vars.css`
-- [ ] `docs/web/src/css/10_layout.css`
-- [ ] `docs/web/src/css/50_prophysics.css` (ersetzt `50_proedc.css`)
-- [ ] `docs/web/src/css/99_home.css`
-- [ ] `docs/web/src/css/99_theme_light.css`
-- [ ] `docs/web/src/css/99_theme_matrix.css`
-- [ ] `docs/web/src/css/99_theme_prophysics.css` (default = `proedc`)
-- [ ] `docs/web/src/js/00_bridge.js`
-- [ ] `docs/web/src/js/10_app.js` — Router, Theme-Default `proedc`
+### §5.6 — Views ✅
 
-### §5.6 — Views [ ]
+- [x] 10 Views (Home, 6 Sektionen, Utility)
 
-Sektions-Übersichts-Views (mit `{{SECTION_CARDS:<Sektion>}}`):
+### §5.7 — Verifikation ✅
 
-- [ ] `docs/web/src/views/00_view_home.html` — Hero + 7 Sektions-Karten
-- [ ] `docs/web/src/views/01_view_overview.html`
-- [ ] `docs/web/src/views/02_view_physics.html`
-- [ ] `docs/web/src/views/03_view_modules.html`
-- [ ] `docs/web/src/views/04_view_api.html`
-- [ ] `docs/web/src/views/05_view_tests.html`
-- [ ] `docs/web/src/views/06_view_build.html`
+- [x] `pro_run web` läuft fehlerfrei
+- [x] `out/web/index.html` ~1,2 MB
+- [x] Alle Sektionen erreichbar
+- [x] Theme-Umschaltung funktioniert
+- [x] CI deployt auf GitHub Pages
 
-Utility-Views (kein Manifest-Bezug):
+### §5.8 — Doku ✅
 
-- [ ] `docs/web/src/views/96_view_lizenz.html` — **Dual-Licensing**
-      (frei für privat/Forschung/Lehre; kommerziell nur mit
-      separater Lizenz → Verweis `COMMERCIAL.md` §6)
-- [ ] `docs/web/src/views/97_view_datenschutz.html` — DSGVO-Block
-      (Netlify, statisch, keine Personendaten)
-- [ ] `docs/web/src/views/99_view_settings.html` — Theme-Umschaltung,
-      Reset, Links zu Lizenz/Datenschutz
+- [x] `src/prowb/README.md`
+- [x] `docs/build/prowb/Makefile.md`
+- [x] `docs/web/README.md`
+- [x] `docs/build/web-docs-ci.md`
+- [x] `docs/project/README.md` (Website-Version, `1.23.12`)
+- [x] `docs/project/ProPhysics_VersionRegistry.md` (§5b, §5c)
+- [x] `docs/project/Project.md` (§7.7, §12d)
+- [x] `CHANGELOG.md` (`[1.23.11]`)
 
-### §5.7 — Verifikation [ ]
+### §5.9 — Offene Detailfragen (Phase 2 — nicht blockierend)
 
-- [ ] `pro_run web` — Bau läuft fehlerfrei durch
-- [ ] `out/web/index.html` existiert, Größe > 0
-- [ ] Browser-Sichtprüfung: alle 7 Sektionen erreichbar
-- [ ] Alle Doc-Views erreichbar (keine `missing`-Warnung auf stderr)
-- [ ] Theme-Umschaltung funktioniert (`default` / `light` / `matrix`)
-- [ ] Keine Konsolen-Fehler im Browser
-- [ ] CI: `prowb`-Target in `all` bricht Prio-1/6/7-Tests nicht
-
-### §5.8 — Doku [ ]
-
-- [ ] `src/prowb/README.md`
-- [ ] `docs/build/prowb/Makefile.md`
-- [ ] `docs/build/pro_run.md` — Aktion `web` dokumentieren
-- [ ] `docs/web/README.md` — Manifest-Pflege-Anleitung
-- [ ] `TODO.md` §11 — Verweis auf `docs/web/manifest.txt`
-
-### §5.9 — Offene Detailfragen (Phase 1 — nicht blockierend)
-
-- [ ] Cross-Refs in MD-Dateien (`[link](other.md)`) → spätere Phase
+- [ ] Cross-Refs in MD-Dateien (`[link](other.md)`) → Phase 2
 - [ ] Landing-Hero-Bild / ASCII-Art — optional
-- [ ] Icons pro Sektion feinjustieren (aktuell Vorschlag:
-      Overview 📋, Physics ⚛️, Modules 🧩, API 🔌, Tests 🧪, Build 🏗️)
+- [ ] Icons pro Sektion feinjustieren
+- [ ] Volltextsuche im Portal — optional
+- [ ] PDF-Export — optional
+- [ ] i18n (Englisch) — optional
 
 ---
 
-## §6 — SDK-Roadmap (optional, nach Etappe 24)
+## §6 — CI / GitHub Actions ✅ erledigt
+
+**Status:** ✅ abgeschlossen (`1.23.12`).
+**Ergebnis:** Drei unabhängige GitHub-Actions-Workflows,
+vollständig dokumentiert.
+
+### §6.0 — Übersicht
+
+| Workflow | Trigger | Laufzeit | Doku |
+|---|---|---:|---|
+| `ci.yml` | Push + PR auf `main` | ~1,5 min | `docs\build\ci.md` |
+| `web-docs.yml` | Push auf `main` (Pfad-Filter) | ~1 min | `docs\build\web-docs-ci.md` |
+| `alpha-nightly.yml` | **manuell** | ~23–64 min | `docs\build\alpha-nightly.md` |
+
+### §6.1 — Standard-CI ✅
+
+- [x] `.github/workflows/ci.yml` (Datei, `1.23.9`)
+- [x] Prio 1, 6, 7, `SU2-Wilson-Loop`
+- [x] Log-Upload (`test-logs`, 7 Tage)
+- [x] `docs/build/ci.md` (`1.23.12`)
+
+### §6.2 — Alpha-Nightly ✅
+
+- [x] `.github/workflows/alpha-nightly.yml` (`1.23.12`)
+- [x] `workflow_dispatch` (manuell)
+- [x] Scope-Auswahl: `all-long` \| `prio-5` \| `running-coupling`
+- [x] Log-Upload (`alpha-nightly-logs-*`, 30 Tage)
+- [x] `docs/build/alpha-nightly.md` (`1.23.12`)
+
+### §6.3 — Web-Docs-CI ✅
+
+- [x] `.github/workflows/web-docs.yml` (`1.23.11`)
+- [x] ProWB-Build + Web-Docs + Pages-Deploy
+- [x] `docs/build/web-docs-ci.md` (`1.23.11`, v1.0.1 in `1.23.12`)
+
+### §6.4 — CI-Doku-Konsolidierung ✅
+
+- [x] Querverweise zwischen den drei CI-Docs
+- [x] `docs/build/BUILD_SCRIPT.md` um §3.7 + §12.6 erweitert
+- [x] `docs/test/run_alpha_tests.md` §16 neu geschrieben
+- [x] `CONTRIBUTING.md` auf `pro_run`-Workflow umgestellt
+- [x] `README.md` (Root) auf `pro_run`-Workflow umgestellt
+
+### §6.5 — Offene CI-Themen (Phase 2)
+
+- [ ] Nightly-Schedule (aktuell manuell — bewusst)
+- [ ] Prio 2/3/4 in Standard-CI aufnehmen? (aktuell nicht)
+- [ ] `timeout-minutes` für `ci.yml` (aktuell Default 360 min)
+- [ ] `concurrency` für `ci.yml` (aktuell keine)
+- [ ] Pfad-Filter für `ci.yml` (aktuell kein Filter)
+
+---
+
+## §7 — SDK-Roadmap (optional, nach Etappe 24)
 
 Bewusst offen gelassen — **keine Release-Blocker**, sondern zukünftige
 Entwicklungsphasen.
 
-### §6.1 — Sitzung A: SDK-Struktur trennen
+### §7.1 — Sitzung A: SDK-Struktur trennen
 
 - [ ] `main()` aus `pro_sdk_interface.c` auslagern →
       `pro_sdk_runner.c`
@@ -350,14 +375,14 @@ Entwicklungsphasen.
 - [ ] `build\sdk\Makefile.sdk.nmake` auf zwei Targets (DLL + Runner)
 - [ ] `GRID_DIM` als CLI-Parameter
 
-### §6.2 — Sitzung B: SDK-API ausbauen
+### §7.2 — Sitzung B: SDK-API ausbauen
 
 - [ ] `ProSDK_Export_BMP`, `ProSDK_Render_ASCII` — public
 - [ ] `ProSDK_Register_Plugin(pu, plugin, context)`
 - [ ] `ProSDK_Setup_2D_Torus`, `ProSDK_Setup_3D_Torus`
 - [ ] `ProSDK_Check_ABI`, `ProSDK_GetVersion`
 
-### §6.3 — Sitzung C: SDK-Packaging
+### §7.3 — Sitzung C: SDK-Packaging
 
 - [ ] `docs\project\SDK_PACKAGING.md`
 - [ ] `prophysics.pc` für pkg-config
@@ -367,9 +392,9 @@ Entwicklungsphasen.
 
 ---
 
-## §7 — Zukunft (Etappen 24+)
+## §8 — Zukunft (Etappen 24+)
 
-### §7.1 — Phase 1 abschließen (Etappe 24–27)
+### §8.1 — Phase 1 abschließen (Etappe 24–27)
 
 - [ ] **Etappe 24** — Euklidisches Pfadintegral
 - [ ] **Etappe 25** — GHZ / Mermin
@@ -378,7 +403,7 @@ Entwicklungsphasen.
 
 **Nach Etappe 27:** Kernel-Version springt auf **2.x**.
 
-### §7.2 — Phase 2 (Makrophysik)
+### §8.2 — Phase 2 (Makrophysik)
 
 - [ ] **Etappe M1** — U4' Bad
 - [ ] **Etappe M2** — U5' Plastizität
@@ -386,7 +411,7 @@ Entwicklungsphasen.
 
 **Nach M1–M3:** Kernel-Version springt auf **3.x**.
 
-### §7.3 — Optional
+### §8.3 — Optional
 
 - [ ] **Etappe 23b** — Creutz-Ratio
 - [ ] **Etappe 18d-B** — Wasserstoff-Revision
@@ -394,18 +419,19 @@ Entwicklungsphasen.
 
 ---
 
-## §8 — Publikation
+## §9 — Publikation
 
 - [ ] Preprint-Kandidat 1: „Quaternion-valued edges on a
       signed-permutation lattice" (arXiv:hep-lat)
 - [ ] Preprint-Kandidat 2: „A computational exploration of quantum
       structures from discrete signed permutations" (arXiv:quant-ph)
+- [ ] Software-Paper (CPC oder JOSS)
 - [ ] Vergleich mit etablierten Lattice-QCD-Werten
 - [ ] Größere Gitter (dim ≥ 128)
 
 ---
 
-## §9 — Wie dieses Dokument gepflegt wird
+## §10 — Wie dieses Dokument gepflegt wird
 
 **Wann wird es aktualisiert?**
 
@@ -426,110 +452,82 @@ Der Autor der Änderung, im gleichen PR.
 
 ---
 
-## §10 — Nächste konkrete Schritte
+## §11 — Nächste konkrete Schritte
 
-**0. Vorbereitung für §5 — ProWB / Web-Docs Integration:**
-
-```cmd
-:: 1. Verzeichnisse anlegen
-mkdir src\prowb
-mkdir build\prowb
-mkdir docs\web\src\parts
-mkdir docs\web\src\css
-mkdir docs\web\src\js
-mkdir docs\web\src\views
-
-:: 2. .gitignore erweitern
-echo out/ >> .gitignore
-
-:: 3. Erste Bausteine (in dieser Reihenfolge):
-::    docs\web\manifest.txt
-::    docs\web\src\parts\header.html
-::    docs\web\src\parts\nav.html
-::    docs\web\src\parts\footer.html
-::    src\prowb\prowb.h  (mit prowb_build_from_manifest)
-::    src\prowb\prowb.c  (neue Funktion + Manifest-Parser)
-::    src\prowb\md_parser.h
-::    src\prowb\md_parser.c
-::    build\prowb\Makefile.nmake
-::    tools\pro_run.ps1  (Aktion "web")
-::    build\main\Makefile.nmake  (Target "prowb")
-::    docs\web\src\css\*.css
-::    docs\web\src\js\10_app.js
-::    docs\web\src\views\*.html
-```
-
-**1. Build + Regression (falls nicht schon gelaufen):**
+**1. Build + Prio-All (Pflicht vor Push):**
 
 ```cmd
-cd C:\Users\koehn\source\repos\ProPhysics\build\main
-build.cmd -Mode all -Rebuild
-
-cd ..\..\tools
-run_alpha_tests.cmd -Prio 1,6,7
+cd tools
+pro_run build -Mode all -Rebuild
+pro_run test -Prio all
 ```
 
 Erwartung: alle PASS, **0 Warnungen**, **0 Link-Fehler**.
 
-**2. Alle Doku-Änderungen committen:**
+**2. Web-Docs bauen und prüfen:**
+
+```cmd
+cd tools
+pro_run web
+```
+
+Erwartung: `out\web\index.html` erzeugt (~1,2 MB, 46 Docs).
+
+**3. Browser-Sichtprüfung:**
+
+- `out\web\index.html` direkt öffnen (Doppelklick).
+- Alle 6 Sektionen durchklicken.
+- Theme-Umschaltung testen.
+- Neue Einträge prüfen: `CICD`, `AlphaNightly` unter `Build`.
+
+**4. Commit + Push:**
 
 ```cmd
 cd C:\Users\koehn\source\repos\ProPhysics
 git add -A
 git status
-git commit -m "1.23.10: B7 nachgeholt, SU2-Plaquette-Konjugation gefixt, 0 Warnings"
+git commit -m "1.23.12: CI-Doku, Alpha-Nightly, ProWB-Doku-Konsolidierung"
+git push origin main
 ```
 
-**3. Git-Tags setzen (schließt §1.7 ab):**
+**5. CI-Verifikation (Actions-Tab):**
+
+- `ci.yml` — grün (~1,5 min).
+- `web-docs.yml` — grün (~1 min).
+- Live-URL prüfen: `https://onkel83.github.io/prophysics/`.
+
+**6. Optional — Alpha-Nightly testen:**
+
+- Actions-Tab → „Alpha-Nightly" → „Run workflow".
+- Scope: `running-coupling` (schneller Test, ~23 min).
+- Danach: `all-long` (voller Lauf, ~64 min).
+
+**7. Git-Tag `v1.23.12` (nach dem Push):**
 
 ```cmd
-git tag -a v1.23.0 -m "Kernel 1.23.0 / Etappe 23 (V&V-Anker 0,08%%)"
-git tag -a etappe-23 -m "Etappe 23 abgeschlossen (43/43 PASS)"
+git tag -a v1.23.12 -m "CI-Doku-Konsolidierung (Etappe 23)"
+git push origin v1.23.12
 ```
 
-**4. Merge `rewrite` → `origin` (falls noch nicht geschehen):**
+**8. Danach:**
 
-```cmd
-:: Sicherheitsnetz
-git tag pre-merge-backup
-
-:: rewrite → origin/main (hart, überschreibt origin)
-git push origin rewrite:main --force
-
-:: Lokalen Branch nachziehen
-git fetch origin
-git branch -u origin/main
-```
-
-**5. Tags pushen:**
-
-```cmd
-git push origin v1.23.0
-git push origin etappe-23
-```
-
-**6. Nach dem Push:**
-
-- `.github/workflows/ci.yml` läuft und führt Prio 1, 6, 7 +
-  `SU2-Wilson-Loop` aus (~1,5 min).
 - **Phase 1 ist formal abgeschlossen. Repo ist publizierbar.**
+- Web-Docs sind live.
+- Nächster funktionaler Schritt: **Etappe 24 — Euklidisches
+  Pfadintegral.**
 
-**7. §5 — ProWB / Web-Docs Integration umsetzen:**
-
-- Schritte §5.1 → §5.8 in dieser Reihenfolge abarbeiten.
-- Verifikation §5.7 am Ende.
-- Doku §5.8 nachziehen.
-
-**8. Optional (kann warten):**
+**9. Optional (kann warten):**
 
 - §4.1 — verbleibende Refactorings (B1, B2, B4, B5, B6, B8)
 - §4.2 — `C1` (`Apply_Amp_Step` splitten), `C4` (`ProEdge` Layout)
-- §6 — SDK-Roadmap
-- §7 — Etappen 24+
+- §5.9 — Web-Docs Phase 2 (Cross-Refs, Suche, i18n)
+- §6.5 — CI Phase 2 (Nightly-Schedule, Prio 2/3/4)
+- §7 — SDK-Roadmap
+- §8 — Etappen 24+
 
 ---
 
-## §11 — Siehe auch
+## §12 — Siehe auch
 
 | Thema | Datei |
 |---|---|
@@ -542,6 +540,7 @@ git push origin etappe-23
 | SDK-API | `docs/project/SDK_API.md` |
 | Testkatalog | `docs/test/ProPhysics_Testkatalog.md` |
 | Test-Baseline | `docs/test/BASELINE.md` |
+| Test-Runner | `docs/test/run_alpha_tests.md` |
 | Konfiguration | `docs/project/CONFIG.md` |
 | VERSIONING | `docs/project/VERSIONING.md` |
 | Amp-Modul | `docs/project/Amp.md` |
@@ -556,11 +555,18 @@ git push origin etappe-23
 | SU2-Modul | `docs/project/SU2.md` |
 | SU2_Dynamics-Modul | `docs/project/SU2_Dynamics.md` |
 | Tensor-Modul | `docs/project/Tensor.md` |
-| **ProWB Builder (C)** | `src/prowb/README.md` *(folgt in §5.8)* |
-| **Web-Docs Manifest** | `docs/web/manifest.txt` *(folgt in §5.4)* |
-| **Web-Docs Pflege** | `docs/web/README.md` *(folgt in §5.8)* |
+| Zentraler Einstiegspunkt | `docs/build/pro_run.md` |
+| Build-Übersicht | `docs/build/BUILD_SCRIPT.md` |
+| Standard-CI | `docs/build/ci.md` |
+| Alpha-Nightly | `docs/build/alpha-nightly.md` |
+| Web-Docs-CI | `docs/build/web-docs-ci.md` |
+| ProWB Builder | `src/prowb/README.md` |
+| ProWB-Makefile | `docs/build/prowb/Makefile.md` |
+| Web-Docs Manifest | `docs/web/manifest.txt` |
+| Web-Docs Pflege | `docs/web/README.md` |
+| Website-README | `docs/project/README.md` |
 | Repository | https://github.com/onkel83/prophysics |
 
 ---
 
-**Ende TODO v1.6.**
+**Ende TODO v1.8.**

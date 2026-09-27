@@ -1,6 +1,6 @@
 # ProPhysics Build & Package — Übersicht
 
-**Stand:** 2026-09-27 (Etappe 23, Kernel 1.23.0)
+**Stand:** 2026-09-28 (Etappe 23, Kernel 1.23.0, ProWB + CI-Doku)
 **Zweck:** Einstiegspunkt in das Build-System. Erklärt die Struktur,
 die Komponenten und ihre Wechselwirkungen. Verweist auf die
 Detail-Dokumente.
@@ -9,23 +9,28 @@ Detail-Dokumente.
 
 ## 1. Was das Build-System tut
 
-Das Build-System erzeugt aus dem Quellcode unter `src\` drei Artefakte:
+Das Build-System erzeugt aus dem Quellcode unter `src\` vier Artefakte:
 
 | Artefakt | Pfad | Quelle |
 |---|---|---|
 | Kernel-DLL + Import-Lib | `bin\ProPhysics.dll`, `lib\ProPhysics.lib` | `src\prophysics\` |
 | SDK-Interface | `bin\pro_sdk_interface.dll`, `lib\pro_sdk_interface.lib` | `src\sdk\` |
 | Test-EXEs | `bin\example_alpha_test.exe` + 2 weitere | `src\test\` |
+| ProWB-Builder | `bin\prowb\prowb.exe` | `src\prowb\` |
 
 Zusätzlich:
+- **Web-Docs** — ProWB rendert die MD-Doku aus `docs\` in ein
+  statisches Portal (`out\web\index.html`).
 - **Test-Runner** in `tools\` — startet die Alpha-Suite.
 - **Export-Funktionen** — kopieren Artefakte in `out\` und packen sie
   als ZIP-Archive (`prophysics-<kind>-<version>.zip`).
 - **BUILD_INFO.txt** — Metadaten im Projekt-Root.
 - **Einheitlicher Einstiegspunkt `pro_run`** — dispatcht auf die
-  bestehenden Build-, Export- und Test-Skripte.
+  bestehenden Build-, Export-, Test- und Web-Skripte.
+- **CI-Workflows** in `.github\workflows\` — Standard-CI,
+  Web-Docs-Deploy, Alpha-Nightly.
 
-Die Build-Kette ist strikt sequenziell:
+Die Build-Kette für den **Kernel-Strang** ist strikt sequenziell:
 
 ```
 prophysics → sdk → test
@@ -33,6 +38,10 @@ prophysics → sdk → test
 
 Der SDK-Build linkt gegen `ProPhysics.lib`, der Test-Build gegen beide
 Import-Libs. Kettenabhängigkeiten werden vom Master-Makefile erzwungen.
+
+Der **ProWB-Build** hängt **nicht** von dieser Kette ab. Er läuft im
+Master-`all` **nach** `test`, ist aber eigenständig baubar
+(`pro_run web`).
 
 ---
 
@@ -42,13 +51,21 @@ Import-Libs. Kettenabhängigkeiten werden vom Master-Makefile erzwungen.
 ProPhysics\
 ├── BUILD_INFO.txt              # wird bei jedem Build erzeugt
 │
+├── .github\
+│   └── workflows\              # CI-Workflows (GitHub Actions)
+│       ├── ci.yml
+│       ├── web-docs.yml
+│       └── alpha-nightly.yml
+│
 ├── bin\                        # alle DLLs + EXEs (flach)
 │   ├── ProPhysics.dll
 │   ├── pro_sdk_interface.dll
 │   ├── example_alpha_test.exe
 │   ├── example_test_density.exe
 │   ├── example_test_tensor.exe
-│   └── logs\                   # Test-Logs
+│   ├── logs\                   # Test-Logs
+│   └── prowb\                  # ProWB-Builder (separat)
+│       └── prowb.exe
 │
 ├── lib\                        # alle Import-Libs (flach)
 │   ├── ProPhysics.lib
@@ -61,12 +78,19 @@ ProPhysics\
 │   ├── sdk\
 │   │   ├── pro_sdk_interface.c (1 Modul)
 │   │   └── header\pro_sdk_interface.h
-│   └── test\
-│       ├── alpha_test_*.c      (17 Module)
-│       ├── example_test_*.c    (2 Module)
-│       └── header\alpha_test_common.h
+│   ├── test\
+│   │   ├── alpha_test_*.c      (17 Module)
+│   │   ├── example_test_*.c    (2 Module)
+│   │   └── header\alpha_test_common.h
+│   └── prowb\                  # Web-Docs-Builder
+│       ├── prowb.c
+│       ├── md_parser.c
+│       ├── README.md
+│       └── header\
+│           ├── prowb.h
+│           └── md_parser.h
 │
-├── tools\                      # Build-/Test-Werkzeuge (nicht Teil des Kernel-Builds)
+├── tools\                      # Build-/Test-Werkzeuge
 │   ├── pro_run.cmd             # zentraler Einstiegspunkt
 │   ├── pro_run.ps1
 │   ├── run_alpha_tests.cmd
@@ -76,12 +100,18 @@ ProPhysics\
 │   ├── main\                   # Master-Orchestrierung + Wrapper
 │   ├── prophysics\             # Kernel-Makefile
 │   ├── sdk\                    # SDK-Makefile
-│   └── test\                   # Test-Makefile
+│   ├── test\                   # Test-Makefile
+│   └── prowb\                  # ProWB-Makefile
 │
 ├── docs\                       # Dokumentation
 │   ├── build\                  # (diese Sektion)
 │   ├── project\                # Roadmap/Projekt
-│   └── test\                   # Testkatalog + Runner-Doc
+│   ├── physics\                # Physik-Übersicht
+│   ├── test\                   # Testkatalog + Runner-Doc
+│   └── web\                    # Web-Docs-Quelle
+│       ├── manifest.txt        # zentrale Konfiguration
+│       ├── README.md           # Manifest-Pflege
+│       └── src\                # Templates, CSS, JS, Views
 │
 ├── python\
 │   └── analysis.py
@@ -90,6 +120,7 @@ ProPhysics\
     ├── exe\                                  # entpackter Inhalt
     ├── sdk\
     ├── kit\
+    ├── web\                                  # Web-Docs (ProWB-Output)
     ├── prophysics-exe-<version>.zip          # ZIP-Archive
     ├── prophysics-sdk-<version>.zip
     └── prophysics-kit-<version>.zip
@@ -99,6 +130,9 @@ ProPhysics\
 
 - **`bin\` und `lib\` sind flach.** Alle DLLs/EXEs nebeneinander, damit
   der Windows-Loader sie ohne `PATH`-Eintrag findet.
+- **`bin\prowb\` ist separat.** ProWB ist ein Build-Tool, kein
+  Runtime-Artefakt. Getrenntes Verzeichnis hält den Kernel-`clean`
+  sauber.
 - **`.c`-Dateien direkt, `.h`-Dateien in `header\`.** Innerhalb jedes
   `src\<modul>\`-Ordners.
 - **Keine Header-Kopien.** Header bleiben am Pflegeort; andere Module
@@ -107,9 +141,14 @@ ProPhysics\
   Ordnern und werden nach dem Link gelöscht.
 - **`tools\` ist separat.** Skripte, die nicht zum Kernel-Build gehören
   (Test-Runner, `pro_run`), liegen nicht in `bin\`, sondern in `tools\`.
+- **`docs\web\` ist Konfiguration + Layout.** Keine MD-Kopien; das
+  Manifest verweist auf die kanonischen MD-Pfade.
 - **`$(MAKEDIR)` statt CWD.** Alle Sub-Makefiles leiten ihre Pfade
   relativ zu ihrem eigenen Ablageort ab. Der Aufruf ist damit
   unabhängig vom aktuellen Arbeitsverzeichnis.
+- **`.github\workflows\` gehört zum Build-System.** Die CI ist keine
+  externe Komponente — sie ist die automatisierte Variante der
+  lokalen Regression.
 
 ---
 
@@ -117,13 +156,14 @@ ProPhysics\
 
 ### 3.1 Sub-Makefiles
 
-Drei Module, jeweils ein eigenes Makefile:
+Vier Module, jeweils ein eigenes Makefile:
 
 | Datei | Baut | Doku |
 |---|---|---|
 | `build\prophysics\Makefile.nmake` | Kernel-DLL + Import-Lib | `docs\build\prophysics\Makefile.md` |
 | `build\sdk\Makefile.sdk.nmake` | SDK-Interface-DLL + Import-Lib | `docs\build\sdk\Makefile.md` |
 | `build\test\Makefile.nmake` | drei Test-EXEs | `docs\build\test\Makefile.md` |
+| `build\prowb\Makefile.nmake` | ProWB-Builder-EXE | `docs\build\prowb\Makefile.md` |
 
 Jedes Sub-Makefile:
 - Leitet seine Pfade über `$(MAKEDIR)\..\..` ab und ist CWD-unabhängig.
@@ -140,25 +180,33 @@ Jedes Sub-Makefile:
 
 | Target | Wirkung |
 |---|---|
-| `all` (Default) | `setup` + `prophysics` + `sdk` + `test` + `info` |
+| `all` (Default) | `setup` + `prophysics` + `sdk` + `test` + `prowb` + `info` |
 | `prophysics` | nur Kernel |
 | `sdk` | Kernel + SDK (Kettenabhängigkeit) |
 | `test` | Kernel + SDK + Tests |
+| `prowb` | nur ProWB-Builder |
 | `info` | nur `BUILD_INFO.txt` |
 | `help` | Übersicht |
 | `rebuild` | `clean` + `all` |
 | `rebuild_prophysics` | `clean_prophysics` + `prophysics` + `info` |
 | `rebuild_sdk` | `clean_sdk` + `sdk` + `info` |
 | `rebuild_test` | `clean_test` + `test` + `info` |
+| `rebuild_prowb` | `clean_prowb` + `prowb` |
 | `clean` | bin\ + lib\ + BUILD_INFO.txt weg |
 | `clean_prophysics` | nur Kernel-Artefakte |
 | `clean_sdk` | nur SDK-Artefakte |
 | `clean_test` | nur Test-Artefakte |
+| `clean_prowb` | nur ProWB-Artefakte |
 
-**Setup:** Legt `bin\` und `lib\` an, falls sie nicht existieren.
+**Setup:** Legt `bin\`, `lib\` und `bin\prowb\` an, falls sie nicht
+existieren.
 
 **CONFIG-Weitergabe:** `CONFIG=release|debug` wird an alle Sub-Makefiles
 durchgereicht.
+
+**Position von `prowb` im `all`-Target:** **Nach** `test`. ProWB ist
+ein Build-Tool, kein Runtime-Artefakt. Fehlschlag blockiert nicht die
+Kernel-Kette.
 
 **Doku:** `docs\build\main\Makefile.md`
 
@@ -192,17 +240,67 @@ Der zweite läuft ~23 min und ist nicht CI-tauglich. Siehe
 ### 3.5 `pro_run` — zentraler Einstiegspunkt
 
 `tools\pro_run.ps1` + `tools\pro_run.cmd`. Dispatcht auf die Skripte
-aus §3.3 und §3.4.
+aus §3.3, §3.4 und §3.6.
 
 | Aktion | Ruft auf |
 |---|---|
 | `pro_run build` | `build\main\build.ps1` |
 | `pro_run export` | `build\main\export.ps1` |
 | `pro_run test` | `tools\run_alpha_tests.ps1` |
+| `pro_run web` | `build\prowb\prowb.exe` (via nmake) |
 | `pro_run all` | build → test → export (Abbruch bei Fehlschlag) |
 | `pro_run help` | Übersicht / `pro_run help <aktion>` |
 
 **Doku:** `docs\build\pro_run.md`
+
+### 3.6 ProWB-Build
+
+`build\prowb\Makefile.nmake` — baut `bin\prowb\prowb.exe`.
+
+**Targets:**
+
+| Target | Wirkung |
+|---|---|
+| `all` (Default) | `setup` + EXE |
+| `setup` | `bin\prowb\` anlegen |
+| `help` | Übersicht |
+| `clean` | Artefakte entfernen |
+
+**CONFIG:** `release|debug`.
+
+**Position im Master:** Nach `test` im `all`-Target. Eigenständig
+baubar über `nmake /f Makefile.nmake` in `build\prowb\`.
+
+**Doku:** `docs\build\prowb\Makefile.md`
+
+**Builder-Referenz:** `src\prowb\README.md`
+
+### 3.7 CI-Workflows (neu in v1.2)
+
+Drei GitHub-Actions-Workflows in `.github\workflows\`. Sie sind die
+**automatisierte Variante** der lokalen Regression — kein Ersatz,
+sondern eine Ergänzung.
+
+| Datei | Trigger | Laufzeit | Was läuft | Doku |
+|---|---|---:|---|---|
+| `ci.yml` | Push + PR auf `main` | ~1,5 min | Build + Prio 1, 6, 7, `SU2-Wilson-Loop` | `docs\build\ci.md` |
+| `web-docs.yml` | Push auf `main` (nur `docs/**`, `src/prowb/**`, `build/prowb/**`) | ~1 min | ProWB-Build + Web-Docs + Deploy auf GitHub Pages | `docs\build\web-docs-ci.md` |
+| `alpha-nightly.yml` | **manuell** (`workflow_dispatch`) | ~23–64 min | Prio 5 + `Running-Coupling` (Scope-abhängig) | `docs\build\alpha-nightly.md` |
+
+**Aufteilung:**
+
+- **Standard-CI** deckt die **schnelle Regression** ab (~1,5 min).
+- **Web-Docs-CI** deckt **Doku-Deploy** ab (~1 min).
+- **Alpha-Nightly** deckt **die langen Tests** ab (~64 min, manuell).
+
+**Warum drei Workflows statt einem?** Jeder hat einen anderen Zweck,
+andere Trigger und andere Laufzeiten. Eine Zusammenlegung würde
+entweder die Standard-CI verlangsamen oder den Nightly-Lauf
+unnötig häufig auslösen.
+
+**Warum kein Cron-Trigger für den Nightly?** GitHub deaktiviert
+`schedule`-Workflows nach 60 Tagen Inaktivität. Manuell = der Nutzer
+entscheidet.
 
 ---
 
@@ -226,18 +324,28 @@ pro_run test -Prio 1-4
 :: Einzelner Test mit eigenem Log-Verzeichnis
 pro_run test -Test Running-Coupling -LogDir C:\logs
 
+:: Web-Docs bauen
+pro_run web
+
+:: Web-Docs mit Rebuild
+pro_run web -Rebuild
+
+:: Alles inkl. Web-Docs
+pro_run all && pro_run web
+
 :: Nur Test, ohne vorher zu bauen (Build existiert bereits)
 pro_run all -NoBuild -NoExport -Prio 8
 
 :: Hilfe
 pro_run help
 pro_run help export
+pro_run help web
 ```
 
 ### 4.2 Direkte Aufrufe (Legacy / Debug)
 
 Die bestehenden Wrapper bleiben erhalten und rufen dieselben Skripte
-auf. Nuetzlich, wenn nur eine einzelne Komponente gebaut werden soll,
+auf. Nützlich, wenn nur eine einzelne Komponente gebaut werden soll,
 ohne die `pro_run`-Dispatch-Schicht.
 
 ```cmd
@@ -255,6 +363,9 @@ build\main\export.cmd kit -Version 1.23.0
 tools\run_alpha_tests.cmd -Prio 8
 tools\run_alpha_tests.cmd -Prio all
 tools\run_alpha_tests.cmd -Prio 1,3,5
+
+:: Web-Docs direkt
+bin\prowb\prowb.exe --manifest docs\web\src docs\web\manifest.txt out\web
 ```
 
 ### 4.3 Direkt im Sub-Ordner (nur nmake)
@@ -268,7 +379,21 @@ nmake /NOLOGO /f Makefile.sdk.nmake CONFIG=release
 
 cd ..\test
 nmake /NOLOGO /f Makefile.nmake CONFIG=release
+
+cd ..\prowb
+nmake /NOLOGO /f Makefile.nmake CONFIG=release
 ```
+
+### 4.4 Über GitHub Actions
+
+```cmd
+:: Workflow manuell starten (Actions-Tab im Browser)
+:: -> Alpha-Nightly -> Run workflow -> Scope wählen
+```
+
+**Standard-CI** läuft automatisch bei Push und PR auf `main`.
+**Web-Docs-CI** läuft automatisch bei Push auf `main` mit
+Doku-Änderungen. **Alpha-Nightly** wird manuell gestartet.
 
 ---
 
@@ -292,15 +417,23 @@ build\test
     │           src\prophysics\header\*.h, src\sdk\header\*.h
     │           lib\ProPhysics.lib, lib\pro_sdk_interface.lib
     ├── schreibt: bin\example_*.exe
+    │
+    ▼ (unabhängig, parallel möglich)
+build\prowb
+    ├── liest:  src\prowb\*.c, src\prowb\header\*.h
+    ├── schreibt: bin\prowb\prowb.exe
 ```
 
 **Kettenprüfung:** SDK- und Test-Build haben Vorabprüfungen (`check_core`,
 `check_deps`), die mit klarer Meldung abbrechen, wenn die Vorgängerlibs
 fehlen.
 
-Der Master-Build drückt die Kette durch Makefile-Abhängigkeiten aus:
-`test: sdk`, `sdk: prophysics`. Ein `nmake sdk` baut also den Kernel
-automatisch mit.
+**ProWB ist unabhängig.** Der ProWB-Build hat keine
+Kettenabhängigkeit. Er kann parallel zu Kernel/SDK/Tests gebaut werden.
+
+Der Master-Build drückt die Kernel-Kette durch Makefile-Abhängigkeiten
+aus: `test: sdk`, `sdk: prophysics`. Ein `nmake sdk` baut also den
+Kernel automatisch mit.
 
 ---
 
@@ -308,10 +441,15 @@ automatisch mit.
 
 - **Kein Signing** im Sub-Makefile. Nur `build.ps1 -Sign` ruft `signtool`.
 - **Kein Header-Export.** Header bleiben am Pflegeort.
-- **Kein Deployment.** Kein Push in Repos oder Verzeichnisse.
+- **Kein Deployment** aus den Makefiles. Der Web-Docs-Deploy läuft
+  über die CI (`web-docs.yml`).
 - **Keine Test-Ausführung.** Nur `run_alpha_tests.ps1` / `pro_run test`.
 - **Keine inkrementelle Header-Analyse.** Ein Header-Update rebuildet
   alle Module eines Sub-Makefiles (bewusst grob).
+- **Kein MD-Kopieren.** ProWB liest die Doku von ihren Pflegeorten;
+  keine Kopien in `docs\web\`.
+- **Kein Auto-Nightly.** Die langen Tests laufen nur manuell
+  (`alpha-nightly.yml`) oder lokal (`pro_run test -Prio all`).
 
 ---
 
@@ -319,13 +457,18 @@ automatisch mit.
 
 ### 7.1 Compiler-Flags
 
-Pro Sub-Makefile definiert. Alle Sub-Makefiles kennen `CONFIG=release|debug`:
+Pro Sub-Makefile definiert. Alle Sub-Makefiles kennen
+`CONFIG=release|debug`:
 
 | Modul | Release | Debug |
 |---|---|---|
-| Kernel | `/W4 /O2 /Ob2 /Oi /GL /MP /arch:AVX2` + `/LTCG` | `/W4 /Od /Zi /MDd /MP` + `/DEBUG` |
+| Kernel | `/W4 /O2 /Ob2 /Oi /GL /MP /arch:AVX2` + `/LTCG` | `/W4 /Od /Zi /MDd /MP /arch:AVX2` + `/DEBUG` |
 | SDK | `/W3 /O2 /Ob2 /Oi /GL /MP` + `/LTCG` | `/W3 /Od /Zi /MDd /MP` + `/DEBUG` |
 | Test | `/W3 /O2 /Ob2 /Oi /GL /MP /arch:AVX2` + `/LTCG` | `/W3 /Od /Zi /MDd /MP /arch:AVX2` + `/DEBUG` |
+| ProWB | `/W4 /O2 /Ob2 /Oi /GL /MP` + `/LTCG` | `/W4 /Od /Zi /MDd /MP` + `/DEBUG` |
+
+**Hinweis:** ProWB nutzt `/W4` wie der Kernel, aber **kein**
+`/arch:AVX2` — ProWB ist IO-lastig, nicht compute-lastig.
 
 ### 7.2 Pfade
 
@@ -360,6 +503,21 @@ Makefile-Ebenen gereicht wird:
 
 Ungültige Werte brechen den Build mit `!ERROR` ab.
 
+### 7.6 CI-Umgebung
+
+Die CI-Workflows nutzen:
+
+| Aspekt | Wert |
+|---|---|
+| Runner | `windows-latest` |
+| MSVC-Setup | `ilammy/msvc-dev-cmd@v1` mit `arch: x64` |
+| Konfiguration | `release` (Default) |
+| Timeout | 120 min (Nightly), 360 min (Default, Standard-CI) |
+| Cache | keiner |
+
+Details siehe `docs\build\ci.md`, `docs\build\alpha-nightly.md`,
+`docs\build\web-docs-ci.md`.
+
 ---
 
 ## 8. Was jeder Build-Schritt erzeugt
@@ -373,9 +531,14 @@ Ungültige Werte brechen den Build mit `!ERROR` ab.
 | `bin\example_alpha_test.exe` | Haupt-Test-Suite |
 | `bin\example_test_density.exe` | Dichte-Regression |
 | `bin\example_test_tensor.exe` | Tensor-/Fock-Regression |
+| `bin\prowb\prowb.exe` | ProWB-Web-Docs-Builder |
 | `lib\ProPhysics.lib` | Kernel-Import-Lib |
 | `lib\pro_sdk_interface.lib` | SDK-Import-Lib |
 | `BUILD_INFO.txt` | Metadaten (Zeitstempel, Version, Etappe, Dateiliste) |
+
+**Hinweis:** `bin\prowb\prowb.exe` liegt **nicht** direkt in `bin\`,
+sondern in `bin\prowb\`. Grund: ProWB ist ein Build-Tool, kein
+Runtime-Artefakt.
 
 ### 8.2 Nach `pro_run export` / `export.ps1` (Modi)
 
@@ -390,6 +553,39 @@ Ungültige Werte brechen den Build mit `!ERROR` ab.
 `v`-Präfix. Aktuell: `1.23.0`.
 
 Details siehe `docs\build\helper\export.md`.
+
+### 8.3 Nach `pro_run web` / `prowb.exe`
+
+ProWB erzeugt:
+
+| Pfad | Was |
+|---|---|
+| `out\web\index.html` | Single-Page-App (Manifest-Übersicht) |
+| `out\web\assets\*.css` | 8 CSS-Dateien (kopiert) |
+| `out\web\assets\*.js` | 2 JS-Dateien (kopiert) |
+| `out\web\data\docs.js` | Geparste MD-Inhalte (JSON-ish) |
+
+**Größe:** ~1,2 MB bei 44 Docs.
+
+**Enthält nicht:** Keine MD-Dateien, keine Kopien. Alle Inhalte sind
+im `data\docs.js` eingebettet.
+
+**Deployment:** `out\web\` wird von der CI
+(`.github\workflows\web-docs.yml`) auf GitHub Pages deployt.
+
+Details siehe `docs\build\prowb\Makefile.md`, `src\prowb\README.md`,
+`docs\web\README.md`, `docs\build\web-docs-ci.md`.
+
+### 8.4 Nach CI-Läufen
+
+| Workflow | Artefakt | Retention |
+|---|---|---|
+| `ci.yml` | `test-logs` (aus `bin\logs\`) | 7 Tage |
+| `web-docs.yml` | Pages-Artefakt (nicht herunterladbar) | (Pages) |
+| `alpha-nightly.yml` | `alpha-nightly-logs-<scope>-<run_id>` | 30 Tage |
+
+Alle Artefakte sind im Actions-Tab unter „Summary" → „Artifacts"
+erreichbar. Details siehe die jeweilige CI-Doku.
 
 ---
 
@@ -414,8 +610,19 @@ Details siehe `docs\build\helper\export.md`.
 | Runner lädt falsche DLL | `-DllDir != -ExeDir` | beide auf `<repo>\bin` zeigen lassen |
 | `Running-Coupling TIMEOUT` | Rechner zu langsam | Timeout in `run_alpha_tests.ps1` erhöhen |
 | `ZIP konnte nicht erzeugt werden` | `OutDir` voll oder gesperrt | `Compress-Archive`-Fehler prüfen |
+| `prowb.exe: No such file` | ProWB nicht gebaut | `pro_run web` baut automatisch |
+| `Manifest nicht gefunden` | `docs\web\manifest.txt` fehlt | Pfad prüfen |
+| `out\web\index.html` leer | Manifest leer oder Parser-Fehler | `pro_run web -v` prüfen |
+| Web-Docs-Icons zeigen □ | UTF-8-Problem in `manifest.txt` | Datei als UTF-8 speichern |
+| `prowb.exe` Exit 3 | IO-Fehler (Output-Verzeichnis) | `out\web\` beschreibbar? |
+| CI-Web-Docs schlägt fehl | Pages-Source nicht auf „GitHub Actions" | Repo-Settings prüfen |
+| Standard-CI FAIL, lokal OK | MSVC-Version unterschiedlich | `windows-latest`-Version im Log prüfen |
+| Alpha-Nightly taucht nicht auf | Workflow-Datei nicht committed | `.github\workflows\alpha-nightly.yml` prüfen |
+| Alpha-Nightly TIMEOUT | Runner zu langsam | `timeout-minutes` erhöhen |
 
 **Detail-Diagnose** pro Sub-Makefile: siehe jeweilige Doku-Seite.
+**Detail-Diagnose** pro CI-Workflow: siehe `ci.md`, `alpha-nightly.md`,
+`web-docs-ci.md`.
 
 ---
 
@@ -424,7 +631,10 @@ Details siehe `docs\build\helper\export.md`.
 ```
 docs\build\
 ├── BUILD_SCRIPT.md                # diese Datei
-├── pro_run.md                     # NEU: zentraler Einstiegspunkt
+├── pro_run.md                     # zentraler Einstiegspunkt
+├── ci.md                          # Standard-CI (ci.yml)
+├── alpha-nightly.md               # Manueller Nightly (alpha-nightly.yml)
+├── web-docs-ci.md                 # Web-Docs-CI (web-docs.yml)
 ├── main\
 │   └── Makefile.md                # Master-Makefile
 ├── prophysics\
@@ -433,6 +643,8 @@ docs\build\
 │   └── Makefile.md                # SDK-Interface-Build
 ├── test\
 │   └── Makefile.md                # Test-Build
+├── prowb\
+│   └── Makefile.md                # ProWB-Makefile
 └── helper\
     ├── build.md                   # build.ps1 / build.cmd
     ├── export.md                  # export.ps1 / export.cmd
@@ -444,7 +656,30 @@ Test-Dokumentation separat:
 ```
 docs\test\
 ├── ProPhysics_Testkatalog.md      # alle 43 Tests
-└── run_alpha_tests.md             # Test-Runner
+├── run_alpha_tests.md             # Test-Runner
+├── BASELINE.md                    # Test-Baseline
+└── WRITING_TESTS.md               # Anleitung zum Test-Schreiben
+```
+
+Web-Docs-Dokumentation separat:
+
+```
+docs\web\
+├── manifest.txt                   # zentrale Konfiguration
+├── README.md                      # Manifest-Pflege
+└── src\                           # Templates, CSS, JS, Views
+```
+
+ProWB-Builder-Dokumentation:
+
+```
+src\prowb\
+├── README.md                      # Builder-Referenz
+├── prowb.c
+├── md_parser.c
+└── header\
+    ├── prowb.h
+    └── md_parser.h
 ```
 
 Projekt-Roadmap:
@@ -463,18 +698,42 @@ docs\project\
 5. `docs\build\helper\build.md` — Details zu `build.ps1`.
 6. `docs\test\ProPhysics_Testkatalog.md` — was getestet wird.
 7. `docs\test\run_alpha_tests.md` — wie man die Tests fährt.
+8. `docs\build\ci.md` — was in der CI läuft.
+9. `src\prowb\README.md` — wie die Web-Docs entstehen.
+10. `docs\web\README.md` — wie man die Web-Docs pflegt.
 
 ---
 
 ## 11. Was passiert nach dem Build
 
-Nach erfolgreichem `pro_run all` (Default) oder `build.cmd` (Default-Modus `all`):
+Nach erfolgreichem `pro_run all` (Default) oder `build.cmd`
+(Default-Modus `all`):
 
 1. `bin\` enthält 2 DLLs + 3 EXEs.
-2. `lib\` enthält 2 LIBs.
-3. `BUILD_INFO.txt` im Root ist aktuell (mit Version `1.23.0`, Etappe `23`).
-4. Test-Runner und `pro_run` sind einsatzbereit in `tools\`.
-5. `out\` enthält die angeforderten ZIP-Pakete.
+2. `bin\prowb\` enthält `prowb.exe`.
+3. `lib\` enthält 2 LIBs.
+4. `BUILD_INFO.txt` im Root ist aktuell (mit Version `1.23.0`,
+   Etappe `23`).
+5. Test-Runner und `pro_run` sind einsatzbereit in `tools\`.
+6. `out\` enthält die angeforderten ZIP-Pakete.
+
+Nach erfolgreichem `pro_run web`:
+
+7. `out\web\` enthält das generierte Portal (`index.html` + Assets).
+8. Das Portal ist lokal im Browser öffenbar (Doppelklick).
+9. Die CI deployt es auf GitHub Pages (bei Push auf `main`).
+
+Nach einem Push auf `main`:
+
+10. Standard-CI läuft (~1,5 min, `.github\workflows\ci.yml`).
+11. Web-Docs-CI läuft, wenn Doku geändert wurde (~1 min).
+12. GitHub Pages aktualisiert sich (Live-URL
+    `https://onkel83.github.io/prophysics/`).
+
+Nach manuellem Start von Alpha-Nightly:
+
+13. Prio 5 + `Running-Coupling` laufen (~64 min).
+14. Logs werden als Artefakt hochgeladen (30 Tage).
 
 **Nächster Schritt:**
 
@@ -486,6 +745,14 @@ pro_run test -Prio all
 - Prio 5 (Hydrogen-48): ~2 281 s
 - Prio 8 (Running-Coupling): ~1 398 s
 - Alle anderen 41 Tests: ~742 s
+
+**Für die Web-Docs:**
+
+```cmd
+pro_run web
+```
+
+**Erwartung:** `out\web\index.html` ~1,2 MB, 44 Docs geparst.
 
 ---
 
@@ -556,9 +823,41 @@ pro_run test -Prio all
 - **Konsistenz-Fixes:** Kernel-Modul-Zahl überall **12**, Test-Modul-Zahl
   überall **17**, Test-Anzahl überall **43**.
 
-Die Build-Kette selbst bleibt unverändert (`prophysics → sdk → test`).
-Nur die Sub-Makefiles bekommen zusätzliche Einträge und die Wrapper
-eine neue Dispatch-Schicht.
+### 12.5 — ProWB / Web-Docs Integration (Patch `1.23.11`)
+
+- **`src\prowb\`** — neuer Builder (C99), bestehend aus `prowb.c`,
+  `md_parser.c` und zwei Headern in `header\`.
+- **`build\prowb\Makefile.nmake`** — baut `bin\prowb\prowb.exe`.
+  `CONFIG=release|debug`. Eigenständig baubar.
+- **Master-Makefile** — Target `prowb` ergänzt. Position im `all`-Target:
+  **nach** `test`. Fehlschlag blockiert nicht die Kernel-Kette.
+- **`pro_run web`** — neue Aktion. Ruft `nmake` in `build\prowb\` und
+  dann `prowb.exe --manifest`.
+- **`docs\web\`** — Web-Docs-Quelle (Manifest + Templates + Assets).
+  Keine MD-Kopien; das Manifest verweist auf die kanonischen Pfade.
+- **`.github\workflows\web-docs.yml`** — CI-Workflow: baut ProWB +
+  Web-Docs, deployt auf GitHub Pages.
+- **Neue Doku:** `src\prowb\README.md`, `docs\build\prowb\Makefile.md`,
+  `docs\web\README.md`, `docs\build\web-docs-ci.md`.
+
+### 12.6 — CI-Workflows und CI-Doku (Patch `1.23.12`)
+
+- **`.github\workflows\ci.yml`** — Standard-CI: Build + Prio 1, 6, 7,
+  `SU2-Wilson-Loop`. Läuft auf jedem Push und PR auf `main` (~1,5 min).
+- **`.github\workflows\web-docs.yml`** — Web-Docs-CI (siehe §12.5).
+- **`.github\workflows\alpha-nightly.yml`** — Manueller Nightly-Workflow
+  für Prio 5 + `Running-Coupling` (~64 min). `workflow_dispatch`,
+  Scope-Auswahl (`all-long`, `prio-5`, `running-coupling`).
+- **Neue Doku:** `docs\build\ci.md`, `docs\build\alpha-nightly.md`.
+  `docs\build\web-docs-ci.md` existiert bereits (§12.5).
+- **`docs\build\BUILD_SCRIPT.md`** (diese Datei) — §3.7 (CI-Workflows)
+  und §12.6 (dieser Abschnitt) neu.
+- **`docs\web\manifest.txt`** — Sektion `Build` um `docs/build/ci.md`
+  und `docs/build/alpha-nightly.md` erweitert (Einträge von 44 auf 46).
+
+Die Kernel-Build-Kette selbst bleibt unverändert. CI-Workflows sind
+**keine Build-Komponenten** im engeren Sinn, sondern eine
+automatisierte Variante der lokalen Regression.
 
 ---
 
@@ -567,17 +866,25 @@ eine neue Dispatch-Schicht.
 | Thema | Datei |
 |---|---|
 | Zentraler Einstiegspunkt | `docs\build\pro_run.md` |
+| Standard-CI | `docs\build\ci.md` |
+| Manueller Nightly | `docs\build\alpha-nightly.md` |
+| Web-Docs-CI | `docs\build\web-docs-ci.md` |
 | Master-Makefile | `docs\build\main\Makefile.md` |
 | Kernel-Build | `docs\build\prophysics\Makefile.md` |
 | SDK-Build | `docs\build\sdk\Makefile.md` |
 | Test-Build | `docs\build\test\Makefile.md` |
+| ProWB-Build | `docs\build\prowb\Makefile.md` |
 | build.ps1 / build.cmd | `docs\build\helper\build.md` |
 | export.ps1 / export.cmd | `docs\build\helper\export.md` |
 | write_build_info.ps1 | `docs\build\helper\write_build_info.md` |
+| ProWB-README | `src\prowb\README.md` |
+| Web-Docs-Manifest | `docs\web\README.md` |
 | Testkatalog | `docs\test\ProPhysics_Testkatalog.md` |
 | Test-Runner | `docs\test\run_alpha_tests.md` |
+| Test-Baseline | `docs\test\BASELINE.md` |
 | Projekt-Roadmap | `docs\project\Project.md` |
+| Changelog | `CHANGELOG.md` (`1.23.12`) |
 
 ---
 
-**Ende Build-System-Übersicht v1.0.**
+**Ende Build-System-Übersicht v1.2.**

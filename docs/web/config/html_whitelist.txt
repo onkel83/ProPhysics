@@ -1,0 +1,35 @@
+# =============================================================
+# html_whitelist.txt — Erlaubte HTML-Tags in Markdown-Roh-HTML
+# =============================================================
+# Format:  <tag>[:attr1,attr2,...]
+# - Tag ohne ":" → keine Attribute erlaubt.
+# - Tag mit ":" und leerer Liste → ebenfalls keine Attribute.
+# - Mehrfachnennung = Union der Attribute.
+# - <script>, <style>, <iframe>, <object>, <embed> immer verboten.
+# - on*-Attribute und javascript:-URLs immer verboten.
+# =============================================================
+
+# --- Textauszeichnung ---
+br
+sub
+sup
+kbd
+mark
+s
+u
+small
+
+# --- Semantik mit Attributen ---
+abbr:title
+span:class,id
+div:class,id
+
+# --- Links (Roh-HTML) ---
+a:href,title,target,rel
+
+# --- Bilder (Roh-HTML) ---
+img:src,alt,title,width,height,class
+
+# --- Details ---
+details:open
+summary

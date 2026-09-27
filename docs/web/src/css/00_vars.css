@@ -1,0 +1,32 @@
+/* 00_vars.css — ProPhysics Industrial Palette */
+
+:root {
+    /* --- BASIS: Dark Industrial --- */
+    --color-bg: #1c1e22;
+    --color-surface: #23272e;
+    --color-header-bg: #2b2f36;
+    --color-nav-bg: #181a1e;
+    /* --- TEXT --- */
+    --text-main: #b2d8d8;
+    --text-muted: #669999;
+    --text-light: #e0f2f1;
+    /* --- AKZENTE: Petroleum / Teal --- */
+    --color-accent: #00cccc;
+    --color-accent-dim: #008080;
+    --color-danger: #ff4d4d;
+    /* --- EFFEKTE --- */
+    --shadow-metallic: 0 0 15px rgba(0, 204, 204, 0.2), 2px 2px 0px #0984e3;
+    --shadow-card: 0 10px 30px rgba(0, 0, 0, 0.6);
+    /* --- TYPOGRAPHIE --- */
+    --font-stack: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Consolas', 'Courier New', monospace;
+}
+
+body {
+    background-color: var(--color-bg);
+    color: var(--text-main);
+    font-family: var(--font-stack);
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}

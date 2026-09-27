@@ -1,0 +1,50 @@
+# =============================================================
+# emoji.txt — Shortcode-Mapping für Markdown
+# =============================================================
+# Format:   :shortcode:|<replacement>
+# - Shortcode ist case-sensitive.
+# - Replacement darf UTF-8 sein (Emoji, Symbol, Text).
+# - Leere Zeilen und #-Kommentare werden ignoriert.
+# - Auswahl & Reihenfolge frei pflegbar — kein Recompile nötig.
+# =============================================================
+
+# --- Status / Warnungen ---
+:warning:|⚠️
+:info:|ℹ️
+:check:|✅
+:cross:|❌
+:heavy_check:|✔️
+:hourglass:|⏳
+
+# --- Physik / Wissenschaft ---
+:atom:|⚛️
+:zap:|⚡
+:magnet:|🧲
+:infinity:|♾️
+:wave:|🌊
+:sparkles:|✨
+
+# --- Symbole ---
+:arrow_right:|→
+:arrow_left:|←
+:arrow_up:|↑
+:arrow_down:|↓
+:bullet:|•
+:dot:|·
+:section:|§
+
+# --- Gebräuchlich ---
+:star:|⭐
+:rocket:|🚀
+:fire:|🔥
+:shield:|🛡️
+:lock:|🔒
+:key:|🔑
+:book:|📖
+:link:|🔗
+
+# --- Flaggen (Auszug) ---
+:de:|🇩🇪
+:us:|🇺🇸
+:gb:|🇬🇧
+:eu:|🇪🇺

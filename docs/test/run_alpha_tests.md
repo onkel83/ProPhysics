@@ -1,7 +1,7 @@
 # ProPhysics Alpha-Test-Runner
 
 **Dateien:** `tools\run_alpha_tests.ps1` + `tools\run_alpha_tests.cmd`
-**Version:** 1.0.0 (Build-System)
+**Version:** 1.1.0 (Build-System)
 **Kernel:** 1.23.0 (Etappe 23)
 **Zweck:** Fuehrt die Alpha-Test-Suite sequenziell aus, schreibt pro Test
 ein Log und liefert eine PASS/FAIL-Bilanz mit Exit-Code.
@@ -25,7 +25,8 @@ Test-Ausgaben sind nicht thread-safe, und einzelne Tests brauchen
 wuerde.
 
 **Empfohlener Aufruf:** ueber `pro_run test …` in `tools\`. Der
-Runner bleibt auch direkt aufrufbar.
+Runner bleibt auch direkt aufrufbar. `pro_run` dispatcht auf dieses
+Skript und reicht Parameter wie `-Prio`, `-Test`, `-LogDir` durch.
 
 ---
 
@@ -69,7 +70,8 @@ pro_run test -Prio 8
 pro_run test -Test Running-Coupling -LogDir C:\logs
 ```
 
-Details siehe `docs\build\pro_run.md`.
+Details siehe `docs\build\pro_run.md`. `pro_run test` dispatcht auf
+`tools\run_alpha_tests.ps1` und reicht alle Parameter durch.
 
 ### 3.2 Ueber `run_alpha_tests.cmd` (direkt)
 
@@ -259,7 +261,7 @@ hinterlegt. Pro Eintrag: Name, EXE, Argumente, Timeout.
 
 **Empfehlung:** In normalen CI-Laeufen `Running-Coupling` auslassen,
 indem `-Test SU2-Wilson-Loop` gefahren wird (~2 s). `Running-Coupling`
-als Nightly-Job.
+als Nightly-Job (manuell, siehe §16.2).
 
 ---
 
@@ -347,11 +349,11 @@ Format pro Datei: `<timestamp>_<name>.log`
 Beispiel:
 
 ```
-20260927_150634_Amp-Smoke.log
-20260927_150634_Born-Regel.log
-20260927_150634_Dirac.log
-20260927_150634_SU2-Wilson-Loop.log
-20260927_150634_Running-Coupling.log
+20260928_150634_Amp-Smoke.log
+20260928_150634_Born-Regel.log
+20260928_150634_Dirac.log
+20260928_150634_SU2-Wilson-Loop.log
+20260928_150634_Running-Coupling.log
 ...
 ```
 
@@ -363,6 +365,9 @@ Jede Log enthaelt:
 
 **Log-Namen normalisiert:** Sonderzeichen im Test-Namen (Leerzeichen,
 Umlaute) werden zu `_`. Der Regex im Skript ist `[^\w\-]` → `_`.
+
+**CI-Upload:** Bei GitHub-Actions-Läufen werden die Logs als Artefakt
+hochgeladen. Details siehe die CI-Dokumente (§16, §20).
 
 ---
 
@@ -445,11 +450,11 @@ Farbcodierung:
 
 Test                     Ergebnis      Sek. Log
 ----                     --------      ---- ---
-Amp-Smoke                PASS           0,5 20260927_150634_Amp-Smoke.log
-Born-Regel               PASS           0,1 20260927_150634_Born-Regel.log
+Amp-Smoke                PASS           0,5 20260928_150634_Amp-Smoke.log
+Born-Regel               PASS           0,1 20260928_150634_Born-Regel.log
 ...
-SU2-Wilson-Loop          PASS           1,1 20260927_150634_SU2-Wilson-Loop.log
-Running-Coupling         PASS       1.398,3 20260927_150634_Running-Coupling.log
+SU2-Wilson-Loop          PASS           1,1 20260928_150634_SU2-Wilson-Loop.log
+Running-Coupling         PASS       1.398,3 20260928_150634_Running-Coupling.log
 
 PASS: 43   FAIL: 0   TIMEOUT: 0   MISSING: 0   UNKNOWN: 0   | Gesamt: 43
 Dauer gesamt: 4420,6s
@@ -466,7 +471,7 @@ PASS: 42   FAIL: 1   TIMEOUT: 0   MISSING: 0   UNKNOWN: 0   | Gesamt: 43
 Dauer gesamt: 4421,0s
 
 Nicht-bestandene Tests:
-  - Running-Coupling       FAIL     <repo>\bin\logs\20260927_150634_Running-Coupling.log
+  - Running-Coupling       FAIL     <repo>\bin\logs\20260928_150634_Running-Coupling.log
 ```
 
 Die Zeile wird in Rot ausgegeben, Exit-Code ist 1.
@@ -490,7 +495,7 @@ Unterscheidung steht in der Konsolenausgabe und im Log-Verzeichnis.
 
 ### 12.1 SU2-Wilson-Loop (T1–T18 + KA)
 
-`20260927_104315_SU2-Wilson-Loop.log` (gekuerzt):
+`20260928_104315_SU2-Wilson-Loop.log` (gekuerzt):
 
 ```
 ========================================================================
@@ -528,7 +533,7 @@ vorher 8,06e-03 (Original).
 
 ### 12.2 Running-Coupling (Etappe 23)
 
-`20260927_150634_Running-Coupling.log` (gekuerzt):
+`20260928_150634_Running-Coupling.log` (gekuerzt):
 
 ```
 ========================================================================
@@ -585,12 +590,21 @@ run_alpha_tests.cmd -Test Dirac
 run_alpha_tests.cmd -Test Running-Coupling
 ```
 
+Oder ueber `pro_run`:
+
+```cmd
+cd tools
+pro_run test -Test Dirac
+pro_run test -Test Running-Coupling -LogDir C:\logs
+```
+
 ---
 
 ## 14. Aufruf-Matrix
 
 | CWD | Aufruf | `ExeDir` | `DllDir` | `LogDir` |
 |---|---|---|---|---|
+| `tools\` | `pro_run test -Prio 8` | `<repo>\bin` | `<repo>\bin` | `<repo>\bin\logs` |
 | `tools\` | `run_alpha_tests.cmd -Prio 8` | `<repo>\bin` | `<repo>\bin` | `<repo>\bin\logs` |
 | `tools\` | `run_alpha_tests.cmd -Prio all -LogDir H:\temp\logs` | `<repo>\bin` | `<repo>\bin` | `H:\temp\logs` |
 | `tools\` | `run_alpha_tests.cmd -Test Dirac` | `<repo>\bin` | `<repo>\bin` | `<repo>\bin\logs` |
@@ -634,68 +648,158 @@ run_alpha_tests.cmd -Prio 8
 
 ## 16. Integration mit CI / GitHub Actions
 
-Seit Etappe 23 hat Prio 8 einen **langen** Test (Running-Coupling).
-Der laeuft ~23 min und ist damit **nicht CI-tauglich**. Zwei
-Empfehlungen:
+ProPhysics hat **drei** GitHub-Actions-Workflows. Sie sind
+unabhängig, haben unterschiedliche Trigger und Laufzeiten. Der
+Test-Runner wird von **zwei** von ihnen genutzt.
 
-### 16.1 Standard-CI (Prios 1–4, 6, 7 + SU2-Wilson-Loop)
+### 16.1 Standard-CI — `ci.yml`
 
-Mit dem `-Test`-Parameter kann gezielt nur der kurze SU2-Test
-gefahren werden:
+**Trigger:** Push auf `main` und Pull Requests gegen `main`.
+**Laufzeit:** ~1,5 min.
 
-```yaml
-- name: Alpha-Suite (Prios 1-4, 6, 7)
-  shell: pwsh
-  working-directory: tools
-  run: |
-    $prios = @('1','2','3','4','6','7')
-    $failed = @()
-    foreach ($p in $prios) {
-        & cmd /c "run_alpha_tests.cmd -Prio $p -LogDir ..\bin\logs"
-        if ($LASTEXITCODE -ne 0) { $failed += $p }
-    }
-    if ($failed.Count -gt 0) {
-        Write-Host "Failed: $($failed -join ', ')" -ForegroundColor Red
-        exit 1
-    }
+**Was läuft:**
 
-- name: SU(2) Kinematik
-  shell: pwsh
-  working-directory: tools
-  run: |
-    & cmd /c "run_alpha_tests.cmd -Test SU2-Wilson-Loop -LogDir ..\bin\logs"
-    if ($LASTEXITCODE -ne 0) { exit 1 }
+| Prio | Test | Dauer |
+|:-:|---|---:|
+| 1 | 2D-Basis (12 Tests) | ~5 s |
+| 6 | Spin-1/2 (1 Test) | < 1 s |
+| 7 | Dirac (1 Test) | ~15 s |
+| 8 | **nur** `SU2-Wilson-Loop` (nicht Running-Coupling) | ~2 s |
+
+**Warum genau diese vier?**
+
+- Prio 1 deckt die Basis-Physik ab (Born, Unitariät, Gauge U(1), CHSH).
+- Prio 6 und 7 sind schnell und decken zwei Schicht-2-Erweiterungen ab.
+- `SU2-Wilson-Loop` ist der einzige schnelle Test aus Prio 8.
+
+**Aufruf aus dem Workflow:**
+
+```cmd
+cd tools
+run_alpha_tests.cmd -Prio 1
+run_alpha_tests.cmd -Prio 6
+run_alpha_tests.cmd -Prio 7
+run_alpha_tests.cmd -Test SU2-Wilson-Loop
 ```
 
-Laufzeit: ~1,5 min.
+Nach jedem Aufruf prüft der Workflow explizit den Exit-Code
+(`if %ERRORLEVEL% neq 0 exit /b`) — sonst wäre die CI wertlos.
 
-### 16.2 Nightly-Job (Prio 5 + Running-Coupling)
+**Artefakt:** `bin\logs\` wird als `test-logs` hochgeladen
+(Retention 7 Tage). Auch bei Fehlschlag (`if: always()`).
 
-```yaml
-- name: Nightly Alpha-Suite
-  shell: pwsh
-  working-directory: tools
-  run: |
-    & cmd /c "run_alpha_tests.cmd -Prio 5 -LogDir ..\bin\logs"
-    if ($LASTEXITCODE -ne 0) { exit 1 }
-    & cmd /c "run_alpha_tests.cmd -Test Running-Coupling -LogDir ..\bin\logs"
-    if ($LASTEXITCODE -ne 0) { exit 1 }
+**Detaillierte Doku:** `docs\build\ci.md`.
+
+### 16.2 Alpha-Nightly — `alpha-nightly.yml`
+
+**Trigger:** Ausschließlich manuell (`workflow_dispatch`).
+**Laufzeit:** ~64 min (Scope `all-long`).
+
+**Was läuft (Scope-abhängig):**
+
+| Scope | Was läuft | Dauer |
+|---|---|---:|
+| `all-long` (Default) | Prio 5 + `Running-Coupling` | ~64 min |
+| `prio-5` | Nur Prio 5 (Hydrogen, Hydrogen-48, Shared-Reference, Tournament) | ~41 min |
+| `running-coupling` | Nur der Metropolis-Test | ~23 min |
+
+**Warum manuell und nicht per Cron?**
+
+- GitHub deaktiviert `schedule`-Workflows nach 60 Tagen Inaktivität
+  im Repo — still und ohne Warnung.
+- Bei 1–2 Läufen pro Woche ist eine automatische Ausführung
+  unnötig.
+- Manuell = der Nutzer entscheidet, wann der ~64-min-Lauf läuft.
+
+**Aufruf aus dem Workflow:**
+
+```cmd
+cd tools
+run_alpha_tests.cmd -Prio 5              :: Scope prio-5
+run_alpha_tests.cmd -Test Running-Coupling   :: Scope running-coupling
 ```
 
-Laufzeit: ~65 min. Einmal pro Nacht akzeptabel.
+**Artefakt:** `bin\logs\` wird als
+`alpha-nightly-logs-<scope>-<run_id>` hochgeladen (Retention 30 Tage).
+Auch bei Fehlschlag.
 
-### 16.3 Was jeder Testlauf sicherstellt
+**Detaillierte Doku:** `docs\build\alpha-nightly.md`.
 
-| Prio | Was geprueft wird |
-|---|---|
-| 1 | Grundmechanik (Born, Unitritaet, Gauge U(1), CHSH) |
-| 2 | Emergenz (Born, Lorentz, Interferenz, CHSH-Varianten) |
-| 3 | Langlauf (Invarianten, Transport, Soliton) |
-| 4 | 3D-Torus (Smoke, Invariance, Bloch) |
-| 5 | Wasserstoff + U4 Shared-Reference |
-| 6 | Spin-1/2 aus SU(2) |
-| 7 | Dirac-Struktur |
-| 8 | SU(2)-Eichfeld (kinematisch + dynamisch + Running-Coupling) |
+### 16.3 Web-Docs-CI — `web-docs.yml`
+
+**Trigger:** Push auf `main` mit Änderungen an `docs/**`,
+`src/prowb/**` oder `build/prowb/**`. Manuell via Actions-Tab.
+**Laufzeit:** ~1 min.
+
+**Was läuft:** ProWB-Build und Web-Docs-Generierung, dann Deploy
+auf GitHub Pages. **Kein Test-Runner.**
+
+**Detaillierte Doku:** `docs\build\web-docs-ci.md`.
+
+### 16.4 Was jeder Testlauf sicherstellt
+
+| Prio | Was geprüft wird | Wo läuft's |
+|---|---|---|
+| 1 | Grundmechanik (Born, Unitariät, Gauge U(1), CHSH) | Standard-CI |
+| 2 | Emergenz (Born, Lorentz, Interferenz, CHSH-Varianten) | — (lokal) |
+| 3 | Langlauf (Invarianten, Transport, Soliton) | — (lokal) |
+| 4 | 3D-Torus (Smoke, Invariance, Bloch) | — (lokal) |
+| 5 | Wasserstoff + U4 Shared-Reference | Alpha-Nightly (manuell) |
+| 6 | Spin-1/2 aus SU(2) | Standard-CI |
+| 7 | Dirac-Struktur | Standard-CI |
+| 8 | SU(2)-Eichfeld (kinematisch + dynamisch) | Standard-CI (`SU2-Wilson-Loop`) |
+| 8 | SU(2)-Metropolis (Running-Coupling) | Alpha-Nightly (manuell) |
+
+**Prio 2, 3, 4 laufen aktuell nicht automatisch.** Sie sind für
+lokale Regressionen vorgesehen. Bei Bedarf können sie in die
+Standard-CI aufgenommen werden (siehe `docs\build\ci.md` §7 für
+Diskussion).
+
+### 16.5 Lokale Reproduktion der CI
+
+Der Standard-CI-Workflow ist 1:1 lokal reproduzierbar:
+
+```cmd
+cd build\main
+build.cmd -Mode all -Rebuild
+
+cd ..\..\tools
+run_alpha_tests.cmd -Prio 1
+run_alpha_tests.cmd -Prio 6
+run_alpha_tests.cmd -Prio 7
+run_alpha_tests.cmd -Test SU2-Wilson-Loop
+```
+
+Das ist dieselbe Sequenz wie in §7.4 (`CONTRIBUTING.md`). Vor jedem
+Push auf `main` empfohlen.
+
+Für den Nightly-Workflow:
+
+```cmd
+cd build\main
+build.cmd -Mode all -Rebuild
+
+cd ..\..\tools
+run_alpha_tests.cmd -Prio 5
+run_alpha_tests.cmd -Test Running-Coupling
+```
+
+### 16.6 Vollständiger Prio-All-Lauf vor einem Release
+
+Vor einem Release oder einem Push auf `main` (Regel R6) ist der
+komplette Lauf Pflicht:
+
+```cmd
+cd tools
+pro_run test -Prio all
+```
+
+~74 min. Kein CI-Workflow führt diesen Lauf automatisch aus. Er
+muss lokal oder über einen manuell gestarteten Nightly-Lauf
+erledigt werden.
+
+**Regel:** Kein Push auf `main` ohne 43/43 PASS (siehe
+`CONTRIBUTING.md` §7.4).
 
 ---
 
@@ -717,6 +821,14 @@ Laufzeit: ~65 min. Einmal pro Nacht akzeptabel.
 | `UNKNOWN`-Ergebnis | unbekannter Test-Marker | Ausgabe im Log pruefen, Regex erweitern |
 | Logs leer | EXE stuerzte beim Start | DLL fehlt in `bin\` |
 | Umlaute in Logs kaputt | EXE ohne UTF-8 | Konsolen-Encoding pruefen |
+| `Workflow läuft nicht` (CI) | Trigger-Bedingung prüft nur `main` | Push auf `main` |
+| `Standard-CI grün, lokal FAIL` (oder umgekehrt) | MSVC-Version unterschiedlich | `windows-latest`-MSVC-Version im Log prüfen |
+| `Artefakt-Upload fehlgeschlagen` (CI) | `bin\logs\` leer | Test-Lauf ist gar nicht gestartet |
+| `Alpha-Nightly taucht nicht auf` | Workflow-Datei nicht committed | `.github\workflows\alpha-nightly.yml` prüfen |
+
+**Diagnose in CI:** Actions-Tab → Workflow → Job → Steps. Für
+PASS/FAIL-Details die hochgeladenen Logs herunterladen (Artifacts
+unter „Summary").
 
 ---
 
@@ -728,6 +840,10 @@ Laufzeit: ~65 min. Einmal pro Nacht akzeptabel.
 - **Keine Trend-Analyse.** Kein Vergleich mit vorherigen Laeufen.
 - **Kein Parsen von Zahlen.** Nur PASS/FAIL-Marker werden erkannt.
 - **Kein Push in Datenbank.** Logs bleiben im Dateisystem.
+- **Kein Auto-Nightly.** Der Nightly-Workflow wird manuell
+  gestartet (`docs\build\alpha-nightly.md`).
+- **Kein Deploy.** Der Web-Docs-Workflow
+  (`docs\build\web-docs-ci.md`) deployt separat.
 
 ---
 
@@ -749,19 +865,29 @@ run_alpha_tests.cmd [-Prio <all|N|N-M|N,M,K>]
 | `-DllDir` | Pfad | identisch mit `-ExeDir` | nein |
 | `-LogDir` | Pfad | `<ExeDir>\logs` | nein |
 
+**Über `pro_run`:** `pro_run test` akzeptiert dieselben Parameter
+und dispatcht auf dieses Skript. Details siehe
+`docs\build\pro_run.md`.
+
 ---
 
 ## 20. Siehe auch
 
-- `docs\build\pro_run.md` — zentraler Einstiegspunkt
-- `docs\test\ProPhysics_Testkatalog.md` — Test-Uebersicht mit Kriterien
-- `docs\test\BASELINE.md` — Test-Baseline (Kurzfassung)
-- `docs\build\helper\build.md` — Build-Wrapper
-- `docs\build\helper\export.md` — Export-Wrapper
-- `docs\build\BUILD_SCRIPT.md` — Uebersicht des Build-Systems
-- `src\test\alpha_test_main.c` — CLI-Parser der EXE
-- `src\test\alpha_test_running_coupling.c` — Running-Coupling-Test
+| Thema | Datei |
+|---|---|
+| Zentraler Einstiegspunkt | `docs\build\pro_run.md` |
+| Test-Uebersicht mit Kriterien | `docs\test\ProPhysics_Testkatalog.md` |
+| Test-Baseline (Kurzfassung) | `docs\test\BASELINE.md` |
+| Tests schreiben | `docs\test\WRITING_TESTS.md` |
+| **Standard-CI (`ci.yml`)** | **`docs\build\ci.md`** |
+| **Alpha-Nightly (`alpha-nightly.yml`)** | **`docs\build\alpha-nightly.md`** |
+| **Web-Docs-CI (`web-docs.yml`)** | **`docs\build\web-docs-ci.md`** |
+| Build-Wrapper | `docs\build\helper\build.md` |
+| Export-Wrapper | `docs\build\helper\export.md` |
+| Build-System-Übersicht | `docs\build\BUILD_SCRIPT.md` |
+| CLI-Parser der EXE | `src\test\alpha_test_main.c` |
+| Running-Coupling-Test | `src\test\alpha_test_running_coupling.c` |
 
 ---
 
-**Ende Test-Runner-Dokumentation (v1.0.0).**
+**Ende Test-Runner-Dokumentation (v1.1.0).**

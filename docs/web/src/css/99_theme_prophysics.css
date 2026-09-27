@@ -1,0 +1,40 @@
+/* 99_theme_prophysics.css — Default Theme (Dark Industrial / Petroleum) */
+/* Aktivierung: <body data-theme="prophysics"> (siehe parts/nav.html) */
+
+body[data-theme="prophysics"],
+:root {
+    --color-bg: #1c1e22;
+    --color-surface: #23272e;
+    --color-header-bg: #2b2f36;
+    --color-nav-bg: #181a1e;
+    --text-main: #b2d8d8;
+    --text-muted: #669999;
+    --text-light: #e0f2f1;
+    --color-accent: #00cccc;
+    --color-accent-dim: #008080;
+    --color-danger: #ff4d4d;
+    --shadow-metallic: 0 0 15px rgba(0, 204, 204, 0.2), 2px 2px 0px #0984e3;
+    --shadow-card: 0 10px 30px rgba(0, 0, 0, 0.6);
+    --font-stack: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Consolas', 'Courier New', monospace;
+}
+
+    /* Anpassungen speziell für dieses Theme */
+    body[data-theme="prophysics"] .nav-btn.active {
+        color: var(--color-accent);
+        border-bottom-color: var(--color-accent);
+    }
+
+    body[data-theme="prophysics"] .dash-card,
+    body[data-theme="prophysics"] .product-box {
+        border-top: 4px solid var(--color-accent);
+        background-color: var(--color-surface);
+        color: var(--text-main);
+        box-shadow: var(--shadow-card);
+    }
+
+    body[data-theme="prophysics"] .status-indicator {
+        border-color: var(--color-accent);
+        color: var(--color-accent);
+        box-shadow: 0 0 10px rgba(0, 153, 153, 0.3);
+    }

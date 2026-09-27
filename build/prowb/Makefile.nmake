@@ -1,0 +1,114 @@
+# =============================================================
+# build/prowb/Makefile.nmake
+# ProWB Builder — Standalone Build
+# =============================================================
+# Verwendung:
+#   nmake /f Makefile.nmake                  (release)
+#   nmake /f Makefile.nmake CONFIG=debug
+#   nmake /f Makefile.nmake clean
+#   nmake /f Makefile.nmake rebuild
+#   nmake /f Makefile.nmake help
+# =============================================================
+
+# --- Konfiguration -------------------------------------------
+!IFNDEF CONFIG
+CONFIG=release
+!ENDIF
+
+!IFNDEF OUTBASE
+OUTBASE=..\..\bin
+!ENDIF
+
+ROOT=..\..
+SRC=$(ROOT)\src\prowb
+HDR=$(SRC)\header
+
+# --- Compiler / Linker ---------------------------------------
+CC=cl.exe
+LD=link.exe
+
+# --- Flags je Konfiguration ----------------------------------
+!IF "$(CONFIG)" == "debug"
+CFLAGS=/nologo /W4 /Od /Zi /MDd /D_DEBUG /DPROWB_STANDALONE
+LDFLAGS=/nologo /DEBUG /OUT:
+OUTDIR=$(OUTBASE)\prowb_debug
+!ELSEIF "$(CONFIG)" == "release"
+CFLAGS=/nologo /W4 /O2 /MD /DPROWB_STANDALONE
+LDFLAGS=/nologo /OUT:
+OUTDIR=$(OUTBASE)\prowb
+!ELSE
+!ERROR Unbekannte CONFIG="$(CONFIG)". Erlaubt: release, debug.
+!ENDIF
+
+CFLAGS=$(CFLAGS) /I"$(HDR)" /D_CRT_SECURE_NO_WARNINGS
+OBJDIR=$(OUTDIR)\obj
+TARGET=$(OUTDIR)\prowb.exe
+
+# --- Quellen -------------------------------------------------
+OBJS= \
+    "$(OBJDIR)\prowb.obj" \
+    "$(OBJDIR)\md_parser.obj"
+
+# --- Standard-Targets ----------------------------------------
+all: banner dirs $(TARGET) done
+
+banner:
+	@echo.
+	@echo ============================================================
+	@echo   ProWB Builder  (CONFIG=$(CONFIG))
+	@echo ============================================================
+	@echo.
+
+dirs:
+	@if not exist "$(OUTBASE)" mkdir "$(OUTBASE)"
+	@if not exist "$(OUTDIR)"  mkdir "$(OUTDIR)"
+	@if not exist "$(OBJDIR)"  mkdir "$(OBJDIR)"
+
+# --- Link ----------------------------------------------------
+$(TARGET): $(OBJS)
+	@echo [LD] $(TARGET)
+	@$(LD) $(LDFLAGS)"$(TARGET)" $(OBJS)
+
+# --- Compile -------------------------------------------------
+"$(OBJDIR)\prowb.obj": "$(SRC)\prowb.c" "$(HDR)\prowb.h" "$(HDR)\md_parser.h"
+	@echo [CC] prowb.c
+	@$(CC) $(CFLAGS) /Fo"$(OBJDIR)\prowb.obj" /c "$(SRC)\prowb.c"
+
+"$(OBJDIR)\md_parser.obj": "$(SRC)\md_parser.c" "$(HDR)\md_parser.h"
+	@echo [CC] md_parser.c
+	@$(CC) $(CFLAGS) /Fo"$(OBJDIR)\md_parser.obj" /c "$(SRC)\md_parser.c"
+
+# --- Clean / Rebuild -----------------------------------------
+clean:
+	@echo [CLEAN] $(OUTDIR)
+	@if exist "$(OUTDIR)" rmdir /S /Q "$(OUTDIR)"
+
+rebuild:
+	@$(MAKE) /nologo /f Makefile.nmake clean
+	@$(MAKE) /nologo /f Makefile.nmake all CONFIG=$(CONFIG)
+
+# --- Hilfe ---------------------------------------------------
+help:
+	@echo.
+	@echo ProWB Builder — Targets
+	@echo ------------------------
+	@echo   all        Baut prowb.exe (Default)
+	@echo   clean      Entfernt $(OUTDIR)
+	@echo   rebuild    clean + all
+	@echo   help       Diese Ausgabe
+	@echo.
+	@echo Parameter:
+	@echo   CONFIG=release^|debug   (Default: release)
+	@echo   OUTBASE=^<Pfad^>          (Default: ..\..\bin)
+	@echo.
+	@echo Quellen:
+	@echo   $(SRC)\prowb.c
+	@echo   $(SRC)\md_parser.c
+	@echo   $(HDR)\prowb.h
+	@echo   $(HDR)\md_parser.h
+	@echo.
+
+done:
+	@echo.
+	@echo [ProWB] Fertig: $(TARGET)
+	@echo.

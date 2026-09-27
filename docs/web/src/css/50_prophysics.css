@@ -1,0 +1,249 @@
+/* 50_prophysics.css — ProPhysics Components */
+
+/* --- HERO --- */
+.welcome-hero {
+    text-align: center;
+    padding: 3rem 1rem;
+    background: linear-gradient(135deg, #23272e 0%, #2b2f36 100%);
+    color: var(--color-accent);
+    border-radius: 4px;
+    margin-bottom: 2rem;
+    box-shadow: var(--shadow-card);
+    border-bottom: 4px solid var(--color-accent);
+}
+
+    .welcome-hero h2 {
+        font-size: 2.4rem;
+        margin-bottom: 0.5rem;
+        text-shadow: 0 0 12px rgba(0, 204, 204, 0.35);
+        letter-spacing: 2px;
+        color: var(--text-light);
+    }
+
+    .welcome-hero p {
+        color: var(--text-muted);
+        font-size: 1.05rem;
+        max-width: 720px;
+        margin: 0 auto;
+    }
+
+/* --- VIEW-HEADER (Sektions-Titel) --- */
+.view-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid #2b2f36;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+
+    .view-header h2 {
+        margin: 0;
+        font-size: 1.4rem;
+        color: var(--text-light);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    .view-header small {
+        color: var(--text-muted);
+        font-weight: normal;
+        font-size: 0.85rem;
+    }
+
+/* --- KARTEN-GRID --- */
+.product-grid,
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+}
+
+/* --- KARTE --- */
+.product-box,
+.dash-card {
+    background: var(--color-surface);
+    padding: 1.5rem;
+    border-radius: 4px;
+    box-shadow: var(--shadow-card);
+    border-top: 4px solid var(--color-accent-dim);
+    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+    display: flex;
+    flex-direction: column;
+}
+
+    .product-box:hover,
+    .dash-card:hover {
+        transform: translateY(-3px);
+        border-top-color: var(--color-accent);
+        box-shadow: var(--shadow-metallic);
+    }
+
+    .product-box h3,
+    .dash-card h3 {
+        margin-top: 0;
+        font-size: 0.95rem;
+        color: var(--text-light);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        border-bottom: 1px solid #2b2f36;
+        padding-bottom: 8px;
+        margin-bottom: 15px;
+    }
+
+.box-icon {
+    font-size: 2.6rem;
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+.box-desc {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 1.2rem;
+    line-height: 1.5;
+}
+
+/* --- BUTTONS --- */
+.box-btn,
+.action-btn {
+    display: block;
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #2b2f36;
+    background: rgba(0, 0, 0, 0.2);
+    color: var(--text-main);
+    cursor: pointer;
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.82rem;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    transition: all 0.2s;
+    border-radius: 3px;
+}
+
+    .box-btn:hover,
+    .action-btn:hover {
+        background: var(--color-accent-dim);
+        color: var(--text-light);
+        border-color: var(--color-accent);
+    }
+
+    .action-btn.warning:hover {
+        background: var(--color-danger);
+        border-color: var(--color-danger);
+        color: #fff;
+    }
+
+.dashboard-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: auto;
+}
+
+.dashboard-actions-row {
+    display: flex;
+    gap: 8px;
+}
+
+/* --- UTILITY --- */
+.utility-section {
+    margin-top: 2.5rem;
+}
+
+.section-title {
+    font-size: 1rem;
+    color: var(--text-light);
+    border-bottom: 2px solid var(--color-accent-dim);
+    padding-bottom: 0.5rem;
+    margin-bottom: 1.2rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.utility-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 15px;
+}
+
+.utility-box {
+    display: flex;
+    align-items: center;
+    background: var(--color-surface);
+    padding: 1.2rem 1.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    box-shadow: var(--shadow-card);
+    border-left: 4px solid var(--color-accent-dim);
+    transition: transform 0.2s, border-left-color 0.2s;
+}
+
+    .utility-box:hover {
+        transform: translateX(5px);
+        border-left-color: var(--color-accent);
+    }
+
+.util-icon {
+    font-size: 1.8rem;
+    margin-right: 1.2rem;
+}
+
+.util-text h4 {
+    margin: 0 0 4px 0;
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    color: var(--text-light);
+}
+
+.util-text p {
+    margin: 0;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+
+/* --- STATUS-PANEL --- */
+.key-status-panel {
+    margin-bottom: 15px;
+    padding: 12px 15px;
+    background: rgba(0, 0, 0, 0.2);
+    border-left: 5px solid #444;
+    font-family: var(--font-mono);
+    font-weight: bold;
+    color: var(--text-muted);
+    transition: all 0.3s ease;
+    font-size: 0.85rem;
+}
+
+    .key-status-panel.active {
+        border-left-color: var(--color-accent);
+        background: rgba(0, 204, 204, 0.1);
+        color: var(--color-accent);
+    }
+
+/* --- LIZENZ / LEGAL-Views --- */
+.license-text-container {
+    font-size: 0.85rem;
+    line-height: 1.6;
+}
+
+    .license-text-container h4 {
+        color: var(--color-accent);
+        margin-top: 1.2rem;
+        margin-bottom: 0.4rem;
+        text-transform: uppercase;
+        font-size: 0.85rem;
+        letter-spacing: 1px;
+    }
+
+.flex-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.flex-center-v {
+    align-items: center;
+}

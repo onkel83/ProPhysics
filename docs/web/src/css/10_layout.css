@@ -1,0 +1,402 @@
+/* 10_layout.css — Struktur & Komponenten */
+
+/* --- 1. HEADER --- */
+.app-header {
+    background-color: var(--color-header-bg);
+    color: var(--text-light);
+    padding: 0.8rem 1.5rem;
+    border-bottom: 3px solid var(--color-accent);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+    position: relative;
+    z-index: 100;
+}
+
+.header-content {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.brand-title {
+    margin: 0;
+    font-size: 1.4rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-light);
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.2s;
+}
+
+    .brand-title:hover {
+        color: var(--color-accent);
+    }
+
+    .brand-title .version {
+        font-size: 0.7rem;
+        opacity: 0.7;
+        vertical-align: top;
+        color: var(--text-muted);
+    }
+
+.status-indicator {
+    font-size: 0.72rem;
+    font-weight: bold;
+    color: var(--color-accent);
+    border: 1px solid var(--color-accent);
+    padding: 3px 8px;
+    border-radius: 2px;
+    box-shadow: 0 0 8px rgba(0, 204, 204, 0.3);
+    letter-spacing: 1px;
+    font-family: var(--font-mono);
+}
+
+/* --- 2. NAVIGATION --- */
+.app-nav {
+    background-color: var(--color-nav-bg);
+    border-bottom: 1px solid #2b2f36;
+    position: sticky;
+    top: 0;
+    z-index: 101;
+}
+
+.nav-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1rem;
+    display: flex;
+    align-items: center;
+    overflow-x: auto;
+    gap: 1rem;
+}
+
+.nav-group {
+    display: flex;
+    flex-direction: column;
+    padding: 0.4rem 0;
+}
+
+.nav-label {
+    font-size: 0.62rem;
+    letter-spacing: 1.5px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 2px;
+    padding-left: 2px;
+}
+
+.nav-flex {
+    display: flex;
+    gap: 4px;
+    flex-wrap: nowrap;
+}
+
+.nav-flex-bar {
+    display: flex;
+    width: 100%;
+    align-items: center;
+}
+
+.sys-push-right {
+    margin-left: auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+}
+
+.nav-btn {
+    background: transparent;
+    border: none;
+    padding: 0.55rem 0.8rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    border-radius: 3px 3px 0 0;
+}
+
+    .nav-btn:hover {
+        color: var(--text-main);
+        background-color: rgba(0, 204, 204, 0.08);
+    }
+
+    .nav-btn.active {
+        color: var(--color-accent);
+        background-color: var(--color-surface);
+        border-bottom-color: var(--color-accent);
+    }
+
+/* --- 3. MAIN --- */
+#app-view-container {
+    flex: 1;
+    max-width: 1200px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+}
+
+.view-content {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* --- 4. MARKDOWN / DOCS --- */
+.markdown-body {
+    background: var(--color-surface);
+    padding: 2.5rem;
+    border-radius: 4px;
+    box-shadow: var(--shadow-card);
+    color: var(--text-main);
+    line-height: 1.7;
+}
+
+    .markdown-body h1,
+    .markdown-body h2 {
+        border-bottom: 2px solid var(--color-accent);
+        padding-bottom: 0.5rem;
+        color: var(--text-light);
+        scroll-margin-top: 90px; /* Anker-Offset wegen Sticky-Nav */
+    }
+
+    .markdown-body h3,
+    .markdown-body h4,
+    .markdown-body h5,
+    .markdown-body h6 {
+        color: var(--text-light);
+        scroll-margin-top: 90px;
+    }
+
+    .markdown-body a {
+        color: var(--color-accent);
+        text-decoration: none;
+        border-bottom: 1px dotted var(--color-accent-dim);
+    }
+
+        .markdown-body a:hover {
+            color: #fff;
+            border-bottom-color: var(--color-accent);
+        }
+
+    /* Tabellen */
+    .markdown-body table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 1rem 0;
+        font-size: 0.9rem;
+    }
+
+    .markdown-body th,
+    .markdown-body td {
+        border: 1px solid #2b2f36;
+        padding: 10px;
+        text-align: left;
+    }
+
+    .markdown-body th {
+        background-color: var(--color-header-bg);
+        color: var(--text-light);
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.8rem;
+        letter-spacing: 0.5px;
+    }
+
+    .markdown-body tr:nth-child(even) {
+        background-color: rgba(255, 255, 255, 0.02);
+    }
+
+    .markdown-body tr:hover {
+        background-color: rgba(0, 204, 204, 0.08);
+    }
+
+    /* Code */
+    .markdown-body pre {
+        background: #0d0f11;
+        color: var(--color-accent);
+        padding: 1rem;
+        border-radius: 4px;
+        overflow-x: auto;
+        font-family: var(--font-mono);
+        font-size: 0.85rem;
+        border: 1px solid #2b2f36;
+        line-height: 1.5;
+    }
+
+    .markdown-body code {
+        background: rgba(0, 204, 204, 0.1);
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-family: var(--font-mono);
+        font-size: 0.88em;
+        color: var(--color-accent);
+    }
+
+    .markdown-body pre code {
+        background: transparent;
+        color: inherit;
+        padding: 0;
+    }
+
+    /* Blockquote */
+    .markdown-body blockquote {
+        border-left: 4px solid var(--color-accent-dim);
+        padding: 0.5rem 1rem;
+        margin: 1rem 0;
+        background: rgba(0, 204, 204, 0.05);
+        color: var(--text-muted);
+        font-style: italic;
+    }
+
+/* Task lists */
+.task-list-item {
+    list-style: none;
+    margin-left: -1.5rem;
+}
+
+    .task-list-item input {
+        margin-right: 10px;
+    }
+
+/* Details */
+.markdown-body details {
+    background: rgba(0, 0, 0, 0.15);
+    border: 1px solid #2b2f36;
+    padding: 0.8rem 1rem;
+    border-radius: 4px;
+    margin: 1rem 0;
+}
+
+.markdown-body summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--color-accent);
+}
+
+/* Inline-Whitelist-Tags */
+.markdown-body kbd {
+    background: #0d0f11;
+    border: 1px solid #2b2f36;
+    border-bottom-width: 2px;
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    color: var(--text-light);
+}
+
+.markdown-body mark {
+    background: rgba(0, 204, 204, 0.25);
+    color: var(--text-light);
+    padding: 0 3px;
+    border-radius: 2px;
+}
+
+/* --- 5. FOOTER --- */
+.app-footer {
+    background-color: var(--color-header-bg);
+    border-top: 3px solid var(--color-accent);
+    padding: 0.9rem 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+
+.footer-left strong {
+    color: var(--text-light);
+}
+
+.footer-link {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    text-decoration: underline;
+    margin-right: 15px;
+    font-size: 0.78rem;
+    transition: color 0.2s;
+}
+
+    .footer-link:hover {
+        color: var(--color-accent);
+    }
+
+.footer-home-btn {
+    background-color: var(--color-accent-dim);
+    color: var(--text-light);
+    border: none;
+    padding: 6px 18px;
+    border-radius: 20px;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 0.75rem;
+    letter-spacing: 1px;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+    .footer-home-btn:hover {
+        transform: scale(1.05);
+        box-shadow: var(--shadow-metallic);
+        background-color: var(--color-accent);
+        color: var(--color-header-bg);
+    }
+
+/* --- 6. RESPONSIVE --- */
+@media (max-width: 768px) {
+    .app-footer {
+        flex-direction: column;
+        gap: 12px;
+        padding-bottom: 18px;
+        text-align: center;
+    }
+
+    .header-content {
+        flex-direction: column;
+        gap: 5px;
+        text-align: center;
+    }
+
+    .nav-container {
+        padding: 0;
+        gap: 4px;
+    }
+
+    .nav-btn {
+        padding: 0.55rem 0.6rem;
+        font-size: 0.72rem;
+    }
+
+    .nav-label {
+        display: none;
+    }
+
+    .nav-group {
+        padding: 0;
+    }
+
+    .markdown-body {
+        padding: 1.2rem;
+    }
+
+    #app-view-container {
+        padding: 1rem 0.5rem;
+    }
+}

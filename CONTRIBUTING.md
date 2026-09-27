@@ -1,8 +1,8 @@
 # ProPhysics — Beitragen
 
 **Datei:** `CONTRIBUTING.md`
-**Version:** 1.0
-**Stand:** 2026-09-25 (Kernel-Version 1.23.0, Etappe 23)
+**Version:** 1.1
+**Stand:** 2026-09-28 (Kernel-Version 1.23.0, Etappe 23, ProWB integriert)
 **Repository:** https://github.com/onkel83/prophysics
 **Zweck:** Verbindliche Anleitung für Beiträge zum Projekt. Wer zum
 ersten Mal etwas beiträgt, liest dieses Dokument **vor** dem ersten
@@ -36,6 +36,7 @@ Wir nehmen Beiträge an, die:
 - **die Dokumentation** verbessern
 - **die Build-Infrastruktur** robuster machen
 - **einen neuen Kernel-Pfad** hinzufügen, der R1–R7 respektiert
+- **die Web-Docs** verbessern (ProWB, CSS, Views)
 
 ### §0.2 — Was du **vor** dem ersten Commit lesen musst
 
@@ -44,11 +45,20 @@ Wir nehmen Beiträge an, die:
 | `docs/project/Project.md` §2 | Projekt-Regeln (R1–R7) |
 | `docs/project/Project.md` §3 | Die 5 Ur-Regeln (U1–U5) |
 | `docs/project/ARCHITECTURE.md` | Wie der Kernel aufgebaut ist |
+| `docs/build/pro_run.md` | Zentraler Einstiegspunkt für Build, Test, Export, Web |
 | `docs/test/ProPhysics_Testkatalog.md` | Test-Philosophie |
 | `docs/build/BUILD_SCRIPT.md` | Build-Konventionen |
 
-Ohne diese fünf Dokumente fehlt dir das Verständnis, um sinnvolle
+Ohne diese sechs Dokumente fehlt dir das Verständnis, um sinnvolle
 Beiträge zu machen.
+
+**Optional, wenn du an den Web-Docs arbeitest:**
+
+| Dokument | Warum |
+|---|---|
+| `src/prowb/README.md` | Builder-Referenz |
+| `docs/web/README.md` | Manifest-Pflege |
+| `docs/build/web-docs-ci.md` | CI-Workflow |
 
 ### §0.3 — Kontakt
 
@@ -72,7 +82,7 @@ Beiträge zu machen.
 |---|---|---|
 | **Visual Studio** | 2019 oder 2022 | Compiler, Linker, nmake |
 | **Windows SDK** | 10 oder 11 | Für `cl.exe` |
-| **PowerShell** | 5.0+ | Build-Wrapper |
+| **PowerShell** | 5.0+ | Build-Wrapper, `pro_run` |
 | **cmd.exe** | Windows 10+ | Wrapper-Skripte |
 
 **Optional:**
@@ -114,21 +124,42 @@ nicht aktiv.
 **Schritt 4 — Build testen:**
 
 ```cmd
+cd tools
+pro_run build
+```
+
+Ergebnis: `bin\` enthält 2 DLLs + 3 EXEs, `lib\` enthält 2 LIBs,
+`bin\prowb\` enthält den ProWB-Builder, `BUILD_INFO.txt` im Root.
+
+Alternativ direkt über den Wrapper (Legacy-Aufruf):
+
+```cmd
 cd build\main
 build.cmd
 ```
 
-Ergebnis: `bin\` enthält 2 DLLs + 3 EXEs, `lib\` enthält 2 LIBs,
-`BUILD_INFO.txt` im Root.
-
 **Schritt 5 — Tests testen:**
 
 ```cmd
-cd ..\..\tools
-run_alpha_tests.cmd -Prio 1
+cd tools
+pro_run test -Prio 1
 ```
 
 Ergebnis: 12/12 PASS in ~5 s.
+
+**Schritt 6 (optional) — Web-Docs testen:**
+
+```cmd
+cd tools
+pro_run web
+```
+
+Ergebnis: `out\web\index.html` wird erzeugt (~1,2 MB bei 44 Docs).
+
+**Empfehlung:** Nutze `pro_run` als Einstiegspunkt. Die direkten
+Wrapper (`build.cmd`, `export.cmd`, `run_alpha_tests.cmd`) bleiben
+funktional, sind aber für den täglichen Gebrauch nicht mehr der
+empfohlene Weg.
 
 ### §1.3 — Optionale Python-Umgebung
 
@@ -144,35 +175,66 @@ Nicht nötig, um Kernel-Code zu bearbeiten.
 
 ## §2 — Build
 
-### §2.1 — Die drei Build-Wege
+### §2.1 — Der empfohlene Weg: `pro_run`
 
-| Weg | Wann |
+`pro_run` ist der **zentrale Einstiegspunkt**. Er dispatcht auf die
+Subskripte und nimmt konsistente Parameter entgegen.
+
+```cmd
+cd tools
+pro_run build
+```
+
+| Aktion | Ruft auf |
 |---|---|
-| `build.cmd` (Wrapper) | Standard, für die meisten Fälle |
-| `nmake` (direkt) | Für Debug und Sub-Makefile-Experimente |
-| `build.ps1` | Wenn du Flags brauchst (`-Sign`, `-GitStamp`) |
+| `pro_run build` | `build\main\build.ps1` |
+| `pro_run export` | `build\main\export.ps1` |
+| `pro_run test` | `tools\run_alpha_tests.ps1` |
+| `pro_run web` | `build\prowb\prowb.exe` (via nmake) |
+| `pro_run all` | build → test → export |
+| `pro_run help` | Übersicht |
 
 ### §2.2 — Die wichtigsten Aufrufe
 
 ```cmd
-:: Alles bauen
-cd build\main
-build.cmd
+cd tools
+
+:: Alles bauen (Kernel + SDK + Tests + ProWB)
+pro_run build
 
 :: Nur Kernel
-build.cmd -Mode prophysics
+pro_run build -Mode kernel
 
 :: Kompletter Rebuild
+pro_run build -Mode all -Rebuild
+
+:: Debug-Konfiguration
+pro_run build -Config debug -Rebuild
+
+:: SDK exportieren
+pro_run export -Export sdk
+
+:: Web-Docs bauen
+pro_run web
+
+:: Web-Docs komplett neu
+pro_run web -Rebuild
+```
+
+**Legacy-Aufrufe** (bleiben funktional, aber nicht mehr empfohlen):
+
+```cmd
+cd build\main
+build.cmd
+build.cmd -Mode prophysics
 build.cmd -Mode all -Rebuild
-
-:: Mit Git-Info
 build.cmd -Mode all -Rebuild -GitStamp
-
-:: Alles weg
 build.cmd -Clean
 ```
 
 ### §2.3 — Sub-Makefiles (nur bei Debug)
+
+Wenn du **direkt** an einem Sub-Makefile arbeitest:
 
 ```cmd
 cd build\prophysics
@@ -182,6 +244,9 @@ cd ..\sdk
 nmake /NOLOGO /f Makefile.sdk.nmake
 
 cd ..\test
+nmake /NOLOGO /f Makefile.nmake
+
+cd ..\prowb
 nmake /NOLOGO /f Makefile.nmake
 ```
 
@@ -195,7 +260,8 @@ nmake /NOLOGO /f Makefile.nmake
 | Inkrementeller Build (nichts geändert) | < 1 s |
 | Kernel allein | ~2 s |
 | Kernel + SDK + Tests | ~5 s |
-| Kompletter Rebuild | ~5 s |
+| ProWB allein | ~1 s |
+| Kompletter Rebuild (inkl. ProWB) | ~6 s |
 
 Der Build ist **schnell**. Wenn er länger dauert, stimmt etwas nicht.
 
@@ -205,12 +271,14 @@ Der Build ist **schnell**. Wenn er länger dauert, stimmt etwas nicht.
 
 ### §3.1 — Die Test-Suite
 
-Alle Tests laufen über `tools\run_alpha_tests.cmd`:
+Alle Tests laufen über `pro_run test` (dispatcht auf
+`tools\run_alpha_tests.ps1`):
 
 ```cmd
 cd tools
-run_alpha_tests.cmd -Prio 1     :: 2D-Basis, ~5 s
-run_alpha_tests.cmd -Prio all   :: alles, ~74 min
+pro_run test -Prio 1        :: 2D-Basis, ~5 s
+pro_run test -Prio all      :: alles, ~74 min
+pro_run test -Test Dirac    :: einzelner Test
 ```
 
 **Prio-Übersicht:**
@@ -231,12 +299,19 @@ run_alpha_tests.cmd -Prio all   :: alles, ~74 min
 
 ```cmd
 :: Schneller Smoke-Test nach jeder Änderung
-run_alpha_tests.cmd -Prio 1
+pro_run test -Prio 1
 
 :: Vor dem Commit: alle schnellen Tests
+pro_run test -Prio 1
+pro_run test -Prio 6
+pro_run test -Prio 7
+```
+
+**Legacy-Aufruf** (bleibt funktional):
+
+```cmd
+cd tools
 run_alpha_tests.cmd -Prio 1
-run_alpha_tests.cmd -Prio 6
-run_alpha_tests.cmd -Prio 7
 ```
 
 ### §3.2 — Logs
@@ -279,6 +354,13 @@ example_alpha_test.exe --test-su2-wilson-loop
 Die Ausgabe ist direkt sichtbar. Der Runner leitet stdout in eine Datei
 um — dasselbe Ergebnis.
 
+Alternativ über `pro_run`:
+
+```cmd
+cd tools
+pro_run test -Test Dirac -LogDir C:\logs
+```
+
 ---
 
 ## §4 — Einen neuen Test hinzufügen
@@ -297,6 +379,10 @@ Ein neuer Test berührt **sechs** Stellen:
 4. Eintrag in `tools/run_alpha_tests.ps1`
 5. Doku in `docs/test/ProPhysics_Testkatalog.md`
 6. Doku in `docs/test/run_alpha_tests.md`
+
+Nach dem Eintrag in `tools/run_alpha_tests.ps1` ist der Test über
+`pro_run test -Test <name>` erreichbar — **keine** zusätzliche
+Änderung an `pro_run.ps1` nötig.
 
 ### §4.2 — Schritt 1: Neue Test-Datei
 
@@ -423,6 +509,9 @@ ALPHA_SOURCES = \
 
 Der Timeout ist **großzügig** zu wählen (3–4× erwartete Dauer).
 
+Nach dem Eintrag ist der Test über `pro_run test -Test My-New-Physics`
+erreichbar.
+
 ### §4.6 — Schritt 5: In `ProPhysics_Testkatalog.md`
 
 Füge einen neuen Abschnitt hinzu:
@@ -460,8 +549,8 @@ hinzu. Aktualisiere die Gesamt-Test-Anzahl.
 - [ ] In `tools/run_alpha_tests.ps1` `$TestCatalog` eingetragen
 - [ ] In `ProPhysics_Testkatalog.md` dokumentiert
 - [ ] In `run_alpha_tests.md` dokumentiert
-- [ ] Build läuft (`build.cmd`)
-- [ ] Test läuft (`run_alpha_tests.cmd -Prio N`)
+- [ ] Build läuft (`pro_run build`)
+- [ ] Test läuft (`pro_run test -Prio N`)
 - [ ] Alle bestehenden Tests laufen weiter
 
 ---
@@ -526,7 +615,8 @@ static void my_function(int x)
  * ProPhysics - <Modul>
  * File: <Dateiname>
  * Architecture: <kurze Beschreibung>
- * Version: <Version> (Etappe <N>)
+ * Kernel: 1.23.0
+ * Etappe: 23
  *
  * <Änderungen dieser Etappe>
  *
@@ -536,7 +626,7 @@ static void my_function(int x)
  * ========================================================================== */
 ```
 
-**Funktions-Header:** Nicht jeder Funktion braucht einen. Bei
+**Funktions-Header:** Nicht jede Funktion braucht einen. Bei
 komplexen Funktionen:
 
 ```c
@@ -564,6 +654,10 @@ komplexen Funktionen:
 - **`div`/`mod` im Hotpath** — siehe R1.
 - **Globale veränderliche Variablen** in `.c`-Dateien, außer sie sind
   bewusst als Cache/Singleton dokumentiert.
+
+**Ausnahme für ProWB:** ProWB ist **nicht** im Kernel-Hotpath. Der
+Builder darf `malloc` und `div`/`mod` verwenden. R1/R2 gelten für
+den Kernel, nicht für Build-Tools.
 
 ### §5.6 — Header-Includes
 
@@ -607,6 +701,10 @@ Bibliothek (`msvcrt` auf Windows). Das ist Absicht.
 **Ausnahme:** `aligned_alloc` (C11) — wird über `pro_aligned_calloc`
 gekapselt und auf MSVC durch `_aligned_malloc` ersetzt.
 
+**Ausnahme ProWB:** Der Web-Docs-Builder nutzt ausschließlich die
+C-Standard-Bibliothek. Keine externen Parser-Bibliotheken (kein
+`cmark`), keine Template-Engines.
+
 ### §6.2 — Keine neuen Floating-Point-Operationen im Hotpath
 
 Der Hotpath verwendet **Integer-Arithmetik** (Q31). Neue Funktionen
@@ -646,6 +744,20 @@ Jedes neue Flag in `ProUniverse` muss:
 ### §6.5 — Keine neuen Tests ohne Doku
 
 Siehe §4.8 — jeder neue Test braucht Einträge in sechs Dateien.
+
+### §6.6 — Keine neuen Build-Targets ohne `pro_run`-Integration
+
+Wenn du ein neues Build-Target hinzufügst (wie ProWB in `1.23.11`):
+
+1. **Sub-Makefile** anlegen (`build\<target>\Makefile.nmake`).
+2. **Master-Makefile** um ein Target erweitern.
+3. **`pro_run`** um eine Aktion erweitern (Dispatch).
+4. **Doku** in `docs\build\<target>\Makefile.md`.
+5. **`docs\build\pro_run.md`** aktualisieren.
+6. **CI-Workflow** (falls relevant).
+
+Der `pro_run`-Dispatch ist Pflicht, damit Nutzer nur **einen**
+Einstiegspunkt lernen müssen.
 
 ---
 
@@ -703,6 +815,18 @@ Docs: API-Referenz und Architektur-Dokument
 - docs/project/ARCHITECTURE.md (neu)
 ```
 
+```
+1.23.11: ProWB / Web-Docs Integration
+
+- src/prowb/ (Builder)
+- build/prowb/ (Makefile)
+- docs/web/ (Manifest + Templates)
+- .github/workflows/web-docs.yml (CI)
+- pro_run web (neue Aktion)
+
+Tests: 43/43 PASS (unverändert)
+```
+
 **Konventionen:**
 
 - Erste Zeile: max. 72 Zeichen.
@@ -715,6 +839,7 @@ Docs: API-Referenz und Architektur-Dokument
 - Build-Artefakte (`bin\`, `lib\`, `_obj\`)
 - `BUILD_INFO.txt` (wird generiert)
 - `out\` (Export-Ziel)
+- `bin\prowb\` (Build-Tool-Artefakt)
 - IDE-Dateien (`.vs\`, `.vscode\`, `.idea\`)
 - Logs (`bin\logs\`)
 - Persönliche Notizen
@@ -727,19 +852,39 @@ ergänze die `.gitignore`.
 Führe die **schnelle Regression** aus:
 
 ```cmd
-cd build\main
-build.cmd -Mode all -Rebuild
+cd tools
 
-cd ..\..\tools
-run_alpha_tests.cmd -Prio 1
-run_alpha_tests.cmd -Prio 6
-run_alpha_tests.cmd -Prio 7
+:: 1. Rebuild (Kernel + SDK + Tests + ProWB)
+pro_run build -Mode all -Rebuild
+
+:: 2. Schnelle Prios
+pro_run test -Prio 1
+pro_run test -Prio 6
+pro_run test -Prio 7
 ```
 
 Alle drei Prios müssen PASS liefern. Wenn nicht: **nicht committen**.
 
-**Für eine neue Etappe:** Auch `-Prio 8` laufen lassen
-(`SU2-Wilson-Loop`, ~2 s).
+**Für eine neue Etappe:** Auch `pro_run test -Prio 8 -Test SU2-Wilson-Loop`
+laufen lassen (~2 s statt 24 min).
+
+**Für eine neue Doku-Etappe (wie `1.23.11`):** Zusätzlich
+
+```cmd
+pro_run web
+```
+
+und im Browser prüfen, dass `out\web\index.html` korrekt aussieht.
+
+**Vor einem Release / Push auf `main`:**
+
+```cmd
+pro_run test -Prio all
+```
+
+Der komplette Lauf (~74 min) ist Pflicht. R6 verlangt, dass jede
+Etappe mit einem grünen Regressionstest endet. **Kein Push ohne
+43/43 PASS.**
 
 ### §7.5 — Pull Request
 
@@ -759,11 +904,12 @@ Sachen ändern willst, mache zehn PRs.
 
 ## Wie getestet
 
-- [ ] Build läuft
+- [ ] `pro_run build -Mode all -Rebuild` läuft fehlerfrei
 - [ ] Prio 1: 12/12 PASS
 - [ ] Prio 6: 1/1 PASS
 - [ ] Prio 7: 1/1 PASS
 - [ ] (falls zutreffend) Neuer Test: <Name>
+- [ ] (falls zutreffend) `pro_run web` läuft fehlerfrei
 
 ## Was sich ändert
 
@@ -785,6 +931,7 @@ Alle PRs werden **einzeln** reviewed. Erwartung:
 - **Tests** müssen laufen.
 - **Doku** muss mit-aktualisiert sein.
 - **Stil** muss passen.
+- **`pro_run`-Integration** (falls relevant) muss passen.
 
 **Ablehnungsgründe:**
 
@@ -803,7 +950,7 @@ Alle PRs werden **einzeln** reviewed. Erwartung:
 ```markdown
 ## Was passiert
 
-`run_alpha_tests.cmd -Prio 8` liefert `SU2-Wilson-Loop FAIL`.
+`pro_run test -Prio 8` liefert `SU2-Wilson-Loop FAIL`.
 
 ## Was erwartet wird
 
@@ -815,13 +962,13 @@ Alle PRs werden **einzeln** reviewed. Erwartung:
 2. `cd prophysics\build\main`
 3. `build.cmd -Mode all -Rebuild`
 4. `cd ..\..\tools`
-5. `run_alpha_tests.cmd -Prio 8`
+5. `pro_run test -Prio 8`
 
 ## Umgebung
 
 - Windows 11 23H2
 - VS 2022 Community
-- Kernel-Version 3.0.0
+- Kernel-Version 1.23.0
 - Commit: <SHA>
 
 ## Log
@@ -857,6 +1004,10 @@ read-only, O(Plaquettes).
 - R1: Bit-Shift, kein div/mod
 - R2: kein malloc
 - R7: additive Erweiterung, kein Pfadwechsel
+
+## `pro_run`-Auswirkung
+
+Keine. Neuer Test kann in bestehende Prio 8 aufgenommen werden.
 ```
 
 **Schlechter Feature-Vorschlag:**
@@ -873,9 +1024,12 @@ akzeptieren:
 - Neue Beispiele
 - Übersetzungen (Englisch)
 - API-Dokumentation für undokumentierte Funktionen
+- **Web-Docs-Verbesserungen** (CSS, Views, Manifest-Pflege)
 
 **Doku-Beiträge** durchlaufen ein **leichteres** Review — kein
-Test-Lauf nötig, wenn nur Markdown geändert wird.
+Test-Lauf nötig, wenn nur Markdown geändert wird. Bei
+Web-Docs-Änderungen (CSS, JS, HTML) sollte `pro_run web` laufen
+und `out\web\index.html` im Browser geprüft werden.
 
 ### §8.4 — Physik beitragen
 
@@ -938,6 +1092,24 @@ hinzu (R5). Wenn die Funktion zur Forschungsfrage passt, bauen wir sie.
 A: Willkommen. `python/analysis.py` ist die einzige Python-Datei.
 Sie ist nicht Teil des Kernels, unterliegt nicht R1/R2.
 
+**F: Ich will die Web-Docs verbessern.**
+A: Willkommen. Lies zuerst `src/prowb/README.md` (Builder),
+`docs/web/README.md` (Manifest-Pflege) und `docs/build/web-docs-ci.md`
+(CI). Neue Doku-Einträge brauchen nur eine Zeile in
+`docs\web\manifest.txt` — kein C-Code. Für CSS/JS/View-Änderungen:
+`pro_run web` laufen lassen und `out\web\index.html` im Browser
+prüfen.
+
+**F: Ich will eine neue Sektion in den Web-Docs.**
+A: Das erfordert **C-Änderung** in `prowb.c` (Sektionen sind hart
+kodiert). Lies `docs/web/README.md` §5, bevor du anfängst. Öffne
+zuerst eine Discussion.
+
+**F: Ich will einen neuen Build-Schritt hinzufügen.**
+A: Lies §6.6 — neue Build-Targets brauchen `pro_run`-Integration.
+Ein neues Target, das nicht über `pro_run` erreichbar ist, wird
+abgelehnt.
+
 **F: Mein PR wurde abgelehnt. Was jetzt?**
 A: Der Reviewer hat Gründe genannt. Lies sie. Wenn du denkst, dass
 die Ablehnung falsch ist, antworte **sachlich** im PR — nicht per
@@ -947,14 +1119,13 @@ E-Mail, nicht in einem neuen PR. Wir klären das öffentlich.
 
 ## §10 — Anerkennung
 
-Beiträge werden in `docs/project/CONTRIBUTORS.md` gelistet (falls
-diese Datei existiert; sie wird mit dem ersten externen Beitrag
-erstellt).
+Beiträge werden in `CONTRIBUTORS.md` gelistet.
 
 **Was wir anerkennen:**
 
 - Code-Beiträge (Tests, Bug-Fixes, Features)
 - Doku-Beiträge
+- **Web-Docs-Beiträge** (Manifest, CSS, Views)
 - Bug-Reports mit Reproduktion
 - Physik-Beiträge mit Test
 - Reviews von anderen PRs
@@ -1007,10 +1178,15 @@ Verstöße werden **einmal** verwarnt, dann **dauerhaft** gesperrt.
 | SDK-API | `docs/project/SDK_API.md` |
 | Testkatalog | `docs/test/ProPhysics_Testkatalog.md` |
 | Test-Runner | `docs/test/run_alpha_tests.md` |
+| **Zentraler Einstiegspunkt** | **`docs/build/pro_run.md`** |
 | Build-System | `docs/build/BUILD_SCRIPT.md` |
+| **ProWB-Makefile** | **`docs/build/prowb/Makefile.md`** |
+| **Web-Docs-CI** | **`docs/build/web-docs-ci.md`** |
+| **ProWB-Builder** | **`src/prowb/README.md`** |
+| **Web-Docs-Manifest** | **`docs/web/README.md`** |
 | Lizenz | `LICENSE.md` |
 | Kommerzielle Lizenz | `COMMERCIAL.md` |
 
 ---
 
-**Ende CONTRIBUTING v1.0.**
+**Ende CONTRIBUTING v1.1.**
