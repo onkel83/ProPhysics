@@ -3,7 +3,7 @@
 # File:    build\test\Makefile.nmake
 # Kernel:  1.23.0
 # Etappe:  23
-# Version: 3.3 — Alpha-Test + Example-Tests
+# Version: 3.6 — Alpha-Test + Example-Tests
 #
 # Aufruf:  aus beliebigem CWD.
 #          Pfade werden ueber $(MAKEDIR) relativ zum Ablageort dieses
@@ -38,6 +38,10 @@
 # Etappe 22-Refactoring: alpha_test_su2.c hinzugefuegt (Prio 8).
 # Etappe 23:             alpha_test_running_coupling.c hinzugefuegt (Prio 8).
 # Etappe 23b:            alpha_test_creutz_ratio.c hinzugefuegt (Prio 8).
+# Etappe 23c:            alpha_test_string_tension.c hinzugefuegt (Prio 8 + 99).
+# Etappe 23d:            alpha_test_torelon.c hinzugefuegt (Prio 8 + 99).
+# Etappe 23e:            alpha_test_metropolis_2d.c hinzugefuegt (Prio 8 + 99).
+# ==========================================================================
 #
 # Parameter:
 #   CONFIG   release | debug   (Default: release)
@@ -81,14 +85,6 @@ LINKER = link.exe
 
 # --------------------------------------------------------------------------
 # Compiler-Flags pro Config
-#
-# /I-Pfade:
-#   $(TEST_HDR_DIR)  -- alpha_test_common.h
-#   $(CORE_HDR_DIR)  -- ProPhysics.h, ProPhysics_Types.h, ...
-#   $(SDK_HDR_DIR)   -- pro_sdk_interface.h
-#
-# /arch:AVX2 wie im Kernel-Build, damit die Test-EXEs den gleichen
-# Befehlssatz nutzen.
 # --------------------------------------------------------------------------
 CFLAGS_COMMON = /nologo /W3 /MP /arch:AVX2 /D_CRT_SECURE_NO_WARNINGS \
                 /I"$(TEST_HDR_DIR)" \
@@ -109,7 +105,9 @@ LFLAGS  = /DEBUG
 # Etappe 22:  alpha_test_su2.c hinzugefuegt.
 # Etappe 23:  alpha_test_running_coupling.c hinzugefuegt.
 # Etappe 23b: alpha_test_creutz_ratio.c hinzugefuegt.
-# Damit enthaelt example_alpha_test.exe 18 Objektdateien.
+# Etappe 23c: alpha_test_string_tension.c hinzugefuegt.
+# Etappe 23d: alpha_test_torelon.c hinzugefuegt.
+# Damit enthaelt example_alpha_test.exe 20 Objektdateien.
 # --------------------------------------------------------------------------
 ALPHA_SOURCES = \
     $(SRC_DIR)\alpha_test_main.c \
@@ -129,7 +127,10 @@ ALPHA_SOURCES = \
     $(SRC_DIR)\alpha_test_dirac.c \
     $(SRC_DIR)\alpha_test_su2.c \
     $(SRC_DIR)\alpha_test_running_coupling.c \
-    $(SRC_DIR)\alpha_test_creutz_ratio.c
+    $(SRC_DIR)\alpha_test_creutz_ratio.c \
+    $(SRC_DIR)\alpha_test_string_tension.c \
+    $(SRC_DIR)\alpha_test_torelon.c \
+    $(SRC_DIR)\alpha_test_metropolis_2d.c
 
 EXAMPLE_SOURCES = \
     $(SRC_DIR)\example_test_density.c \
@@ -157,7 +158,6 @@ HEADERS_ALL = $(TEST_HEADERS) $(CORE_HEADERS) $(SDK_HEADERS)
 all: check_deps setup $(EXE_ALPHA) $(EXE_DENSITY) $(EXE_TENSOR) postclean
 	@echo [DONE] Test-Artefakte in $(BIN_DIR) erstellt.
 
-# Vorabpruefung: beide Import-Libs muessen existieren.
 check_deps:
 	@if not exist "$(CORE_LIB)" ( \
 	    echo [FEHLER] $(CORE_LIB) fehlt. Zuerst build\prophysics bauen. & \
@@ -183,12 +183,6 @@ help:
 	@echo Optionen:  CONFIG=release^|debug   (Default: release)
 	@echo.
 
-# --------------------------------------------------------------------------
-# Beispiel-Tests (single-file)
-#
-# MSVC kompiliert + linkt in einem Schritt, wenn /Fe gesetzt ist und
-# kein /c. Die OBJ-Datei landet via /Fo in _obj\.
-# --------------------------------------------------------------------------
 $(EXE_DENSITY): $(SRC_DIR)\example_test_density.c $(HEADERS_ALL) $(CORE_LIB) $(SDK_LIB)
 	@echo [CC+LINK] $(EXE_DENSITY)  (CONFIG=$(CONFIG))
 	$(CC) $(CFLAGS) "$(SRC_DIR)\example_test_density.c" \
@@ -204,29 +198,20 @@ $(EXE_TENSOR): $(SRC_DIR)\example_test_tensor.c $(HEADERS_ALL) $(CORE_LIB) $(SDK
 # --------------------------------------------------------------------------
 # Alpha-Test (multi-file)
 #
-# Alle 18 Quellen werden in EINEM cl.exe-Aufruf kompiliert und gelinkt.
-# Bei /MP uebersetzt cl.exe die Dateien parallel, der Link passiert am
-# Ende des Aufrufs. /Fo"$(OBJ_DIR)\\" mit abschliessendem Backslash
-# stellt sicher, dass cl.exe die OBJs dort ablegt (nicht im CWD).
+# Alle 20 Quellen werden in EINEM cl.exe-Aufruf kompiliert und gelinkt.
 # --------------------------------------------------------------------------
 $(EXE_ALPHA): $(ALPHA_SOURCES) $(HEADERS_ALL) $(CORE_LIB) $(SDK_LIB)
-	@echo [CC+LINK] $(EXE_ALPHA)  (18 Quellen, CONFIG=$(CONFIG))
+	@echo [CC+LINK] $(EXE_ALPHA)  (21 Quellen, CONFIG=$(CONFIG))
 	$(CC) $(CFLAGS) $(ALPHA_SOURCES) \
 	    /Fo"$(OBJ_DIR)\\" /Fe$@ \
 	    /link $(LFLAGS) $(SDK_LIB) $(CORE_LIB)
 
-# --------------------------------------------------------------------------
-# Aufraeumen der OBJ-Reste nach jedem erfolgreichen Link
-# --------------------------------------------------------------------------
 postclean:
 	@if exist "$(OBJ_DIR)\*.obj" del /Q "$(OBJ_DIR)\*.obj" 2>nul
 	@if exist "$(OBJ_DIR)\*.exp" del /Q "$(OBJ_DIR)\*.exp" 2>nul
 	@if exist "$(OBJ_DIR)\*.lib" del /Q "$(OBJ_DIR)\*.lib" 2>nul
 	@echo [CLEANUP] OBJ/EXP/LIB-Reste entfernt.
 
-# --------------------------------------------------------------------------
-# Clean
-# --------------------------------------------------------------------------
 clean:
 	@if exist "$(OBJ_DIR)" del /Q /F /S "$(OBJ_DIR)\*.*" 2>nul
 	@if exist "$(OBJ_DIR)" rmdir /S /Q "$(OBJ_DIR)" 2>nul

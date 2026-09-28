@@ -1,11 +1,12 @@
 # ProPhysics — Was uns unterscheidet
 
 **Datei:** `docs/project/ProPhysics_Differentiators.md`
-**Version:** 1.0
+**Version:** 1.1
 **Kernel:** 1.23.0
 **Etappe:** 23
-**Stand:** 2026-09-26 (Kernel 1.23.0, Konsolidierungs-Serie
-1.23.1–1.23.8 abgeschlossen)
+**Stand:** 2026-09-29 (Kernel 1.23.0, Konsolidierungs-Serie
+1.23.1–1.23.14 abgeschlossen; Sampler-Korrektur Haar-Vorschlag;
+V&V-Anker endgültig zurückgenommen)
 **Zweck:** Erklärt sachlich, was ProPhysics anders macht als
 etablierte Software, warum das wichtig ist, und welchen konkreten
 Vorteil der aktuelle Stand bietet.
@@ -34,9 +35,18 @@ als **bijektive Indextausch-Operationen mit Vorzeichen** — ein
 Modell, das speichereffizient, exakt (bis auf Q30-Rundung) und
 cache-freundlich ist.
 
-**Aktueller Validierungsstand:** Der Metropolis-Sampler auf SU(2)-
-Links reproduziert den analytischen Ein-Plaquette-Wert aus der
-Lattice-QCD auf **0,08 %** — der erste externe V&V-Anker des Projekts.
+**Aktueller Validierungsstand:**
+
+- **2D-SU(2)-Metropolis** reproduziert die **exakte Bessel-Ratio
+  `I₂(β)/I₁(β)`** auf **< 1,2 %** bei vier β-Werten.
+- **3D-SU(2)-String-Tension** zeigt streng monoton fallendes σ_a2 in β
+  mit dim-Konvergenz < 0,5 % zwischen dim=16 und dim=32.
+- **Kein externer V&V-Anker** für 3D — die publizierten Werte
+  (Cahill & Prasad 1989) sind 4D, der Kernel ist 3D.
+
+Der frühere V&V-Anker aus Etappe 23 („0,08 %") ist zurückgenommen:
+Er war ein Artefakt eines **int32-Overflow-Bugs** im Metropolis-
+Vorschlag `U → normalize(U + ε)` bei ε > 1.
 
 ---
 
@@ -53,7 +63,7 @@ plus **Vorzeichen** `sign[8]`. Multiplikation ist `O(N)`, Speicher
 
 **Konsequenz:** Der Context-Tick ist eine reine Indextausch-Operation.
 Kein Multiplikations-Overflow, keine Rundung, exakt unitär. Der
-Drift nach 10 000 Ticks ist **0,0** (siehe Test T1.3).
+Drift nach 10 000 Ticks ist **0,0**.
 
 **Grenze:** Signed permutations sind eine Teilmenge der unitären
 Gruppe. Sie können **nicht** jede unitäre Transformation darstellen.
@@ -170,6 +180,30 @@ vorhersehbares Cache-Verhalten. Der Test `Running-Coupling` läuft
 Parallelisierung im Kernel selbst. Die Tests nutzen mehrere Kerne
 über `nmake /MP`, aber der Tick läuft sequenziell.
 
+### 2.7 — Haar-Vorschlag statt additiver Störung
+
+**Klassisch (im Test-Code):** Ein Metropolis-Vorschlag, der eine
+Gauss-Störung zu den Quaternion-Komponenten addiert und anschließend
+renormiert. Dieser Vorschlag ist **approximativ symmetrisch** und
+kann bei großen ε-Werten **overflowen** (int32-Wraparound).
+
+**ProPhysics (im Test-Code seit `1.23.14`):** Ein **Haar-Vorschlag**
+`U → R·U` mit `R = exp(-i·(α/2)·n·σ)`, `α ~ N(0, ε²)`, `n` uniform
+auf S². Dieser Vorschlag ist:
+
+- **Exakt symmetrisch** (R† hat dieselbe Verteilung wie R).
+- **Overflow-frei** (int64-Zwischenergebnis, Saturation nach int32).
+- **Korrekt** bzgl. der SU(2)-Haar-Verteilung.
+
+**Konsequenz:** Die 2D-SU(2)-Metropolis-Validierung ist auf `< 1,2 %`
+gegen die exakte Bessel-Ratio `I₂(β)/I₁(β)` gelungen. Mit dem
+alten additiven Vorschlag war die Verteilung systematisch um bis zu
+51 % verschoben (bei β=0.5).
+
+**Grenze:** Der Haar-Vorschlag ist aufwendiger pro Schritt
+(cos/sin für den halben Winkel). Bei kleinen Gittern irrelevant, bei
+`dim ≥ 64` spürbar. Kandidat für Optimierung in Etappe O1.
+
 ---
 
 ## 3. Warum das wichtig ist
@@ -219,7 +253,8 @@ Strukturen existieren:
 | Dirac | `reserved_gating` Bit 1 | Dirac |
 | SU(2) kinematisch | `su2_active` | SU2-Wilson-Loop |
 | SU(2) dynamisch | `su2_dynamics_active` | SU2-Wilson-Loop T15–T18 |
-| SU(2) thermisch | Metropolis im Test | Running-Coupling |
+| SU(2) thermisch | Metropolis-Haar im Test | Running-Coupling + Creutz-Ratio + String-Tension |
+| SU(2) 2D-Referenz | Metropolis-Haar im Test | Metropolis-2D |
 
 **Wert:** Ein Nutzer kann mit **einem** Datenmodell Experimente
 durchführen, die sonst mehrere Frameworks bräuchten.
@@ -228,20 +263,42 @@ durchführen, die sonst mehrere Frameworks bräuchten.
 
 **Frage:** „Ist die Software korrekt?"
 
-Der V&V-Anker aus Etappe 23 ist der erste **absolute** Vergleich
-mit externer Physik:
+Der Kernel hat eine **zweistufige** Validierung:
 
-| Größe | Wert | Referenz | Abweichung |
+**Stufe 1 — 2D gegen exakte Referenz:**
+
+Der 2D-SU(2)-Metropolis-Sampler reproduziert die exakte Bessel-
+Referenz `I₂(β)/I₁(β)` mit rel_dev < 1,2 % bei vier β-Werten.
+
+| β | `<W>` gemessen | `I₂/I₁` (exakt) | rel_dev |
 |---|---|---|---|
-| ⟨P⟩(β=2, dim=64) | 0,43346 ± 0,00005 | I₂(2)/I₁(2) = 0,43313 | **0,08 %** |
+| 0,50 | 0,125213 ± 0,001275 | 0,123718 | 1,2 % |
+| 1,00 | 0,240922 ± 0,001596 | 0,240194 | 0,3 % |
+| 2,00 | 0,434476 ± 0,001493 | 0,433127 | 0,3 % |
+| 4,00 | 0,655848 ± 0,001250 | 0,658047 | 0,3 % |
 
-Ein falscher Sampler würde auf Prozent-Ebene abweichen, nicht auf
-0,08 %. Die Wilson-Action-Normierung, der Akzeptanzschritt und die
-Q30-Quaternion-Multiplikation sind damit unabhängig bestätigt.
+Alle vier Werte innerhalb 2σ. Das ist die **stärkste
+Validierungsaussage** des Projekts: der Kernel reproduziert eine
+analytisch bekannte Verteilung.
 
-**Wert:** Der Kernel ist nicht nur „in sich konsistent" (was alle
-Frameworks sind), sondern **stimmt mit einer publizierten Zahl
-überein**.
+**Stufe 2 — 3D Selbstkonsistenz:**
+
+σ_a2 fällt streng monoton in β (asymptotische Freiheit). Die
+Dimension-Konvergenz dim=16 → dim=32 liegt bei < 0,5 %:
+
+| β | σ_a2 (dim=16) | σ_a2 (dim=32) | Differenz |
+|---|---|---|---|
+| 2,40 | 0,595053 ± 0,005997 | 0,594901 ± 0,002280 | 0,03 % |
+| 2,50 | 0,560160 ± 0,004610 | 0,557702 ± 0,001776 | 0,4 % |
+
+**Ehrliche Grenze:** Es gibt **keinen externen 3D-V&V-Anker**. Die
+publizierten Werte (Cahill & Prasad 1989) sind 4D, der Kernel ist
+3D. Die Kopplungen sind nicht vergleichbar; die Abweichung um
+Faktor ~3 ist die 3D/4D-Differenz.
+
+**Der frühere 0,08-%-Anker ist endgültig zurückgenommen.** Er war
+ein Artefakt eines **int32-Overflow-Bugs** im Metropolis-Vorschlag
+`U → normalize(U + ε)` bei ε > 1.
 
 ---
 
@@ -278,23 +335,31 @@ weil der Transport (der dichte Multiplikation braucht) dominiert.
 **bit-identische** Log-Ausgaben zwischen Läufen.
 
 ```
-dim=64, β=2.0, u_plaq = 0.283270 ± 0.000027
+dim=64, β=2.0, u_plaq = 0.272552 ± 0.000027
 ```
 
 Bei klassischen FFT- oder Monte-Carlo-Frameworks mit Gleitkomma
 ist das **nicht** garantiert. Man braucht `-ffp-contract=off`,
 `-ffast-math`-Aus, feste Rundungsmodi.
 
+**Achtung:** Der Wave-Step und die SU(2)-exp-Map nutzen `cos`/`sin`.
+Diese sind IEEE-754-konform auf x86-64, aber nicht plattformübergreifend
+bit-identisch. Auf **einer** Plattform ist Reproduzierbarkeit garantiert.
+
 ### 4.4 — Validierung gegen externe Physik
 
-**Einzigartig im Projekt:** Der V&V-Anker. Andere Frameworks testen
-sich selbst („Operator A mal Vektor B ergibt C"), ProPhysics
-testet gegen eine **publizierte physikalische Größe**.
+**Teilweise erreicht.** Andere Frameworks testen sich selbst
+(„Operator A mal Vektor B ergibt C"). ProPhysics testet gegen
+**analytisch bekannte** Referenz:
 
-Das ist kein Vorteil der Implementierung, sondern des gewählten
-Themas. Lattice-QCD ist gut genug verstanden, um V&V zu erlauben.
-Ein Framework für „allgemeine Quantensimulation" hat keinen
-externen Referenzwert.
+- **2D-SU(2)-Haar-Verteilung** gegen exakte Bessel-Ratio `I₂/I₁`:
+  < 1,2 % Abweichung. **Validiert.**
+
+Für 3D-SU(2) fehlt der externe Anker (siehe §3.4). Das ist kein
+Vorteil der Implementierung, sondern des gewählten Themas.
+Lattice-QCD ist gut genug verstanden, um V&V zu erlauben — aber die
+publizierten 3D-SU(2)-Werte stammen aus den 1980er Jahren und sind
+schwer zugänglich.
 
 ### 4.5 — Single-Binary, keine externen Abhängigkeiten
 
@@ -324,7 +389,8 @@ Boost, BLAS, LAPACK).
 | Integer-Arithmetik ohne Gleitkomma im Hotpath | Deterministisch, portabel |
 | Union-Find als Verschränkungs-Mechanismus | Physikalisch ungewöhnlich, praktisch effizient |
 | Emergenz-Tests (Born, Bloch, Lorentz) mit einem Kernel | Zeigt Regel-Ontologie empirisch |
-| Externe V&V gegen Lattice-QCD | Nur möglich, weil das Thema bekannt ist |
+| **2D-SU(2)-Validierung gegen exakte Bessel-Ratio** | **Analytisch exakte Referenz** |
+| **Haar-Vorschlag für Metropolis** | **Exakt symmetrisch, overflow-frei** |
 
 ### 5.2 — Was andere **können**, was ProPhysics nicht kann
 
@@ -338,6 +404,7 @@ Boost, BLAS, LAPACK).
 | Dichtematrix-Renormierung (DMRG, MPS) | ITensor, TeNPy |
 | Exakte Diagonalisierung großer Hamiltonians | QuSpin, ALPS |
 | Adiabatische Zeitentwicklung | QuTiP, QuSpin |
+| **4D-Lattice-QCD** | **MILC, Chroma, QDP++** |
 
 **Klarstellung:** ProPhysics ist **kein** Ersatz für etablierte
 Simulations-Frameworks. Es ist eine **andere Darstellung**, deren
@@ -352,7 +419,7 @@ deterministische Läufe, emergente Ontologie).
 
 **Ziel:** „Kann QM aus einfacheren Regeln entstehen?"
 
-**Nutzen:** Ein konkretes, lauffähiges Modell mit 43 Tests, das
+**Nutzen:** Ein konkretes, lauffähiges Modell mit 46 Tests, das
 als Referenzpunkt für eigene Experimente dient. Alle Regeln sind
 explizit in `Project.md` §3 dokumentiert, alle Tests in
 `ProPhysics_Testkatalog.md`.
@@ -392,7 +459,7 @@ in ein C/C++-Projekt eingebettet werden kann. Lizenz siehe
 
 2. **Keine Simulation echter QCD.** Wir haben keine Quarks, keine
    Gluonen im Kontinuum, keine Renormierung im strengen Sinne.
-   Wir haben SU(2)-Lattice-Yang-Mills auf Gittern bis 64³.
+   Wir haben SU(2)-Lattice-Yang-Mills auf **3D**-Gittern bis 64³.
 
 3. **Kein Kontinuumslimes.** Alle Ergebnisse sind auf Gittern mit
    `dim ∈ {16, 32, 64, 128}` gemessen. Es gibt keine Extrapolation
@@ -428,6 +495,16 @@ in ein C/C++-Projekt eingebettet werden kann. Lizenz siehe
 10. **Keine Parallelisierung.** Der Kernel ist single-threaded.
     Für größere Gitter bräuchte man OpenMP oder MPI-Erweiterungen.
 
+11. **Kein externer V&V-Anker für 3D.** Die 2D-SU(2)-Validierung
+    gegen exakte Bessel-Physik ist vorhanden (Etappe 23e Rev.2).
+    Für 3D ist nur die Selbstkonsistenz (σ_a2 monoton fallend,
+    dim-Konvergenz) verfügbar. Die publizierten Werte (Cahill &
+    Prasad 1989) sind 4D und daher nicht vergleichbar.
+
+12. **Kein 4D-Kernel.** Der Kernel unterstützt 2D und 3D-Tori.
+    Ein 4D-Torus (`wire_torus_4d`) ist nicht implementiert.
+    Kandidat für Etappe 25+.
+
 ---
 
 ## 8. Wann ist ProPhysics die richtige Wahl?
@@ -440,6 +517,7 @@ in ein C/C++-Projekt eingebettet werden kann. Lizenz siehe
 - Dein Gitter ist `dim ≤ 128`.
 - Du willst einen kompakten, lesbaren Kernel verstehen oder erweitern.
 - Du willst eine alternative Darstellung von unitären Operatoren testen.
+- **Du willst 2D-SU(2) gegen exakte Bessel-Physik validieren.**
 
 ### 8.2 — Nein
 
@@ -450,21 +528,25 @@ in ein C/C++-Projekt eingebettet werden kann. Lizenz siehe
 - Du brauchst `dim ≥ 512`.
 - Du brauchst Q61-Präzision für sehr lange Läufe.
 - Du brauchst etablierten Support, Schulung, Zertifizierung.
+- **Du brauchst einen externen V&V-Anker gegen publizierte 3D-Werte.**
 
 ---
 
-## 9. Konkrete Zahlen (Stand Etappe 23)
+## 9. Konkrete Zahlen (Stand Etappe 23c Rev.2 + 23e Rev.2)
 
 ### 9.1 — Validierung
 
-| Größe | Wert | Referenz | Abweichung |
+| Größe | Wert | Referenz | Status |
 |---|---|---|---|
-| Bloch-Dispersion 2D | rel_dev ≤ 5,22e-06 | tight-binding-Formel | — |
-| Bloch-Dispersion 3D | rel_dev ≤ 2,57e-06 | tight-binding-Formel | — |
-| γ-Algebra | 9,31e-10 | Clifford-Algebra | — |
-| Jordan-Wigner | 16/16 exakt | Antikommutator | — |
-| Tsirelson (Kollaps) | 2,8457 | 2√2 ≈ 2,8284 | im 5σ-Band |
-| SU(2)-Metropolis | 0,43346 ± 0,00005 | 0,43313 | **0,08 %** |
+| Bloch-Dispersion 2D | rel_dev ≤ 5,22e-06 | tight-binding-Formel | ✅ exakt |
+| Bloch-Dispersion 3D | rel_dev ≤ 2,57e-06 | tight-binding-Formel | ✅ exakt |
+| γ-Algebra | 9,31e-10 | Clifford-Algebra | ✅ exakt |
+| Jordan-Wigner | 16/16 exakt | Antikommutator | ✅ exakt |
+| Tsirelson (Kollaps) | 2,8457 | 2√2 ≈ 2,8284 | ✅ im Band |
+| **2D-SU(2) vs `I₂/I₁`** | **rel_dev ≤ 1,2 %** | **exakte Bessel** | **✅ validiert** |
+| **3D-σ_a2 dim-Konvergenz** | **< 0,5 %** | **kein externer Anker** | **⚠ selbstkonsistent** |
+| V&V-Anker (β=2, dim=64) | ~5 % | I₂(2)/I₁(2) = 0,43313 | ⚠ zurückgenommen |
+| Creutz-Ratio | B1/B2/B3 PASS | — | ✅ konsistent |
 
 ### 9.2 — Stabilität
 
@@ -472,19 +554,19 @@ in ein C/C++-Projekt eingebettet werden kann. Lizenz siehe
 |---|---|---|
 | U5-Drift | < 1,8e-09 | über 2000 Ticks |
 | Link-Norm-Drift | 1,80e-08 | SU(2)-Leapfrog, 100 Ticks |
-| Energie-Drift | 2,44e-03 | SU(2)-Leapfrog, symplektisch |
-| Ausführungszeit Prio-All | 4 420 s (~74 min) | 43 Tests, 2× dim=64 |
+| Energie-Drift | 1,41e-03 | SU(2)-Leapfrog, symplektisch |
+| Ausführungszeit Prio-All | ~4 530 s (~75,5 min) | 46 Tests, ohne Full-Modi |
 
 ### 9.3 — Codebase
 
 | Kategorie | Zahl |
 |---|---|
 | Kernel-Module | 13 `.c` |
-| Test-Module | 18 `.c` + 1 Header |
+| Test-Module | 19 `.c` + 1 Header |
 | Kernel-Header | 6 `.h` |
 | Codezeilen (geschätzt) | ~36 000 LOC |
-| Tests | 43 |
-| Grüne Tests | 43/43 |
+| Tests | 46 |
+| Grüne Tests | 46/46 |
 
 ---
 
@@ -494,7 +576,6 @@ in ein C/C++-Projekt eingebettet werden kann. Lizenz siehe
 
 | Etappe | Was | Nutzen |
 |---|---|---|
-| 23b (optional) | Creutz-Ratio | Echte β-Funktion |
 | 24 | Euklidisches Pfadintegral | Pfadintegral ↔ Operator |
 | 25 | GHZ / Mermin | n=3-Verschränkung |
 | 26 | Universalität | T-Gate, Deutsch-Josza |
@@ -502,6 +583,8 @@ in ein C/C++-Projekt eingebettet werden kann. Lizenz siehe
 | M1 | U4' — Bad | Kopplung an Unsichtbares |
 | M2 | U5' — Plastizität | Dynamische Topologie |
 | M3 | Makrophysik | Klassischer Limes |
+| 23c-B (optional) | 3D-SU(2)-Literatur | Echter externer V&V-Anker |
+| 25+ (optional) | 4D-Torus | Cahill & Prasad direkt vergleichbar |
 
 ### 10.2 — Was ProPhysics in 6–12 Monaten sein könnte
 
@@ -512,12 +595,13 @@ Wenn Etappe 24–27 abgeschlossen sind:
 - GHZ-Verschränkung über Hypergraph
 - Universalität über T-Gate
 - Q61-Präzision für lange Läufe
+- Möglicherweise 4D-Torus und externer 3D-Anker
 
 **Publikationsfähigkeit:** Ein methodisches Paper über
 signed-permutation-Darstellung von unitären Gittertheorien
 ist realistisch. Ein Physik-Paper über neue Phänomene ist
 **nicht** zu erwarten, ohne dass eine echte Skalenaussage
-gelingt.
+gelingt oder ein externer 3D-Anker gefunden wird.
 
 ---
 
@@ -526,9 +610,38 @@ gelingt.
 **ProPhysics ist eine alternative Darstellung von Quantenmechanik
 auf diskreten Graphen, die durch Integer-Arithmetik
 deterministisch, durch signed permutations exakt und durch
-Emergenz philosophisch interessant ist — und die jetzt mit
-0,08 % gegen externe Lattice-QCD validiert ist.**
+Emergenz philosophisch interessant ist — in 2D validiert gegen
+exakte Bessel-Physik, in 3D selbstkonsistent, aber ohne externen
+V&V-Anker.**
 
 ---
 
-**Ende Differentiators v1.0.**
+## 12 — Siehe auch
+
+| Thema | Datei |
+|---|---|
+| Physik-Übersicht | `docs/physics/README.md` |
+| Projekt-Roadmap | `docs/project/Project.md` |
+| Testkatalog | `docs/test/ProPhysics_Testkatalog.md` |
+| Test-Baseline | `docs/test/BASELINE.md` |
+| Changelog | `CHANGELOG.md` |
+| SU2-Modul | `docs/project/SU2.md` |
+| SU2-Dynamik | `docs/project/SU2_Dynamics.md` |
+| Konfiguration | `docs/project/CONFIG.md` |
+| Versions-Register | `docs/project/ProPhysics_VersionRegistry.md` |
+| Lizenz | `LICENSE.md` |
+| Kommerzielle Lizenz | `COMMERCIAL.md` |
+| Repository | https://github.com/onkel83/prophysics |
+
+---
+
+## 13 — Änderungshistorie dieses Dokuments
+
+| Datum | Version | Änderung |
+|---|:-:|---|
+| 2026-09-26 | 1.0 | Erste Fassung. |
+| 2026-09-29 | 1.1 | **V&V-Anker-Rücknahme.** §1 Kurzfassung: Validierungsstand auf 2D-Bessel und 3D-Selbstkonsistenz umgestellt. §2.7 neu: Haar-Vorschlag. §3.4 komplett neu: zweistufige Validierung (2D exakt, 3D selbstkonsistent), V&V-Anker als zurückgenommen markiert. §4.4 umgeschrieben. §5.1 um 2D-Bessel und Haar-Vorschlag erweitert. §5.2 um 4D-Lattice-QCD. §7 Punkt 11 und 12 neu (kein 3D-Anker, kein 4D-Kernel). §8.1 und §8.2 um V&V-Status erweitert. §9.1 Validierungstabelle um 2D/3D/Creutz-Zeilen. §9.3 Tests 43 → 46. §10 um 4D-Torus und 3D-Literatur. §11 Zusammenfassung umgeschrieben. §12 Siehe-auch. §13 neu. |
+
+---
+
+**Ende Differentiators v1.1.**

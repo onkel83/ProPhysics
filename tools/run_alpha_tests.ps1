@@ -20,23 +20,26 @@
       5  Hydrogen + Shared-Ref + Tournament            4 Tests
       6  Spin-1/2                                      1 Test
       7  Dirac                                         1 Test
-      8  SU(2)-Eichfeld + Running-Coupling + Creutz-Ratio  4 Tests
-      all                                             45 Tests
+      8  SU(2)-Eichfeld + Running-Coupling + Creutz-Ratio +
+         String-Tension + Torelon-Mass                 5 Tests
+     99  Langzeit-/Nightly-Tests (Creutz-Ratio-Full, String-Tension-Full,
+         String-Tension-Huge, Torelon-Mass-Full)        4 Tests
+     all                                              46 Tests (Prio 1-8)
+    Gesamt (inkl. 99)                                 50 Tests
 
-    Hinweis Prio 8: 'Creutz-Ratio' laeuft im Fast-Modus
-    (dim in {16,32}, ~1-2 min). 'Creutz-Ratio-Full' ist die
-    Nightly-Variante (dim in {16,32,64,128}, ~25-40 min). Beide
-    nutzen dieselbe Test-Funktion und denselben CLI-Flag
-    (--test-creutz-ratio), nur mit/ohne --creutz-full.
+    Prio 99 ist ein separater Selektor. '-Prio all' enthaelt KEINE
+    99er-Tests. '-Prio 99' fuehrt nur die Langzeit-Tests aus. Kombination
+    wie '-Prio 1-4,99' ist erlaubt.
 
     Self-Locating: -ExeDir default = <repo>\bin (relativ zu $PSScriptRoot).
 
 .PARAMETER Prio
     Auswahl der Prioritaeten. Erlaubt:
-      'all'         -- alle Tests (Default)
-      'N'           -- einzelne Prio (N in 1..8)
-      'N-M'         -- Range, z.B. '1-4'
-      'N,M,K'       -- Liste, z.B. '1,3,5'
+      'all'         -- alle Tests Prio 1-8 (Default)
+      'N'           -- einzelne Prio (N in 1..8 oder 99)
+      'N-M'         -- Range, z.B. '1-4' oder '8-99' (filtert auf
+                       gueltige Prios)
+      'N,M,K'       -- Liste, z.B. '1,3,5' oder '1-4,99'
 
 .PARAMETER Test
     Einzelner Test per Name. Case-insensitive. Bindestriche und
@@ -61,29 +64,39 @@
     run_alpha_tests.cmd -Test Running-Coupling
     run_alpha_tests.cmd -Test Creutz-Ratio
     run_alpha_tests.cmd -Test Creutz-Ratio-Full
+    run_alpha_tests.cmd -Test String-Tension
+    run_alpha_tests.cmd -Test Torelon-Mass
+    run_alpha_tests.cmd -Prio 99
+    run_alpha_tests.cmd -Prio 1-4,99
     run_alpha_tests.cmd -Prio 8 -LogDir H:\temp\logs
 
 .NOTES
     Kernel: 1.23.0
     Etappe: 23
-    Version: 1.0.2 (Etappe 23b)
+    Version: 1.0.4 (Etappe 23d)
     -Prio akzeptiert Range/Liste, -Test fuer Einzelauswahl,
-    -DllDir als optionaler DLL-Pfad. Zaehlung: 45 Tests.
+    -DllDir als optionaler DLL-Pfad. Zaehlung: 46 Tests in Prio 1-8,
+    +4 Langzeit-Tests in Prio 99.
+
+    Neu in 1.0.4 (Etappe 23d):
+    - 'Torelon-Mass' (Prio 8, FAST-Modus, Timeout 600 s).
+    - 'Torelon-Mass-Full' (Prio 99, FULL-Modus, Timeout 3600 s).
+      Nutzt --torelon-full zusammen mit --test-torelon-mass.
+    - Zaehlung: all 45 -> 46, Prio 99: 3 -> 4.
+
+    Neu in 1.0.3 (Etappe 23c):
+    - 'String-Tension' (Prio 8, FAST-Modus, Timeout 900 s).
+    - 'String-Tension-Full' (Prio 99, FULL-Modus, Timeout 5400 s).
+    - 'String-Tension-Huge' (Prio 99, HUGE-Modus, Timeout 28800 s).
+    - 'Creutz-Ratio-Full' von Prio 8 nach Prio 99 verschoben.
+    - Prio-99-Selektor: '-Prio 99', '-Prio 1-4,99' etc.
 
     Neu in 1.0.2 (Etappe 23b):
     - 'Creutz-Ratio' (Prio 8, Fast-Modus, Timeout 300 s).
     - 'Creutz-Ratio-Full' (Prio 8, FULL-Modus, Timeout 3600 s).
-      Nutzt --creutz-full zusammen mit --test-creutz-ratio.
-    - Zaehlung 43 -> 45.
 
     Fix in 1.0.1: Resolve-PrioSelection gibt den HashSet jetzt mit
-    fuehrendem Komma zurueck (return ,$set). Ohne Komma entpackt
-    PowerShell einen HashSet mit 1 Element zum Int32-Skalar, was
-    in Select-Tests zu "Method invocation failed because
-    [System.Int32] does not contain a method named 'Contains'."
-    fuehrte. Bei 2+ Elementen blieb es ein Object[], auf dem
-    .Contains() als LINQ-Extension funktioniert -- deshalb lief
-    "-Prio 1,6,7" lokal, "-Prio 1" in der CI aber nicht.
+    fuehrendem Komma zurueck (return ,$set).
 #>
 
 [CmdletBinding()]
@@ -101,9 +114,6 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-# ==========================================================================
-# UTF-8 Konsole
-# ==========================================================================
 try {
     [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
     [Console]::InputEncoding  = [System.Text.Encoding]::UTF8
@@ -111,26 +121,17 @@ try {
 } catch { }
 try { & chcp.com 65001 > $null 2>&1 } catch { }
 
-# ==========================================================================
-# Default-Pfade (Skript liegt in <repo>\tools\)
-# ==========================================================================
 $RepoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 if (-not $ExeDir) { $ExeDir = Join-Path $RepoRoot 'bin' }
 if (-not $DllDir) { $DllDir = $ExeDir }
 if (-not $LogDir) { $LogDir = Join-Path $ExeDir 'logs' }
 
-# ==========================================================================
-# Interaktiv: Prio erfragen, falls nicht gesetzt.
-# ==========================================================================
 if (-not $Prio -and -not $Test) {
-    Write-Host "Prio waehlen (1..8, 1-4, 1,3,5, all) oder -Test <name>: " -NoNewline
+    Write-Host "Prio waehlen (1..8, 99, 1-4, 1,3,5, 1-4,99, all) oder -Test <name>: " -NoNewline
     $Prio = Read-Host
     if ([string]::IsNullOrWhiteSpace($Prio)) { $Prio = 'all' }
 }
 
-# ==========================================================================
-# Test-Katalog
-# ==========================================================================
 $TestCatalog = [ordered]@{
 
     # --- Prio 1: 2D-Basis ---
@@ -311,7 +312,11 @@ $TestCatalog = [ordered]@{
         Args = @('--test-dirac'); Timeout = 300
     }
 
-    # --- Prio 8: SU(2)-Eichfeld + Running-Coupling + Creutz-Ratio ---
+    # --- Prio 8: SU(2)-Eichfeld + Running-Coupling + Creutz-Ratio + String-Tension + Torelon ---
+        'Metropolis-2D' = @{
+        Prio = 8; Exe = 'example_alpha_test.exe'
+        Args = @('--test-metropolis-2d'); Timeout = 300
+    }
     'SU2-Wilson-Loop' = @{
         Prio = 8; Exe = 'example_alpha_test.exe'
         Args = @('--test-su2-wilson-loop'); Timeout = 300
@@ -324,18 +329,41 @@ $TestCatalog = [ordered]@{
         Prio = 8; Exe = 'example_alpha_test.exe'
         Args = @('--test-creutz-ratio'); Timeout = 300
     }
-    'Creutz-Ratio-Full' = @{
+    'String-Tension' = @{
         Prio = 8; Exe = 'example_alpha_test.exe'
+        Args = @('--test-string-tension'); Timeout = 900
+    }
+    'Torelon-Mass' = @{
+        Prio = 8; Exe = 'example_alpha_test.exe'
+        Args = @('--test-torelon-mass'); Timeout = 1200
+    }
+
+    # --- Prio 99: Langzeit-/Nightly-Tests (NICHT in '-Prio all') ---
+    'Creutz-Ratio-Full' = @{
+        Prio = 99; Exe = 'example_alpha_test.exe'
         Args = @('--test-creutz-ratio', '--creutz-full'); Timeout = 3600
+    }
+    'String-Tension-Full' = @{
+        Prio = 99; Exe = 'example_alpha_test.exe'
+        Args = @('--test-string-tension', '--tension-full', '--tension-anchor')
+        Timeout = 5400
+    }
+    'String-Tension-Huge' = @{
+        Prio = 99; Exe = 'example_alpha_test.exe'
+        Args = @('--test-string-tension', '--tension-huge', '--tension-anchor')
+        Timeout = 28800
+    }
+    'Torelon-Mass-Full' = @{
+        Prio = 99; Exe = 'example_alpha_test.exe'
+        Args = @('--test-torelon-mass', '--torelon-full', '--tension-anchor')
+        Timeout = 3600
+    }
+    'Metropolis-2D-Full' = @{
+        Prio = 99; Exe = 'example_alpha_test.exe'
+        Args = @('--test-metropolis-2d', '--metropolis-2d-full'); Timeout = 1200
     }
 }
 
-# ==========================================================================
-# Prio-Auswahl parsen
-#
-# Erlaubt: 'all', 'N', 'N-M', 'N,M,K'. Whitespace wird toleriert.
-# Rueckgabe: 'all' (String) oder HashSet<int>.
-# ==========================================================================
 function Resolve-PrioSelection {
     param([string]$Spec)
 
@@ -354,12 +382,16 @@ function Resolve-PrioSelection {
             $hi = [int]$Matches[2]
             if ($lo -gt $hi) { $t = $lo; $lo = $hi; $hi = $t }
             for ($p = $lo; $p -le $hi; $p++) {
-                if ($p -ge 1 -and $p -le 8) { [void]$set.Add($p) }
+                if (($p -ge 1 -and $p -le 8) -or ($p -eq 99)) {
+                    [void]$set.Add($p)
+                }
             }
         }
         elseif ($part -match '^\d+$') {
             $p = [int]$part
-            if ($p -ge 1 -and $p -le 8) { [void]$set.Add($p) }
+            if (($p -ge 1 -and $p -le 8) -or ($p -eq 99)) {
+                [void]$set.Add($p)
+            }
         }
         else {
             Write-Host "Ungueltige Prio-Angabe: '$part'" -ForegroundColor Red
@@ -369,27 +401,13 @@ function Resolve-PrioSelection {
 
     if ($set.Count -eq 0) {
         Write-Host "Keine gueltige Prio in '$Spec' gefunden." -ForegroundColor Red
+        Write-Host "Gueltige Prio-Werte: 1..8, 99, all." -ForegroundColor Yellow
         exit 2
     }
 
-    # FIX (1.0.1): Fuehrendes Komma verhindert, dass PowerShell den
-    # HashSet beim Zurueckgeben entpackt. Ohne Komma wird ein HashSet
-    # mit 1 Element zu einem Int32-Skalar; der spaetere Aufruf
-    # $prioSet.Contains(...) schlaegt dann fehl mit
-    # "Method invocation failed because [System.Int32] does not
-    #  contain a method named 'Contains'."
-    # Bei 2+ Elementen entpackt PowerShell den Set zu Object[]; der
-    # .Contains-Aufruf funktioniert dann ueber die LINQ-Extension,
-    # ist aber semantisch anders (Wert-Vergleich statt Set-Lookup).
     return ,$set
 }
 
-# ==========================================================================
-# Test-Auswahl
-#
-# -Test <name> : case-insensitive, '-' und '_' austauschbar.
-# sonst        : Prio-Filter.
-# ==========================================================================
 function Select-Tests {
     param(
         [string]$TestName,
@@ -415,7 +433,14 @@ function Select-Tests {
     }
 
     if ($PrioSelection -eq 'all') {
-        return @($TestCatalog.Keys)
+        $out = @()
+        foreach ($key in $TestCatalog.Keys) {
+            $p = [int]$TestCatalog[$key].Prio
+            if ($p -ge 1 -and $p -le 8) {
+                $out += $key
+            }
+        }
+        return $out
     }
 
     $prioSet = $PrioSelection
@@ -436,9 +461,6 @@ if ($selected.Count -eq 0) {
     exit 2
 }
 
-# ==========================================================================
-# Pre-Flight
-# ==========================================================================
 if (-not (Test-Path -LiteralPath $ExeDir)) {
     Write-Host "FEHLER: ExeDir nicht gefunden: $ExeDir" -ForegroundColor Red
     Write-Host "        (Erwartet: <repo>\bin mit den Test-EXEs.)" -ForegroundColor Red
@@ -455,7 +477,6 @@ if (-not (Test-Path -LiteralPath $coreDll)) {
     Write-Host "         Build zuerst ausfuehren (build.ps1) oder -DllDir korrigieren." -ForegroundColor Yellow
 }
 
-# DLL-Verzeichnis an PATH anhaengen, falls != ExeDir.
 if ((Resolve-Path -LiteralPath $DllDir).Path -ne (Resolve-Path -LiteralPath $ExeDir).Path) {
     $env:PATH = "$DllDir;$env:PATH"
 }
@@ -466,11 +487,8 @@ if (-not (Test-Path -LiteralPath $LogDir)) {
 
 $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
 
-# ==========================================================================
-# Header-Ausgabe
-# ==========================================================================
 $prioLabel = if ($Test) { "Test=$Test" }
-             elseif ($prioSelection -eq 'all') { 'all' }
+             elseif ($prioSelection -eq 'all') { 'all (Prio 1-8)' }
              else { ($prioSelection | Sort-Object) -join ',' }
 
 Write-Host ''
@@ -483,40 +501,28 @@ Write-Host "  LogDir: $LogDir"
 Write-Host "  Tests:  $($selected.Count)"
 Write-Host ''
 
-# ==========================================================================
-# Auswertungsfunktion: PASS/FAIL-Marker aus dem Log-Text ableiten.
-#
-# Hinweis: PowerShell 5.0 unterstuetzt keinen Ternary-Operator (? :).
-# Wir nutzen explizite if/else-Rueckgaben.
-# ==========================================================================
 function Get-TestResult {
     param([string]$Output, [int]$ExitCode)
 
-    # 1) Sammeltests: "Ergebnis: N PASS, M FAIL"
     if ($Output -match 'Ergebnis:\s*(\d+)\s*PASS,\s*(\d+)\s*FAIL') {
         $failCount = [int]$Matches[2]
         if ($failCount -eq 0) { return 'PASS' } else { return 'FAIL' }
     }
 
-    # 2) No-Signaling-Sonderfall.
     if ($Output -match 'Ergebnis:\s*HELD')   { return 'PASS' }
     if ($Output -match 'Ergebnis:\s*BROKEN') { return 'FAIL' }
 
-    # 3) Einzel-Check-Marker.
     $hasFail = $Output -match '\[FAIL\]'
     $hasPass = $Output -match '\[PASS\]'
     if ($hasFail) { return 'FAIL' }
     if ($hasPass) { return 'PASS' }
 
-    # 4) Fuehrende Ergebniszeile.
     if ($Output -match 'Ergebnis:\s*PASSED') { return 'PASS' }
     if ($Output -match 'Ergebnis:\s*FAILED') { return 'FAIL' }
 
-    # 5) Direkt-Marker "-> PASSED" / "-> FAILED".
     if ($Output -match '->\s*PASSED') { return 'PASS' }
     if ($Output -match '->\s*FAILED') { return 'FAIL' }
 
-    # 6) Sondermarker ohne PASS/FAIL.
     if ($Output -match 'Klassische Schranke respektiert') { return 'PASS' }
     if ($Output -match 'KEIN Bell-Bruch')                 { return 'PASS' }
     if ($Output -match 'Signalverlust')                   { return 'PASS' }
@@ -525,7 +531,6 @@ function Get-TestResult {
     if ($Output -match '#\s*Gesamt\s*:\s*PASS')           { return 'PASS' }
     if ($Output -match '#\s*Gesamt\s*:\s*FAIL')           { return 'FAIL' }
 
-    # 7) Superdet-Sonderfall (getrennte/geteilte Quelle).
     $mSep = [regex]::Match($Output, 'getrennte Quelle:\s*S\s*=\s*([0-9.+-]+)')
     $mShr = [regex]::Match($Output, 'geteilte Quelle:\s*S\s*=\s*([0-9.+-]+)')
     if ($mSep.Success -and $mShr.Success) {
@@ -536,14 +541,10 @@ function Get-TestResult {
         if ($okSep -and $okShr) { return 'PASS' } else { return 'FAIL' }
     }
 
-    # 8) Fallback.
     if ($ExitCode -ne 0) { return 'FAIL' }
     return 'UNKNOWN'
 }
 
-# ==========================================================================
-# Hauptschleife
-# ==========================================================================
 $results = @()
 $counter = 0
 $total = $selected.Count
@@ -572,9 +573,6 @@ foreach ($name in $selected) {
     $timedOut = $false
 
     try {
-        # PowerShell 5.1: -ArgumentList @() ist buggy und bricht den
-        # Start-Process-Aufruf stillschweigend ab (kein Log, kein
-        # Exit-Code). Bei leerer Liste den Parameter ganz weglassen.
         $hasArgs = ($entry.Args -and $entry.Args.Count -gt 0)
 
         if ($hasArgs) {
@@ -598,8 +596,6 @@ foreach ($name in $selected) {
             $exitCode = $proc.ExitCode
         }
     } catch {
-        # Exception sichtbar machen: in die Log-Datei schreiben, damit
-        # der Runner nicht mit stillem 0,0-s-FAIL endet.
         $output = "EXCEPTION beim Start: $_"
         if (-not (Test-Path -LiteralPath $logPath)) {
             "EXCEPTION beim Start von $exePath`n$_" |
@@ -648,9 +644,6 @@ foreach ($name in $selected) {
 
 $totalElapsed = ((Get-Date) - $totalStart).TotalSeconds
 
-# ==========================================================================
-# Zusammenfassung
-# ==========================================================================
 Write-Host ''
 Write-Host '============================================================' -ForegroundColor Cyan
 Write-Host '  Zusammenfassung' -ForegroundColor Cyan

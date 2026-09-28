@@ -1,22 +1,19 @@
 /* ==========================================================================
  * ProPhysics - Alpha-Test Common Header
  * File: alpha_test_common.h
- * Version: 3.2 (Etappe 23b + Refactoring)
+ * Version: 3.5 (Etappe 23e + Refactoring)
  *
- * Refactoring 23b-Aenderungen:
- *   - Header-Kommentar auf v3.2 aktualisiert.
- *   - Neuer Testprototyp test_creutz_ratio (Etappe 23b, Prio 8).
+ * Refactoring 23e-Aenderungen:
+ *   - Header-Kommentar auf v3.5 aktualisiert.
+ *   - Neuer Testprototyp test_metropolis_2d (Etappe 23e).
  *
- * Refactoring 22-Aenderungen:
- *   - Header-Kommentar auf v3.1 aktualisiert.
- *   - Neuer Testprototyp test_su2_wilson_loop (Etappe 22).
- *   - Der Callback-Typ im Test-Harness ist jetzt der zentrale
- *     ProPhysics_RuleCallback aus ProPhysics.h. Bestehende Aufrufe
- *     mit ProPhysics_ScientificRuleCallback funktionieren ueber den
- *     Alias in pro_sdk_interface.h weiter.
+ * Refactoring 23d-Aenderungen:
+ *   - Header-Kommentar auf v3.4 aktualisiert.
+ *   - Neuer Testprototyp test_torelon_mass (Etappe 23d).
  *
- * Etappe 22-Aenderungen:
- *   - test_su2_wilson_loop Prototyp.
+ * Refactoring 23c-Aenderungen:
+ *   - Header-Kommentar auf v3.3 aktualisiert.
+ *   - Neuer Testprototyp test_string_tension (Etappe 23c).
  *
  * Enthaelt:
  *   - Kern-Typedefs (DynamicTracker, prng_state_t, EngineNodeAlias,
@@ -52,15 +49,13 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-  /* Q15 -> Q31 Konvertierung (Q31 = int64, Re/Im je int32).
-   * Shift um 16 Bit, weil Q15 eine Skala von 2^15, Q31 von 2^31 hat. */
 #define Q15TO31(x) ((int32_t)((int64_t)(x) << 16))
 #define Q31_MAXV   2147483647.0
 #define Q31_MINV   (-2147483648.0)
 
-   /* ==========================================================================
-    * Typedefs
-    * ========================================================================== */
+  /* ==========================================================================
+   * Typedefs
+   * ========================================================================== */
 
 typedef struct {
     uint32_t prev_reserved_gating;
@@ -144,10 +139,6 @@ double evaluate_correlation(const ProUniverse* pu,
 
 /* ==========================================================================
  * Test-Prototypen
- *
- * Gruppiert nach Prio. Jede Funktion liefert true (PASS) oder false
- * (FAIL). Der Test-Harness (alpha_test_main.c) dispatched anhand der
- * CLI-Flags.
  * ========================================================================== */
 
  /* --- Prio 1: 2D-Basis --- */
@@ -225,13 +216,23 @@ bool test_dirac_dispersion_entry(void);
 
 /* --- Prio 8: SU(2)-Eichfeld (Etappe 22) --- */
 bool test_su2_wilson_loop(void);
-/* --- Prio 8-Erweiterung: Renormierung / Running Coupling (Etappe 23) --- */
 bool test_running_coupling(void);
-/* --- Prio 8-Erweiterung: Creutz-Ratio Konsistenz-Test (Etappe 23b) ---
- *
- * full_dims == false : dim in {16, 32}           (Default, schnell)
- * full_dims == true  : dim in {16, 32, 64, 128}  (Nightly, --creutz-full)
- */
 bool test_creutz_ratio(bool full_dims);
+
+/* --- Prio 8 + 99: String-Tension V&V-Anker (Etappe 23c) --- */
+bool test_string_tension(bool full_dims, bool anchor);
+
+/* --- Prio 8 + 99: Torelon-Masse als V&V-Anker (Etappe 23d) --- */
+bool test_torelon_mass(bool full_dims, bool anchor);
+
+/* --- Prio 8 + 99: 2D SU(2) Metropolis vs I1/I0 (Etappe 23e) ---
+ *
+ * full_dims == false : dim=16   (Default, schnell, ~3 min)
+ * full_dims == true  : dim=32   (--metropolis-2d-full)
+ *
+ * Exakte Referenz: <W_plaq> = I1(beta)/I0(beta) in 2D SU(2).
+ * Dient als Isolator fuer den Sampler-Kern.
+ */
+bool test_metropolis_2d(bool full_dims);
 
 #endif /* ALPHA_TEST_COMMON_H */

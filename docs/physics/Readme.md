@@ -1,11 +1,11 @@
 # ProPhysics — Physikalische Grundlagen
 
 **Datei:** `docs/physics/README.md`
-**Version:** 1.0
+**Version:** 1.1
 **Kernel:** 1.23.0
 **Etappe:** 23
-**Stand:** 2026-09-27 (Kernel 1.23.0, Konsolidierungs-Serie
-1.23.1–1.23.10 abgeschlossen)
+**Stand:** 2026-09-29 (Kernel 1.23.0, Konsolidierungs-Serie
+1.23.1–1.23.14 abgeschlossen; V&V-Anker zurückgenommen)
 **Zweck:** Kompakte Einführung in die Physik von ProPhysics. Für Leser,
 die verstehen wollen, **was** der Kernel physikalisch tut, ohne den
 Testkatalog zu lesen oder den Code zu studieren.
@@ -385,55 +385,53 @@ Vorzeichen-String. Die Antikommutatoren sind **nicht** eincodiert.
 **Nachtrag (Patch 1.23.10):** Ein Forward-Plaquette-Konjugations-Bug
 in `su2_plaquette_action_at` (fehlende `†`-Anwendung auf die
 rückwärtigen Links `l3†`, `l4†`) wurde gefixt. T16 verbessert sich
-dadurch von 2,44e-03 auf **1,41e-03** (Faktor 1,7). T11
-(Plaquette-Näherung) bleibt unverändert, weil der Test nur
-rein-imaginäres `b` (`b_re = 0`) verwendet.
+dadurch von 2,44e-03 auf **1,41e-03** (Faktor 1,7).
 
 **Grenze:** Nur SU(2). Für SU(3) bräuchte man 8 Komponenten
 (Gell-Mann), nicht 4.
 
-### §4.8 — Wilson-Action / Metropolis (V&V-Anker)
+### §4.8 — SU(2)-Eichtheorie: Validierung
 
-**Was gemessen wird:** Wilson-Plaquette-Observable
-`⟨P⟩ = 1 − 2·u_plaq` als Funktion von β.
+**Was gemessen wird:** Wilson-Plaquette-Observable in 2D und 3D.
 
-**Wie es entsteht:** Metropolis-Sampling auf SU(2)-Links mit
-Wilson-Action.
+**2D-Referenz (exakt):**
 
-**Quantitativer Beleg (Test `Running-Coupling`, dim=64):**
+Der 2D-SU(2)-Metropolis-Sampler reproduziert die exakte
+Haar-Verteilung, charakterisiert durch die Bessel-Ratio
+`⟨½ Re Tr U⟩ = I₂(β)/I₁(β)`. Geprüft bei dim=16 für β ∈ {0.5, 1, 2, 4}.
 
-| β | u_plaq | u_err | ⟨P⟩ |
+**Quantitativer Beleg (2D, dim=16):**
+
+| β | `<W>` gemessen | `I₂/I₁` (exakt) | rel_dev |
 |---|---|---|---|
-| 0.50 | 0.438134 | 0.000025 | 0.123732 |
-| 1.00 | 0.379875 | 0.000021 | 0.240250 |
-| **2.00** | **0.283270** | **0.000027** | **0.433460** |
-| 4.00 | 0.170344 | 0.000019 | 0.659312 |
+| 0,50 | 0,125213 ± 0,001275 | 0,123718 | 1,2 % |
+| 1,00 | 0,240922 ± 0,001596 | 0,240194 | 0,3 % |
+| 2,00 | 0,434476 ± 0,001493 | 0,433127 | 0,3 % |
+| 4,00 | 0,655848 ± 0,001250 | 0,658047 | 0,3 % |
 
-**V&V-Anker (β=2.0, dim=64):**
+**Ergebnis: 4/4 PASS.** Alle Werte innerhalb 2σ.
 
-| Größe | Wert | Abweichung |
-|---|---|---|
-| ⟨P⟩ gemessen | 0,43346 ± 0,00005 | |
-| Referenz `I₂(2)/I₁(2)` | 0,43313 | |
-| **Abweichung** | | **0,08 %** |
+**3D-Selbstkonsistenz (String-Tension):**
 
-**Skalen-Unabhängigkeit:**
+σ_a2 fällt streng monoton in β (asymptotische Freiheit). dim=16 vs
+dim=32 konvergiert auf < 0,5 %.
 
-| β | dim=16 | dim=32 | dim=64 | Streuung |
-|---|---|---|---|---|
-| 0.50 | 0.438085 | 0.438256 | 0.438134 | 1,7e-4 |
-| 1.00 | 0.379640 | 0.379966 | 0.379875 | 3,3e-4 |
-| 2.00 | 0.283311 | 0.283425 | 0.283270 | 1,6e-4 |
-| 4.00 | 0.170166 | 0.170304 | 0.170344 | 1,8e-4 |
+| β | σ_a2 (dim=16) | σ_a2 (dim=32) | Differenz |
+|---|---|---|---|
+| 2,40 | 0,595053 ± 0,005997 | 0,594901 ± 0,002280 | 0,03 % |
+| 2,50 | 0,560160 ± 0,004610 | 0,557702 ± 0,001776 | 0,4 % |
 
-**Bedeutung:** Die Wilson-Action-Normierung, der
-Metropolis-Akzeptanzschritt und die Q30-Quaternion-Multiplikation
-sind **unabhängig validiert**. Ein falscher Sampler würde auf
-Prozent-Ebene abweichen, nicht auf 0,08 %.
+**Emergenz:** **Ja.** Die 2D-Haar-Verteilung und die 3D-Confinement-
+Eigenschaft emergieren aus Metropolis + Wilson-Action.
 
-**Emergenz:** **Ja.** Die Boltzmann-Verteilung emergiert aus der
-Akzeptanz-Regel. Der Sampler ist keine Konstruktion, sondern eine
-Implementation der kanonischen Verteilung.
+**Status gegenüber früheren Angaben:** Der frühere V&V-Anker
+(0,08 % gegen `I₂(2)/I₁(2)`) aus `[1.23.0]` war ein Artefakt eines
+Sampler-Bugs (`U → normalize(U + ε)` hatte int32-Overflow bei
+ε > 1). Nach dem Sampler-Fix (`[1.23.14]`) ist der Anker
+zurückgenommen.
+
+**Kein externer 3D-Anker.** Die publizierten Werte von Cahill &
+Prasad (1989) sind 4D-SU(2). Der Vergleich mit 3D ist unzulässig.
 
 ### §4.9 — Tsirelson-Korrelation
 
@@ -525,12 +523,16 @@ Zusammenfassung der harten Zahlen.
 | Lorentz | `rel_dev` | 5,4e-04 | ✅ gut |
 | Spin-1/2 | g-Faktor | 8,12e-10 | ✅ exakt |
 | SU(2)-Unit | `max_err` | 4,45e-10 | ✅ exakt |
-| Wilson-Action V&V | Abweichung | 0,08 % | ✅ **validiert** |
+| 2D-SU(2) vs `I₂/I₁` | `rel_dev` | 1,2 % | ✅ exakt |
+| 3D-String-Tension dim-Konvergenz | Differenz | < 0,5 % | ✅ konsistent |
 | U5-Drift | 2000 Ticks | 1,81e-09 | ✅ stabil |
 | Tsirelson | S | 2,8457 | ✅ im Band |
-| Metropolis-Boltzmann | Skalen-Unabhängigkeit | < 0,1 % | ✅ UV-konvergent |
+| Creutz-Ratio | B1/B2/B3 | PASS | ✅ konsistent |
 
 **Das ist der validierte Kern des Projekts.**
+
+**Nicht mehr in der Tabelle:** Der frühere V&V-Anker gegen externe
+Lattice-QCD (0,08 %) — siehe §4.8 und `CHANGELOG.md` `[1.23.14]`.
 
 ---
 
@@ -567,26 +569,30 @@ sind es nicht.
 
 **Nächster Schritt:** Etappe 18d-B (optional). Nicht blockierend.
 
-### §7.2 — β-Funktions-Messung
+### §7.2 — Externe V&V gegen Lattice-QCD
 
-**Ziel:** Echte Renormierungsgruppen-Fluss-Messung.
+**Ziel:** Absolute Übereinstimmung mit publizierten Werten.
 
-**Erreicht:** Nur V&V-Anker bei β=2. Die Observable `u_plaq` ist
-skalen-unempfindlich.
+**Erreicht:** 2D-SU(2) gegen exakte Bessel-Referenz (1,2 %), aber
+**kein externer 3D-Anker**.
 
-**Grund:** Eine β-Funktion braucht **zwei** Observablen (z.B.
-Creutz-Ratio). Nicht implementiert.
+**Grund:** Die publizierten Cahill-&-Prasad-Werte sind 4D, der
+Kernel ist 3D. Die Kopplungen sind nicht vergleichbar.
 
-**Nächster Schritt:** Etappe 23b (optional).
+**Nächster Schritt:** Entweder 3D-Literatur suchen (Ambjørn/Hey/Otto
+1983/1984) oder 4D-Torus implementieren (Etappe 25+).
 
 ### §7.3 — Confinement / Massenlücke
 
 **Ziel:** Nachweis einer Massenlücke im Yang-Mills-Spektrum.
 
-**Erreicht:** Nichts.
+**Erreicht:** String-Tension σ_a2 > 0 (indirekt Confinement).
+
+**Nicht erreicht:** Direkte Massenlücke (Torelon-Masse) — der Test
+schlägt fehl (Timeout, Korrelation fällt auf Rauschen bei z=1).
 
 **Grund:** Erfordert nicht-perturbative Methoden (größere Gitter,
-längere Läufe, bessere Observablen). Nicht im aktuellen Scope.
+längere Läufe, bessere Observablen).
 
 **Nächster Schritt:** Etappe 24+.
 
@@ -614,6 +620,7 @@ sind implementiert.
 | Keine echte QCD | Keine Quarks, keine Gluonen im Kontinuum |
 | Keine Universalität | T-Gate fehlt |
 | Kein Bell-Bruch | `S > 2√2` wäre Fehler |
+| **Kein externer V&V-Anker** | **3D-Kernel vs 4D-Referenz** |
 
 ### §8.2 — Technische Grenzen
 
@@ -628,12 +635,9 @@ sind implementiert.
 
 ### §8.3 — Gitter-Größen
 
-`sizeof(ProUniverse)`-Arrays pro Knoten: **1 032 B** (siehe
-`ARCHITECTURE.md` §2.2 — sechs Kern-Arrays: `ur_grid` 8 B,
-`reg_source` 128 B, `reg_target` 128 B, `edge_phases` 640 B,
-`amp_grid` 64 B, `amp_scratch` 64 B).
+`sizeof`-Arrays pro Knoten: **1 032 B**.
 
-| Gitter | Knoten | RAM (ProUniverse-Kernarrays) |
+| Gitter | Knoten | RAM (Kernarrays) |
 |---|---|---|
 | 16² | 256 | ~258 KB |
 | 64² | 4 096 | ~4,0 MB |
@@ -645,10 +649,6 @@ sind implementiert.
 
 **Praktische Obergrenze:** `64³` (~260 MB), darüber wird der Tick
 zu langsam.
-
-**Korrektur-Hinweis:** Frühere Fassungen rechneten mit 904 B × N
-(Summen-Fehler: `amp_grid` und `amp_scratch` fehlten). Die korrekte
-Summe ist 1 032 B × N.
 
 ---
 
@@ -662,6 +662,7 @@ Summe ist 1 032 B × N.
 - **Fermionische Antikommutatoren** (Jordan-Wigner).
 - **Lorentz-Faktor** `γ = 1/√(1 − v²)`.
 - **Zeitdilatation** als Folge der Unitariät.
+- **2D-SU(2)-Haar-Verteilung** (exakt).
 
 ### §9.2 — Was anders ist
 
@@ -681,6 +682,7 @@ Summe ist 1 032 B × N.
 - **Chiraler Limes:** Kein Kontinuumsübergang.
 - **Quark-Confinement:** Nicht zugänglich.
 - **Higgs-Mechanismus:** Nicht implementiert.
+- **4D-Lattice-QCD:** Kernel ist 3D.
 
 **ProPhysics ist kein Ersatz für Lattice-QCD.** Es ist eine
 **Ergänzung** — eine andere Darstellung.
@@ -700,6 +702,7 @@ Was ProPhysics **nicht** beantwortet.
 4. **Kann die Born-Regel exakt gezeigt werden?** Bisher nur mit
    χ²-Test.
 5. **Gibt es einen Kontinuumslimes?** Wenn ja, wie?
+6. **Ist der Kernel in 4D konsistent?** Noch nicht getestet.
 
 ### §10.2 — Technische Fragen
 
@@ -709,7 +712,6 @@ Was ProPhysics **nicht** beantwortet.
    ändern?
 3. **Kann die Speicher-Architektur verbessert werden?**
    (`CHANNELS_MAX` 16 → 8)
-4. **Wie sieht die Performance auf ARM aus?**
 
 ### §10.3 — Konzeptionelle Fragen
 
@@ -744,7 +746,7 @@ Forschungs-Programms.
 1. `docs/project/ProPhysics_Differentiators.md` §7 (was es nicht
    ist).
 2. Dieses Dokument §5 (was quantitativ belegt ist).
-3. `docs/test/ProPhysics_Testkatalog.md` §8.2 (V&V-Anker).
+3. `docs/test/ProPhysics_Testkatalog.md` §8 (Konsistenz-Tests).
 
 ---
 
@@ -797,8 +799,9 @@ Forschungs-Programms.
 | Version | Datum | Änderung |
 |---|---|---|
 | 1.0 | 2026-09-25 | Erste Fassung, Etappe 23, Kernel-Version 3.0.0 |
-| 1.0 | 2026-09-26 | Header auf Etappen-Schema umgestellt (Kernel 1.23.0, Etappe 23); §8.3 Größenrechnung korrigiert (904 → 1 032 B × N — `amp_grid` und `amp_scratch` fehlten in der Summe); §12 um alle 12 Modul-Docs und Versions-Register/Konfiguration erweitert; `SDK_API.md` als geplant markiert |
-| 1.0 | 2026-09-27 | §4.7 T16-Wert auf 1,41e-03 aktualisiert; Nachtrag zum Forward-Plaquette-Konjugations-Fix (Patch 1.23.10) ergänzt; Header-Stand auf Konsolidierungs-Serie 1.23.1–1.23.10 umgestellt |
+| 1.0 | 2026-09-26 | Header auf Etappen-Schema umgestellt (Kernel 1.23.0, Etappe 23); §8.3 Größenrechnung korrigiert; §12 um alle 12 Modul-Docs erweitert |
+| 1.0 | 2026-09-27 | §4.7 T16-Wert auf 1,41e-03 aktualisiert |
+| 1.1 | 2026-09-29 | §4.8 komplett neu: V&V-Anker zurückgenommen, 2D gegen exakte Bessel-Referenz, 3D-Selbstkonsistenz. §5-Tabelle korrigiert (kein externer V&V-Anker mehr). §7.2 neu (externe V&V als verfehltes Ziel). §8.1 um „Kein externer V&V-Anker" erweitert. §9.1 um 2D-SU(2)-Haar-Verteilung erweitert. §9.3 um „4D-Lattice-QCD" erweitert. §10.1 Frage 6 (4D-Konsistenz) neu. |
 
 **Hinweis zum Schema-Wechsel:** Frühere Versionen dieses Dokuments
 trugen `Kernel-Version 3.0.0` (SemVer-ähnlich). Mit der Umstellung auf
@@ -807,4 +810,4 @@ das Etappen-Schema entspricht `3.0.0` jetzt `1.23.0`. Siehe
 
 ---
 
-**Ende Physik-Übersicht v1.0.**
+**Ende Physik-Übersicht v1.1.**

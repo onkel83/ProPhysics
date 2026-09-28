@@ -78,6 +78,14 @@ static void usage(const char* prog) {
     printf("  --test-running-coupling       Running-Coupling / Beta-Funktion (Etappe 23)\n");
     printf("  --test-creutz-ratio           Creutz-Ratio Konsistenz-Test (Etappe 23b)\n");
     printf("  --creutz-full                 Erweitert Creutz-Ratio auf dim in {16,32,64,128}\n");
+    printf("  --test-string-tension         String-Tension V&V-Anker (Etappe 23c)\n");
+    printf("  --tension-full                Erweitert String-Tension auf dim in {16,32,64}\n");
+    printf("  --tension-huge                Erweitert String-Tension auf dim in {16,32,64,128}\n");
+    printf("  --tension-anchor              Aktiviert Anker-Vergleich (Sekundaerquelle)\n");
+    printf("  --test-torelon-mass           Torelon-Masse als V&V-Anker (Etappe 23d)\n");
+    printf("  --torelon-full                Erweitert Torelon-Masse auf dim in {32,64}\n");
+    printf("  --test-metropolis-2d          2D SU(2) Metropolis vs I1/I0 (Etappe 23e)\n");
+    printf("  --metropolis-2d-full          Erweitert 2D-Metropolis auf dim=32\n");
     exit(0);
 }
 
@@ -293,7 +301,6 @@ static bool test_no_signaling_causality(uint32_t ensemble_size,
     prng_seed(&rng, 0xDEADBEEFCAFEBABEULL);
     uint32_t p_b_flip[8] = { 0 }, p_b_noop[8] = { 0 };
     uint32_t counted_iterations = 0;
-    const uint32_t debug_iters = 3u;
     for (uint32_t i = 0; i < ensemble_size; ++i) {
         const uint64_t node_a = fast_map_index(prng_next(&rng), NOSIG_NODES);
         const uint64_t node_b = (node_a + (uint64_t)dist_nodes) % NOSIG_NODES;
@@ -414,7 +421,11 @@ int main(int argc, char** argv) {
         want_test_spin_half = false,
         want_test_dirac = false,
         want_test_su2_wilson_loop = false, want_test_running_coupling = false,
-        want_test_creutz_ratio = false, want_creutz_full = false;
+        want_test_creutz_ratio = false, want_creutz_full = false,
+        want_test_string_tension = false, want_tension_full = false,
+        want_tension_huge = false, want_tension_anchor = false,
+        want_test_torelon_mass = false, want_torelon_full = false,
+        want_test_metropolis_2d = false, want_metropolis_2d_full = false;
 
     for (int i = 1; i < argc; ++i) {
         if (arg_matches(argv[i], "-h") || arg_matches(argv[i], "--help")) usage(argv[0]);
@@ -478,8 +489,16 @@ int main(int argc, char** argv) {
         else if (arg_matches(argv[i], "--test-running-coupling")) want_test_running_coupling = true;
         else if (arg_matches(argv[i], "--test-creutz-ratio")) want_test_creutz_ratio = true;
         else if (arg_matches(argv[i], "--creutz-full")) want_creutz_full = true;
+        else if (arg_matches(argv[i], "--test-string-tension")) want_test_string_tension = true;
+        else if (arg_matches(argv[i], "--tension-full")) want_tension_full = true;
+        else if (arg_matches(argv[i], "--tension-huge")) want_tension_huge = true;
+        else if (arg_matches(argv[i], "--tension-anchor")) want_tension_anchor = true;
+        else if (arg_matches(argv[i], "--test-torelon-mass")) want_test_torelon_mass = true;
+        else if (arg_matches(argv[i], "--torelon-full")) want_torelon_full = true;
+        else if (arg_matches(argv[i], "--test-metropolis-2d")) want_test_metropolis_2d = true;
+        else if (arg_matches(argv[i], "--metropolis-2d-full")) want_metropolis_2d_full = true;
 
-        else if (arg_matches(argv[i], "--log") && i + 1 < argc) { i++; /* Wert in Pre-Pass bereits konsumiert */ }
+        else if (arg_matches(argv[i], "--log") && i + 1 < argc) { i++; }
         else { fprintf(stderr, "Unbekannter Parameter: %s\n", argv[i]); usage(argv[0]); }
     }
 
@@ -559,6 +578,16 @@ int main(int argc, char** argv) {
     if (want_test_su2_wilson_loop) test_su2_wilson_loop();
     if (want_test_running_coupling) test_running_coupling();
     if (want_test_creutz_ratio) test_creutz_ratio(want_creutz_full);
+    if (want_test_string_tension) {
+        test_string_tension(want_tension_full || want_tension_huge,
+            want_tension_anchor);
+    }
+    if (want_test_torelon_mass) {
+        test_torelon_mass(want_torelon_full, want_tension_anchor);
+    }
+    if (want_test_metropolis_2d) {
+        test_metropolis_2d(want_metropolis_2d_full);
+    }
 
     bool any_test = want_test_chsh || want_test_no_signal || want_test_invariance
         || want_test_lorentz || want_test_amp || want_test_born || want_test_unitary
@@ -579,9 +608,13 @@ int main(int argc, char** argv) {
         || want_test_shared_formula_tournament
         || want_test_spin_half || want_test_dirac
         || want_test_su2_wilson_loop || want_test_running_coupling
-        || want_test_creutz_ratio;
+        || want_test_creutz_ratio
+        || want_test_string_tension
+        || want_test_torelon_mass
+        || want_test_metropolis_2d;
     if (any_test) return 0;
 
+    /* ... Rest unveraendert (Default-Modus) ... */
     const uint32_t inject_ticks = (inject_ticks_arg >= 0) ? (uint32_t)inject_ticks_arg : (ticks / 10);
     if (!out_file) { make_default_filename(out_file_buf, sizeof(out_file_buf)); out_file = out_file_buf; }
     printf("========================================================================\n");

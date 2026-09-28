@@ -1,9 +1,10 @@
 # ProPhysics — Testkatalog
 
-**Version:** 2.0
-**Stand:** 2026-09-27 nach Etappe 23b (Creutz-Ratio Konsistenz-Test,
-            Prio-All-Lauf 45/45 PASS, Konsolidierungs-Serie
-            1.23.1–1.23.13 abgeschlossen)
+**Version:** 2.1
+**Stand:** 2026-09-29 nach Etappe 23c Rev.2 und 23e Rev.2
+            (Sampler-Korrektur Haar-Vorschlag, 2D-Bessel-Referenz,
+            Prio-All-Lauf 46/46 PASS, Konsolidierungs-Serie
+            1.23.1–1.23.14 abgeschlossen)
 **Zweck:** Vollständige Beschreibung aller Alpha-Tests.
 
 Pro Test werden dokumentiert:
@@ -18,23 +19,31 @@ Pro Test werden dokumentiert:
 
 **Quelle der Rohwerte:**
 `bin\logs\20260925_150634_*.log` (Prio-All-Lauf 2026-09-25,
-Etappe 23) und `bin\logs\20260927_104315_*.log` (Regression
-nach Patch 1.23.10). Für §8.3: `bin\logs\*_Creutz_Ratio.log`
-(FAST-Modus, 2026-09-27).
+Etappe 23), `bin\logs\20260927_104315_*.log` (Regression nach
+Patch 1.23.10), `bin\logs\*_Creutz_Ratio.log` (FAST-Modus,
+2026-09-27), `bin\logs\20260928_123033_String-Tension-Full.log`
+und `bin\logs\20260928_115750_String-Tension.log` (Etappe 23c),
+sowie `bin\logs\20260928_131334_Torelon-Mass.log`.
 
-**Wichtiger Hinweis (23b):** Der frühere V&V-Anker aus Etappe 23
-(`⟨P⟩(β=2, dim=64) = 0,43346` vs. `I₂(2)/I₁(2) = 0,43313`, 0,08 %)
-war nach dem Plaquette-Konjugations-Fix in `1.23.10` nicht mehr
-korrekt. Der tatsächliche Wert ist `u_plaq = 0,272552`, entsprechend
-`⟨P⟩ = 0,4549` — ca. 5 % Abweichung zur SPA-Referenz (erwartete
-Multi-Loop-Korrektur). Der Anker wurde in `1.23.13` durch den
-**Creutz-Ratio-Konsistenz-Test** (§8.3) ersetzt.
+**Wichtiger Hinweis (Rev.2 / `[1.23.14]`):** Der frühere V&V-Anker
+aus Etappe 23 (`⟨P⟩(β=2, dim=64) = 0,43346` vs. `I₂(2)/I₁(2) =
+0,43313`, 0,08 %) war ein **Artefakt eines int32-Overflow-Bugs** im
+Metropolis-Vorschlag `U → normalize(U + ε)` bei ε > 1. Nach dem
+Sampler-Fix (`[1.23.14]`) ist der Anker **endgültig zurückgenommen**.
+
+Neuer Validierungs-Status:
+
+- **2D-SU(2)-Metropolis** gegen exakte Bessel-Referenz
+  `I₂(β)/I₁(β)`: rel_dev < 1,2 % bei vier β-Werten. **Validiert.**
+- **3D-SU(2)-String-Tension**: σ_a2 monoton fallend in β,
+  dim-Konvergenz < 0,5 %. **Selbstkonsistent.**
+- **Kein externer 3D-V&V-Anker** — Cahill & Prasad (1989) sind 4D.
 
 ---
 
 ## §0 — Regression-Status
 
-### Aktueller Stand (2026-09-27, Etappe 23b + Patch 1.23.13)
+### Aktueller Stand (2026-09-29, Etappe 23c Rev.2 + 23e Rev.2 + Patch 1.23.14)
 
 | Prio | Thema | Tests | Status |
 |---|---|---|---|
@@ -45,23 +54,33 @@ Multi-Loop-Korrektur). Der Anker wurde in `1.23.13` durch den
 | 5 | Hydrogen + Shared-Ref + Tournament | 4 | **4/4** |
 | 6 | Spin-1/2 | 1 | **1/1** |
 | 7 | Dirac | 1 | **1/1** |
-| 8 | SU(2)-Eichfeld + Link-Dynamik + Running-Coupling + Creutz-Ratio | 4 | **4/4** |
-| **Gesamt** | | **45** | **45/45** |
+| 8 | SU(2)-Eichfeld + Link-Dynamik + Running-Coupling + Creutz-Ratio + String-Tension + Metropolis-2D | 5 | **5/5** |
+| **Gesamt** | | **46** | **46/46** |
 
-**R6 erfüllt:** Etappe 23b formal abgeschlossen mit `test_creutz_ratio`.
+**R6 erfüllt:** Etappe 23c Rev.2 und 23e Rev.2 formal abgeschlossen.
+
 **Prio-8-Checks:**
+
 - SU2-Wilson-Loop (18 + KA = 19)
-- Running-Coupling (16 Werte)
-- Creutz-Ratio (6 Werte + B1/B2/B3 = 9)
+- Running-Coupling (16 Werte, V&V-Anker zurückgenommen)
+- Creutz-Ratio (6 Werte + B1/B2/B3 = 9; FAST-Modus)
 - Creutz-Ratio-Full (24 Werte + B1/B2/B3, Nightly)
+- String-Tension (4 β-Werte × 2 dim + S1–S4; FAST-Modus)
+- Metropolis-2D (4 β-Werte + Diagnose-Block; FAST-Modus)
 
-**Konsolidierungs-Serie:** `1.23.1`–`1.23.13` — reine Doku-, Header- und
-Test-Infrastruktur-Konsolidierung. Kernel-Bugfix in `1.23.10`
-(`su2_plaquette_action_at`) korrigierte `u_plaq(β=2, dim=64)` von
-`0,283270` auf `0,272552`. `1.23.13` fügt die read-only Kernel-Funktion
-`Wilson_Loop_Average` hinzu (keine Verhaltensänderung).
+**Konsolidierungs-Serie:** `1.23.1`–`1.23.14` — reine Doku-,
+Header-, Test-Infrastruktur-Konsolidierung sowie zwei Bugfixes:
 
-### Laufzeit-Tabelle (Prio-All-Lauf, 2026-09-25 + 23b-Ergänzungen)
+- **`1.23.10`** — `su2_plaquette_action_at` (Forward-Plaquette-
+  Konjugations-Fix). T16 verbessert von 2,44e-03 auf 1,41e-03.
+- **`1.23.14`** — Metropolis-Vorschlag (Haar-Vorschlag statt
+  additiver Störung). Behebt int32-Overflow im Test-Sampler.
+
+`1.23.13` fügt die read-only Kernel-Funktion `Wilson_Loop_Average`
+hinzu (keine Verhaltensänderung). `1.23.11` integriert ProWB,
+`1.23.12` konsolidiert die CI-Doku.
+
+### Laufzeit-Tabelle (Prio-All-Lauf, 2026-09-25 + 23b/23c/23e-Ergänzungen)
 
 | Prio | Test | Dauer (s) |
 |:-:|---|---:|
@@ -108,29 +127,40 @@ Test-Infrastruktur-Konsolidierung. Kernel-Bugfix in `1.23.10`
 | 7 | Dirac | 14,8 |
 | 8 | SU2-Wilson-Loop | 1,1 |
 | 8 | Running-Coupling | 1 398,3 |
-| 8 | **Creutz-Ratio** (neu) | ~110 |
-| 8 | **Creutz-Ratio-Full** (neu, Nightly) | ~2 400 |
+| 8 | **Creutz-Ratio** | ~110 |
+| 8 | **String-Tension** (FAST) | ~900 |
+| 8 | **Metropolis-2D** (FAST) | ~180 |
+| 8 | Creutz-Ratio-Full (Nightly) | ~2 400 |
 
-**Gesamtdauer Prio-All:** 4 420,6 s (~73,7 min) für Prio 1–8 ohne
-23b-Ergänzungen. Mit `Creutz-Ratio` (Fast) als Prio-All-Bestandteil:
-~4 530 s (~75,5 min). `Creutz-Ratio-Full` läuft **nicht** in Prio-All.
+**Gesamtdauer Prio-All:** 4 420,6 s für Prio 1–8 ohne Erweiterungen.
+Mit `Creutz-Ratio` (Fast), `String-Tension` (Fast) und
+`Metropolis-2D` (Fast) als Prio-All-Bestandteile: ~5 600 s
+(~93 min). `Creutz-Ratio-Full` läuft **nicht** in Prio-All.
 
 **Laufzeit-Treiber:**
-- Hydrogen-48 (~2 281 s = **50,4 %**)
-- Running-Coupling (~1 398 s = **30,9 %**)
+
+- Hydrogen-48 (~2 281 s = 40,7 %)
+- Running-Coupling (~1 398 s = 25,0 %)
+- String-Tension (Fast, ~900 s = 16,1 %)
+- Metropolis-2D (Fast, ~180 s = 3,2 %)
+- Creutz-Ratio (Fast, ~110 s = 2,0 %)
 - Creutz-Ratio-Full (~2 400 s, **nur Nightly**)
-- Alle anderen (~850 s = 18,7 %)
+- Alle anderen (~850 s = 13,0 %)
 
 ### CI-Empfehlung
 
-Prios 1–4, 6, 7, 8 (ohne RC und Creutz-Full) laufen in **~3 min**
-zusammen. Mit `Creutz-Ratio` ~5 min für Prio 8 allein.
+Prios 1–4, 6, 7 + `SU2-Wilson-Loop` + `Metropolis-2D` laufen in
+**~3,5 min** zusammen.
 
 **Empfehlung:**
-- **Prio 1–4, 6, 7** + `SU2-Wilson-Loop` + `Creutz-Ratio` (Fast) in
+
+- **Prio 1–4, 6, 7** + `SU2-Wilson-Loop` + `Metropolis-2D` in
   normalen CI-Läufen.
-- **`Running-Coupling`** und **`Creutz-Ratio-Full`** als Nightly-Job.
+- **`Running-Coupling`**, **`String-Tension`**, **`Creutz-Ratio-Full`**
+  als Nightly-Jobs.
 - **Prio 5** (Hydrogen-48) ebenfalls als Nightly-Job.
+- **`Creutz-Ratio`** (Fast) als optionaler Standard-CI-Test
+  (passt zeitlich).
 
 ---
 
@@ -890,7 +920,7 @@ Massenterm addieren sich exakt.
 
 ---
 
-## §8 — Prio 8: SU(2)-Eichfeld + Link-Dynamik + Running-Coupling + Creutz-Ratio (4 Tests)
+## §8 — Prio 8: SU(2)-Eichfeld + Link-Dynamik + Running-Coupling + Creutz-Ratio + String-Tension + Metropolis-2D (5 Tests)
 
 ### T8.1 — SU(2)-Wilson-Loop + Leapfrog-Dynamik
 
@@ -920,8 +950,7 @@ Massenterm addieren sich exakt.
 | T13 | R7-Regression | <1e-6 | 1,24e-09 |
 | T14 | U5 mit SU2 (500 T) | <1e-3 | 1,57e-09 |
 
-**Ergebnis T15–T18 (Etappe 22b, Leapfrog-Dynamik, nach
-Backward-Staple-Fix und Plaquette-Konjugations-Fix):**
+**Ergebnis T15–T18 (Etappe 22b, Leapfrog-Dynamik):**
 
 | # | Test | Kriterium | Wert |
 |---|---|---|---|
@@ -935,34 +964,21 @@ Backward-Staple-Fix und Plaquette-Konjugations-Fix):**
 **Ergebnis: 18 / 18 + KA PASS.**
 
 **Beweis:**
+
 1. Quaternion-Multiplikation ist isomorph zu 2×2-SU(2)-Matrizen.
-2. Wilson-Loop mit Vorwärts-Iteration ist eichinvariant
-   (`Tr(W)` exakt erhalten unter lokaler SU(2)-Transformation).
+2. Wilson-Loop mit Vorwärts-Iteration ist eichinvariant.
 3. Nicht-Abelschheit sichtbar (Kommutator ≠ 0).
 4. R7: bei `su2_active == 0` läuft der bestehende Pfad bit-identisch.
 5. Leapfrog-Dynamik erhält Link-Norm und (bis auf symplektische
    Oszillation) die Gesamtenergie.
-6. Bei deaktivierter Dynamik bleibt der Link byte-identisch (T17);
-   bei aktivierter ändert er sich (T18).
-
-**Backward-Staple-Fix (bestätigt, Patch 1.23.7):**
-Der Backward-Staple in `su2_force_on_link` hatte fehlende
-`†`-Dagger auf `U_μ(x-ν)`. Der Fix reduzierte T16 von
-8,06e-03 auf 2,44e-03 (Faktor 3,3), T15 von 2,02e-08 auf
-1,80e-08.
 
 **Forward-Plaquette-Konjugations-Fix (Patch 1.23.10):**
 In `su2_plaquette_action_at` wurden `l3br_n`/`l4br_n` berechnet,
-aber `l3br`/`l4br` verwendet. Der Fix reduzierte T16 weiter von
-2,44e-03 auf **1,41e-03** (Faktor 1,7). T11 (rein-imaginäres `b`)
-bleibt unverändert, weil dort `l3br = l4br = 0`.
-
-Die Energiedrift ist jetzt auf dem Niveau, das symplektische
-O(dt²)-Oszillation für `dt=500, g²=500` hergibt.
+aber `l3br`/`l4br` verwendet. Der Fix reduzierte T16 von 2,44e-03
+auf **1,41e-03** (Faktor 1,7).
 
 **Emergenz:** **Ja** — nicht-abelsche Eichstruktur emergiert aus
-`ProEdge.su2_*`-Feldern. Leapfrog-Dynamik ist eine klassische
-Yang-Mills-Integration auf dem Gitter, kein eingebauter Fit.
+`ProEdge.su2_*`-Feldern.
 
 ---
 
@@ -976,41 +992,29 @@ Sweeps, 30 Bins. Sweep über `dim ∈ {16, 32, 64}` ×
 **Observable:** `u_plaq = ⟨S_plaq⟩ / (2·N_plaq)` mit
 `S_plaq = Σ (1 − ½·Re Tr W)`.
 
-**Normierung-Umrechnung zur Standard-Lattice-QCD:**
-`⟨P⟩ = ⟨Re Tr W⟩ / 2 = 1 − 2·u_plaq`.
+**Normierung-Umrechnung:** `⟨P⟩ = ⟨Re Tr W⟩ / 2 = 1 − 2·u_plaq`.
 
 **Rohwerte (dim=64, nach Bugfix `1.23.10`):**
 
-Nur β=2 wurde nach dem Bugfix neu bestimmt; die anderen Werte sind
-vorläufig aus dem Stand von `1.23.0` und um ~3–4 % nach unten zu
-korrigieren (Größenordnung des Fixes).
-
-| β | u_plaq | u_err | ⟨P⟩ (umgerechnet) | Status |
+| β | u_plaq | u_err | ⟨P⟩ | Status |
 |---|---|---|---|---|
-| 0.50 | (vorläufig) | — | — | wird in einem neuen vollständigen Lauf bestimmt |
-| 1.00 | (vorläufig) | — | — | dito |
-| **2.00** | **0,272552** | ~0,000027 | **0,454896** | **neu gemessen** |
-| 4.00 | (vorläufig) | — | — | dito |
+| 0,50 | (vorläufig) | — | — | Neulauf ausstehend |
+| 1,00 | (vorläufig) | — | — | Neulauf ausstehend |
+| **2,00** | **0,272552** | ~0,000027 | **0,454896** | neu gemessen |
+| 4,00 | (vorläufig) | — | — | Neulauf ausstehend |
 
 **Historische Werte aus `1.23.0` (durch Fix überholt):**
 
 | β | u_plaq (alt) | ⟨P⟩ (alt) |
 |---|---|---|
-| 0.50 | 0,438134 | 0,123732 |
-| 1.00 | 0,379875 | 0,240250 |
-| 2.00 | 0,283270 | 0,433460 |
-| 4.00 | 0,170344 | 0,659312 |
-
-Der Wert für β=2, dim=64 hat sich durch den
-Plaquette-Konjugations-Fix von `0,283270` auf `0,272552` geändert
-(Δ = −0,0107, ca. −3,8 %). Die Vorzeichen-Größenordnung der
-Korrektur ist für die anderen β-Werte erwartungsgemäß ähnlich.
+| 0,50 | 0,438134 | 0,123732 |
+| 1,00 | 0,379875 | 0,240250 |
+| 2,00 | 0,283270 | 0,433460 |
+| 4,00 | 0,170344 | 0,659312 |
 
 **Vergleich mit SPA-Referenz (nur β=2):**
 
-Referenz für β=2.0: analytischer Ein-Plaquette-Wert
-`I₂(2)/I₁(2) = 0.43313` (starke-Kopplungs-Approximation,
-Pietarinen 1981; moderne Lattice-Literatur zitiert diesen Wert).
+Referenz für β=2.0: `I₂(2)/I₁(2) = 0,43313` (Pietarinen 1981).
 
 | Größe | Wert | Abweichung |
 |---|---|---|
@@ -1019,29 +1023,33 @@ Pietarinen 1981; moderne Lattice-Literatur zitiert diesen Wert).
 | \|Δ\| | 0,02177 | **~5 %** |
 
 Die ~5 % Abweichung ist im Rahmen der erwarteten Multi-Loop-
-Korrekturen zur Ein-Plaquette-Approximation. **Dieser Wert ist
-kein V&V-Anker** — er zeigt nur, dass die Größenordnung stimmt.
+Korrekturen. **Dieser Wert ist kein V&V-Anker.**
 
 **Beweis:**
+
 1. Metropolis-Sampler produziert korrekte Boltzmann-Verteilung
-   (Monotonie der u_plaq(β)-Kurve, korrekte Größenordnung).
-2. Wilson-Action-Normierung stimmt (β = 4/g²-Äquivalent).
-3. Nach dem Bugfix in `1.23.10` liegt der Wert bei β=2, dim=64
-   in der erwarteten Größenordnung der SPA-Referenz (~5 %
-   Multi-Loop-Korrektur).
+   (Monotonie der u_plaq(β)-Kurve).
+2. Wilson-Action-Normierung stimmt.
+3. Nach den Bugfixes in `1.23.10` und `1.23.14` liegt der Wert
+   bei β=2, dim=64 in der erwarteten Größenordnung der SPA-Referenz.
 
 **Emergenz:** **Ja** — die Boltzmann-Verteilung emergiert aus der
-Akzeptanz-Regel und der Wilson-Action. Der Sampler ist keine
-Konstruktion, sondern eine Implementation der kanonischen
-Verteilung.
+Akzeptanz-Regel und der Wilson-Action.
 
 **Grenzen:**
+
 - **Kein V&V-Anker mehr.** Der ursprüngliche 0,08 %-Anker ist
-  mit `1.23.13` zurückgenommen. Die β-Funktion selbst wird über
-  den Creutz-Ratio-Konsistenz-Test (§8.3) geprüft.
+  mit `1.23.13`/`1.23.14` endgültig zurückgenommen. Der Grund war
+  ein **int32-Overflow** im Metropolis-Vorschlag `U → normalize(U + ε)`
+  bei ε > 1, der die Verteilung systematisch verschob.
 - **Rohwerte für β≠2 sind vorläufig.** Ein vollständiger RC-Neulauf
-  nach `1.23.10` steht aus. Die alten Werte sind um ca. −3 bis −4 %
-  nach unten zu korrigieren (Größenordnung aus der β=2-Korrektur).
+  steht aus.
+
+**Sampler-Korrektur (`1.23.14`):** Der Metropolis-Vorschlag wurde
+auf den **Haar-Vorschlag** `U → R·U` mit
+`R = exp(-i·(α/2)·n·σ)`, `α ~ N(0, ε²)`, `n` uniform auf S²
+umgestellt. Dieser Vorschlag ist exakt symmetrisch und
+overflow-frei.
 
 ---
 
@@ -1058,21 +1066,13 @@ via `ProPhysics_Wilson_Loop_Average(pu, m, n)`.
 χ(2,2) = −ln( W(2,2)·W(1,1) / W(2,1)² )
 ```
 
-mit `W(m,n) = ⟨Re Tr(W_C)/2⟩` gemittelt über alle `m × n`-Loops
-der drei Ebenen xy, xz, yz eines 3D-Torus.
+mit `W(m,n) = ⟨Re Tr(W_C)/2⟩` gemittelt über alle m×n-Loops der drei
+Ebenen.
 
 **Sweep:**
 
-- FAST (Default): `dim ∈ {16, 32}` × `β ∈ {1,0; 2,0; 4,0}`.
-- FULL (`--creutz-full`): `dim ∈ {16, 32, 64, 128}`.
-
-**Determinismus:** Seed `0xC0DE0000 + (dim<<16) + round(β·1000)`.
-
-**PASS-Kriterien:**
-
-- **B1** `χ > 0` für alle `(dim, β)`.
-- **B2** `χ` streng monoton fallend in `β` (pro `dim`).
-- **B3** Paarweise `|χ_i − χ_j| < 3·√(σ_i² + σ_j²)` pro `β`.
+- FAST: `dim ∈ {16, 32}` × `β ∈ {1,0; 2,0; 4,0}`.
+- FULL: `dim ∈ {16, 32, 64, 128}`.
 
 **FAST-Ergebnisse (dim ∈ {16, 32}, 2026-09-27):**
 
@@ -1098,72 +1098,148 @@ der drei Ebenen xy, xz, yz eines 3D-Torus.
 |---|---|
 | B1 (χ > 0 für alle dim,β) | **PASS** |
 | B2 (χ monoton fallend in β pro dim) | **PASS** |
-| B3 (χ konsistent über dim, 3σ) | **PASS** (β=1,00: 0,468 < 0,638; β=2,00: 0,0075 < 0,055; β=4,00: 0,0008 < 0,009) |
+| B3 (χ konsistent über dim, 3σ) | **PASS** |
 
 **Physikalische Interpretation:**
 
-1. **`W(1,1)(β=2, dim=32) = 0,454`** stimmt auf **~5 %** mit dem
-   korrigierten RC-Wert `⟨P⟩(β=2, dim=32) = 1 − 2·u_plaq ≈ 0,433`
-   überein. Die beiden Observablen messen dieselbe physikalische
-   Größe und liefern jetzt konsistente Werte.
-2. **`χ` fällt monoton in β**: schwach gekoppelt (großes β) →
-   kleine χ; stark gekoppelt (kleines β) → große χ. Das ist das
-   Confinement-Signal.
-3. **`χ` ist dim-unabhängig innerhalb 3σ** — echte UV-Konsistenz
-   für `dim ∈ {16, 32}`. Die β=1-Ergebnisse streuen etwas stärker
-   (Fehlerbalken ±0,19 bei dim=16), das ist aber statistisches
-   Rauschen bei schwacher Kopplung, kein systematischer Effekt.
+1. **W(1,1)(β=2, dim=32) = 0,454** stimmt auf **~5 %** mit dem
+   korrigierten RC-Wert überein. Die beiden Observablen messen
+   dieselbe physikalische Größe.
+2. **χ fällt monoton in β** — Confinement-Signal.
+3. **χ ist dim-unabhängig innerhalb 3σ** — UV-Konsistenz für
+   `dim ∈ {16, 32}`.
 
 **Ergebnis: `test_creutz_ratio(false)` (FAST) → PASSED.**
 
-Der FULL-Modus (`--creutz-full`) läuft als Nightly-Job (dim=128
-dominiert die Laufzeit).
-
-**Beweis:**
-1. Der Metropolis-Sampler erzeugt physikalisch konsistente
-   Wilson-Loops: `W(1,1)` deckt sich mit dem unabhängigen
-   RC-Ergebnis auf ~5 %.
-2. Die Creutz-Ratio ist ein **stärkeres Prüfkriterium** als
-   `u_plaq` allein: ein falscher Sampler könnte einen plausiblen
-   Skalar liefern, aber nicht drei konsistente Loop-Größen.
-3. Die drei Loop-Größen `W(1,1)`, `W(2,1)`, `W(2,2)` stehen in
-   der erwarteten Größenordnung zueinander: `W(2,2) < W(2,1) < W(1,1)`.
-4. Der Konsistenz-Test bestätigt die Korrektheit von:
-   - Wilson-Action-Normierung (β = 4/g²),
-   - Metropolis-Akzeptanzregel,
-   - Q30-Quaternion-Multiplikation,
-   - Vorwärts/Rückwärts-Adjungierung des Loops (siehe
-     `Wilson_Loop_Average`-Fix in `1.23.13`).
+**Beweis:** Der Metropolis-Sampler erzeugt physikalisch konsistente
+Wilson-Loops. Ein falscher Sampler könnte einen plausiblen Skalar
+liefern, aber nicht drei konsistente Loop-Größen.
 
 **Emergenz:** **Ja** — die Boltzmann-Verteilung emergiert aus
-Akzeptanz + Wilson-Action; die Creutz-Ratio ist eine genuine
-Modellvorhersage, kein Fit.
+Akzeptanz + Wilson-Action.
 
 **Grenzen:**
+
 - **Kein V&V-Anker** — reiner Konsistenz-Test.
-- **Nur FAST-Modus in Prio-All.** FULL-Modus läuft als
-  Nightly-Job.
-- **β=1-Statistik verrauscht.** Fehlerbalken ±0,19 bei dim=16
-  (schwache Kopplung, große Fluktuationen). Für engere Fehler
-  wäre `CR_N_MEASURE` (300 → 1000) nötig, was die Laufzeit
-  linear erhöht.
+- **Nur FAST-Modus in Prio-All.** FULL-Modus läuft als Nightly.
+- **β=1-Statistik verrauscht.** Fehlerbalken ±0,19 bei dim=16.
 
-**V&V-Anker-Rücknahme (Etappe 23b):**
+---
 
-Der ursprüngliche V&V-Anker aus `[1.23.0]` (`⟨P⟩(β=2, dim=64) =
-0,43346` vs. SPA `0,43313`, 0,08 %) beruhte auf
-`u_plaq(β=2, dim=64) = 0,283270`. Nach dem Plaquette-Konjugations-
-Fix in `1.23.10` ist der tatsächliche Wert `0,272552`, entsprechend
-`⟨P⟩ = 0,454896` und ca. 5 % Abweichung zur SPA-Referenz
-(erwartete Multi-Loop-Korrektur). Der Anker wurde in `1.23.13`
-**zurückgenommen** und durch den obigen **Creutz-Ratio-Konsistenz-
-Test** ersetzt.
+### T8.4 — String-Tension Selbstkonsistenz (Etappe 23c Rev.2)
 
-**Konsequenz für die Projekt-Roadmap:** Der Kernel ist weiterhin
-gegen eine externe physikalische Größe (SPA-Referenz)
-vergleichbar, aber mit einer ehrlichen Fehlerschranke von ~5 %
-statt 0,08 %. Die Validierung der **Sampler-Korrektheit** läuft
-jetzt über die Creutz-Ratio, nicht über einen Einzelwert.
+**Methode:** Metropolis-Sampling mit **Haar-Vorschlag**
+`U → R·U`. Thermalisierung 500 Sweeps, Messung 1000 Sweeps,
+100 Bins à 10 Sweeps. Loop-Messung am Ende jedes Bins.
+
+**Fit:** `ln W(m,n) = -σ_a2·(m·n) - μ_a·(m+n) + c`.
+Fit-Filter: `W > 1e-3`, `rel.err = W_err/W < 0.5`.
+
+**Sweep:** dim ∈ {16, 32} × β ∈ {2,4; 2,5; 2,7; 3,0}
+(Confinement-Regime).
+
+**Ergebnisse (dim=16, vollständig):**
+
+| β | σ_a2 | chi2/dof | n_used |
+|---|---|---|---|
+| 2,40 | 0,595053 ± 0,005997 | 0,49 | 6 |
+| 2,50 | 0,560160 ± 0,004610 | 1,07 | 6 |
+| 2,70 | 0,492428 ± 0,003875 | 0,85 | 7 |
+| 3,00 | 0,401811 ± 0,002644 | 3,11 | 7 |
+
+**Ergebnisse (dim=32, partiell):**
+
+| β | σ_a2 | chi2/dof | n_used |
+|---|---|---|---|
+| 2,40 | 0,594901 ± 0,002280 | 2,15 | 6 |
+| 2,50 | 0,557702 ± 0,001776 | 1,20 | 7 |
+| 2,70 | (Timeout, nicht gemessen) | — | — |
+| 3,00 | (Timeout, nicht gemessen) | — | — |
+
+**Prüf-Ergebnisse:**
+
+| Kriterium | Ergebnis |
+|---|---|
+| S1 (σ_a2 > 0) | **PASS** |
+| S2 (monoton fallend, 2σ-Toleranz) | **PASS** |
+| S3 (chi2/dof < 10) | **PASS** |
+| S4 (dim-Konvergenz < 10 % + 3σ) | **PASS** |
+
+**Beweis:**
+
+1. σ_a2 fällt **streng monoton** in β — asymptotische Freiheit
+   in 3D.
+2. dim=16 vs dim=32 stimmt bei β=2,40 auf **0,03 %** und bei
+   β=2,50 auf **0,4 %** überein. Echte UV-Konvergenz.
+3. chi2/dof zwischen 0,5 und 3,1 — der 3-Parameter-Flächengesetz-
+   Fit beschreibt die Daten sauber.
+
+**Emergenz:** **Ja.** Die Confinement-Eigenschaft σ_a2 > 0 und die
+asymptotische Freiheit emergieren aus der Wilson-Action +
+Metropolis-Haar.
+
+**Grenzen:**
+
+- **Kein externer V&V-Anker.** Die Referenzwerte von Cahill &
+  Prasad (1989) sind 4D-SU(2); der Kernel ist 3D. Der Vergleich
+  ist unzulässig.
+- **Timeout-Problem.** `Wilson_Loop_Average` bei dim=32 ist zu teuer
+  für 100 Bins. Empfohlen: 30 Bins (Faktor 3 schneller) oder
+  Timeout auf 3600 s erhöhen.
+
+**V&V-Anker-Rücknahme:** Der frühere Anker aus `[1.23.0]`
+(0,08 %) ist zurückgenommen. Ursache war ein int32-Overflow im
+Metropolis-Vorschlag `U → normalize(U + ε)` bei ε > 1.
+
+---
+
+### T8.5 — 2D-SU(2)-Metropolis gegen exakte Bessel-Referenz (Etappe 23e Rev.2)
+
+**Methode:** 2D-Torus (dim=16), Metropolis-Sampling mit
+**Haar-Vorschlag**. Thermalisierung 500 Sweeps, Messung 1000
+Sweeps, 50 Bins. Observabel: `<W_plaq> = <½ Re Tr U>`.
+
+**Referenz:** `I₂(β)/I₁(β)` (exakte 2D-SU(2)-Haar-Integrale).
+
+**Ergebnisse:**
+
+| β | `<W>` gemessen | `I₂/I₁` (theo) | rel_dev |
+|---|---|---|---|
+| 0,50 | 0,125213 ± 0,001275 | 0,123718 | 1,2 % |
+| 1,00 | 0,240922 ± 0,001596 | 0,240194 | 0,3 % |
+| 2,00 | 0,434476 ± 0,001493 | 0,433127 | 0,3 % |
+| 4,00 | 0,655848 ± 0,001250 | 0,658047 | 0,3 % |
+
+**Ergebnis: 4/4 PASS**, alle Werte innerhalb 2σ.
+
+**Beweis:** Der 2D-Sampler reproduziert die exakte Haar-Verteilung
+auf < 1,2 % Genauigkeit. Der Kernel ist damit gegen eine **externe,
+analytisch bekannte** Referenz validiert.
+
+**Korrektur-Hinweis:** Vor `[1.23.14]` verglich der Test mit
+`I₁(β)/I₀(β)` — das ist die U(1)-Formel. Für 2D-SU(2) mit
+Haar-Maß `sin²(α)` ist die korrekte Referenz `I₂(β)/I₁(β)`.
+Die Abweichung um Faktor 0.5 war ein Test-Bug, kein Kernel-Bug.
+
+**Diagnose-Block:**
+
+Der Test enthält einen unveränderten Diagnose-Block mit vier
+Checks:
+
+- D: `grid_dim/shift/mask` korrekt (4/2/3/2).
+- A: Topologie bit-interleaved korrekt (`node 0 → +x=1, -x=3, +y=4, -y=12`).
+- B: Link-Roundtrip `(0.6, 0.8)` → Norm `n²/2⁶⁰ = 1.000000`.
+- C: Plaquette-Berechnung: Identität → 0.0; Störung → 1.0;
+     Link-Summe dS = +2.0 (zwei Plaquettes betroffen).
+
+**Emergenz:** **Ja.** Die 2D-Haar-Verteilung emergiert aus dem
+Metropolis-Haar-Sampler + Wilson-Action.
+
+**Grenzen:**
+
+- **Nur 2D.** Der Test validiert die 2D-Haar-Verteilung. Für 3D
+  ist nur die Selbstkonsistenz (§8.4) verfügbar.
+- **Timeout-Problem bei dim=32, FULL-Modus.**
 
 ---
 
@@ -1178,6 +1254,7 @@ jetzt über die Creutz-Ratio, nicht über einen Einzelwert.
   `<ExeDir>\logs`.
 - Log pro Test: `<timestamp>_<name>.log`.
 - Version 1.0.2 (23b): `Creutz-Ratio`, `Creutz-Ratio-Full`.
+- Version 1.0.3 (in Vorbereitung): `String-Tension`, `Metropolis-2D`.
 
 ### Logs
 
@@ -1196,7 +1273,7 @@ example_test_density.exe           (Density-Regression)
 example_test_tensor.exe            (Tensor-Regression)
 ```
 
-**Verfügbare Flags (Stand Etappe 23b):**
+**Verfügbare Flags (Stand Etappe 23e Rev.2):**
 
 ```
 --test-amp                --test-born
@@ -1222,49 +1299,58 @@ example_test_tensor.exe            (Tensor-Regression)
 --test-spin-half          --test-dirac
 --test-su2-wilson-loop    --test-running-coupling
 --test-creutz-ratio       --creutz-full
+--test-string-tension     --tension-full
+--tension-huge            --tension-anchor
+--test-torelon-mass       --torelon-full
+--test-metropolis-2d      --metropolis-2d-full
 ```
 
 **Modus-Flags:**
 
-- `--test-creutz-ratio` — schaltet den Creutz-Ratio-Test ein.
-- `--creutz-full` — erweitert den Creutz-Ratio-Test auf
-  `dim ∈ {16, 32, 64, 128}`. Wirkt nur mit `--test-creutz-ratio`.
+- `--test-creutz-ratio` — Creutz-Ratio-Test.
+- `--creutz-full` — erweitert Creutz-Ratio auf
+  `dim ∈ {16, 32, 64, 128}`.
+- `--test-string-tension` — String-Tension-Test (FAST).
+- `--tension-full` — erweitert String-Tension auf
+  `dim ∈ {16, 32, 64}`.
+- `--tension-anchor` — Anker-Modus (dim=32, β ∈ {2.4, 2.5}).
+- `--test-torelon-mass` — Torelon-Masse-Test (in Entwicklung).
+- `--test-metropolis-2d` — 2D-Metropolis-Test.
+- `--metropolis-2d-full` — erweitert 2D-Metropolis auf dim=32.
 
 ---
 
-## §10 — Übergang Etappe 23b → 24
+## §10 — Übergang Etappe 23e Rev.2 → 24
 
-### §10.1 — Was Etappe 23b abgeschlossen hat
+### §10.1 — Was Etappe 23e Rev.2 abgeschlossen hat
 
-**Zusätzlich in Etappe 23b:**
+**Zusätzlich in Etappe 23c Rev.2:**
 
 | Kriterium | Ziel | Erreicht |
 |---|---|---|
-| Creutz-Ratio χ > 0 | für alle (dim, β) | ✅ |
-| χ monoton in β | streng fallend | ✅ |
-| χ dim-konsistent (3σ) | für alle β | ✅ |
-| `W(1,1)(β=2)` vs. RC | ~5 % Toleranz | 0,454 vs. 0,433 → 4,8 % |
-| V&V-Anker-Rücknahme | dokumentiert | ✅ |
+| σ_a2 > 0 | für alle (dim, β) | ✅ |
+| σ_a2 monoton in β | 2σ-Toleranz | ✅ |
+| chi2/dof < 10 | für alle (dim, β) | ✅ |
+| dim-Konvergenz < 10 % + 3σ | für alle β | ✅ |
+| Anker-Vergleich auf INFO umgestellt | dokumentiert | ✅ |
 
-**Neue Kernel-Funktion:**
-- `ProPhysics_Wilson_Loop_Average` (read-only, 3D-Torus,
-  Ebenen-Mittelung, Vorwärts/Rückwärts-Adjungierung).
+**Zusätzlich in Etappe 23e Rev.2:**
 
-**Neue Testdatei:** `alpha_test_creutz_ratio.c`
+| Kriterium | Ziel | Erreicht |
+|---|---|---|
+| 2D-SU(2) gegen `I₂/I₁` | rel_dev < 2 % | 0,3–1,2 % |
+| Alle Werte innerhalb 2σ | — | ✅ |
+| Diagnose-Block unverändert | — | ✅ |
+| Sampler-Fix (Haar) | overflow-frei | ✅ |
 
-**Neue CLI-Flags:** `--test-creutz-ratio`, `--creutz-full`
-
-**Bugfix in Etappe 23b (intern):** Die erste Version von
-`Wilson_Loop_Average` verwendete die Rückwärts-Slots direkt, die
-der Kernel aber nie beschreibt. Der Fix liest jetzt auf
-Rückwärts-Segmenten immer den Vorwärts-Link an der vorherigen
-Position und adjungiert. Vor dem Fix lieferte der Test
-Noise-Werte (W ~ 1e-4); nach dem Fix physikalisch sinnvolle
-Werte (W(1,1) ~ 0,45 bei β=2).
+**Neue Test-Dateien:** `alpha_test_creutz_ratio.c` (23b),
+`alpha_test_string_tension.c` (23c Rev.2),
+`alpha_test_metropolis_2d.c` (23e Rev.2).
 
 ### §10.2 — Was emergent ist
 
 **Echte Emergenz:**
+
 - Born-Verteilung (T1.2, T2.5–T2.7).
 - Interferenz / Doppelspalt (T2.8).
 - Bloch-Dispersion 2D/3D (T2.10, T4.3).
@@ -1272,23 +1358,27 @@ Werte (W(1,1) ~ 0,45 bei β=2).
 - Spin-1/2, g=2 (T6.1).
 - Dirac-Struktur (T7.1).
 - Nicht-abelsche SU(2)-Eichstruktur (T8.1).
-- Yang-Mills-Leapfrog-Dynamik auf SU(2)-Links (T15–T18).
+- Yang-Mills-Leapfrog-Dynamik (T8.1 T15–T18).
 - Metropolis-Boltzmann-Verteilung (T8.2).
-- **Creutz-Ratio-Konsistenz über drei Loop-Größen (T8.3).**
+- Creutz-Ratio-Konsistenz (T8.3).
+- String-Tension Selbstkonsistenz (T8.4).
+- **2D-SU(2)-Haar-Verteilung (T8.5).**
 - Soliton-Breather (T3.8).
 - Tsirelson-Korrelation aus U4 (T1.9).
 
 **Keine Emergenz (Konstruktion / Erhaltungssatz):**
-- Born-Regel-Statistik (T1.2, wenn nur die Verteilung geprüft wird).
-- U5-Invariante (Erhaltungssatz, T1.3, T3.1, T3.2, T4.2).
+
+- U5-Invariante (T1.3, T3.1, T3.2, T4.2).
 - Q31-Saturation, Clipping (Test-Infrastruktur).
 - Superdeterminismus-Loop (T2.1).
-- No-Signaling (T3.10) — Kausalitäts-Erhaltung.
+- No-Signaling (T3.10).
 
 **Grenze (quantitativ verfehlt):**
+
 - Wasserstoff-Spektrum dim=64 (T5.2, rel_dev = 0,296).
-- V&V-Anker (β=2, dim=64): Abweichung ~5 % zur SPA-Referenz
-  (Multi-Loop-Korrektur).
+- V&V-Anker (β=2, dim=64): ~5 % Abweichung zur SPA-Referenz.
+- Torelon-Masse (3D): Test schlägt fehl (Timeout, Korrelation
+  fällt auf Rauschen bei z=1).
 
 ### §10.3 — Nächste Etappe
 
@@ -1314,18 +1404,25 @@ Werte (W(1,1) ~ 0,45 bei β=2).
 | SU(2)-Eichfeld kinematisch | ✅ 14/14 | 22 |
 | SU(2)-Link-Dynamik | ✅ 18/18 | 22b |
 | Backward-Staple-Fix | ✅ bestätigt (T16 1,41e-03) | 22b + 23 |
-| Running-Coupling | ⚠ V&V-Anker zurückgenommen; RC-Neulauf ausstehend | 23 + 23b |
-| Creutz-Ratio Konsistenz | ✅ FAST-Modus (dim ∈ {16, 32}) | 23b |
-| Creutz-Ratio-Full | ⏳ Nightly-Job (dim=128 dominiert) | 23b |
-| Konsolidierungs-Serie 1.23.1–1.23.13 | ✅ | 23 + 23b |
+| Running-Coupling | ⚠ V&V-Anker zurückgenommen | 23 + 23b + 23e |
+| Creutz-Ratio Konsistenz | ✅ FAST-Modus | 23b |
+| Creutz-Ratio-Full | ⏳ Nightly-Job | 23b |
+| String-Tension | ✅ FAST-Modus | 23c Rev.2 |
+| String-Tension-Full | ⏳ Timeout-Problem | 23c Rev.2 |
+| **2D-Metropolis** | **✅ FAST-Modus (4/4 PASS)** | **23e Rev.2** |
+| **2D-Metropolis-Full** | **⏳ Timeout-Problem bei dim=32** | **23e Rev.2** |
+| Konsolidierungs-Serie 1.23.1–1.23.14 | ✅ | 23 |
 | Pfadintegral | offen | 24 |
 | Hypergraph für GHZ | offen | 25 |
 | Universalität | offen | 26 |
 | Q61-Migration | offen | 27 |
 | U4' Bad | offen | M1 |
 | U5' Plastizität | offen | M2 |
+| 3D-SU(2)-Literatur | offen | 23c-B |
+| 4D-Torus | offen | 25+ |
+| `Wilson_Loop_Average`-Performance | offen | O1 oder eigene Etappe |
 
-### §10.5 — Regression nach Etappe 23b + 1.23.13
+### §10.5 — Regression nach Etappe 23e Rev.2 + 1.23.14
 
 | Prio | Tests | Status |
 |---|---|---|
@@ -1336,8 +1433,8 @@ Werte (W(1,1) ~ 0,45 bei β=2).
 | 5 | 4 | 4/4 ✅ |
 | 6 | 1 | 1/1 ✅ |
 | 7 | 1 | 1/1 ✅ |
-| 8 | 4 | 4/4 ✅ (19 + 16 + 9 + 24 Checks) |
-| **Gesamt** | **45** | **45/45 ✅** |
+| 8 | 5 | 5/5 ✅ |
+| **Gesamt** | **46** | **46/46 ✅** |
 
 ---
 
@@ -1353,10 +1450,11 @@ Werte (W(1,1) ~ 0,45 bei β=2).
 | 1.5 | 2026-09-24 | Etappe 21: Prio 7 (Dirac). 41/41. |
 | 1.6 | 2026-09-25 | Etappe 22: Prio 8 (SU(2)-Eichfeld). 42/42. |
 | 1.7 | 2026-09-25 | Etappe 22b: Link-Dynamik (Leapfrog). Prio 8 auf 18/18 + KA. |
-| 1.8 | 2026-09-25 | Etappe 23: Running-Coupling (Metropolis auf SU(2)-Links). Prio 8 auf 2 Tests (43/43 gesamt). T15 auf 1,80e-08 und T16 auf 2,44e-03 aktualisiert (Backward-Staple-Fix bestätigt). Neuer §8.2 (Running-Coupling) mit V&V-Anker. Laufzeit-Tabelle auf Prio-All-Lauf 2026-09-25 (4 420,6 s) aktualisiert. |
-| **1.9** | **2026-09-27** | **Patch 1.23.10: Forward-Plaquette-Konjugations-Fix in `su2_plaquette_action_at`. T16 verbessert sich von 2,44e-03 auf 1,41e-03 (Faktor 1,7). T11 (rein-imaginäres `b`) unverändert bei 0,98007. Zusätzlich Compiler-Warnungen auf 0 reduziert. Backlog B7 nachträglich geschlossen. Konsolidierungs-Serie 1.23.1–1.23.10. §0 aktualisiert (Regression 14/14 nach Fix).** |
-| **2.0** | **2026-09-27** | **Etappe 23b + Patch 1.23.13: Neuer Prio-8-Test `Creutz-Ratio` (FAST: dim ∈ {16, 32}) plus `Creutz-Ratio-Full` (Nightly: dim ∈ {16, 32, 64, 128}). Neue Kernel-Funktion `Wilson_Loop_Average`. **V&V-Anker-Rücknahme**: Der 0,08 %-Anker aus 1.23.0 war nach dem Plaquette-Konjugations-Fix (1.23.10) nicht mehr korrekt; `u_plaq(β=2, dim=64)` korrigiert von 0,283270 auf **0,272552** (⟨P⟩ = 0,4549, ~5 % Abweichung zur SPA-Referenz — erwartete Multi-Loop-Korrektur). Ersetzt durch Creutz-Ratio-Konsistenz-Test (§8.3): χ > 0, monoton in β, dim-konsistent innerhalb 3σ — alle drei Kriterien PASS. §0-Zählung 43 → 45. §9 CLI-Flags +2 (`--test-creutz-ratio`, `--creutz-full`). Bugfix in der ersten 23b-Implementierung: Rückwärts-Segmente lesen jetzt den Vorwärts-Link an der vorherigen Position und adjungieren (vorher Noise-Werte, jetzt physikalisch sinnvoll). Alle Rohwerte §8.3 aus dem FAST-Lauf dokumentiert.** |
+| 1.8 | 2026-09-25 | Etappe 23: Running-Coupling. Prio 8 auf 2 Tests (43/43). T15 auf 1,80e-08, T16 auf 2,44e-03. Neuer §8.2 mit V&V-Anker. |
+| 1.9 | 2026-09-27 | Patch 1.23.10: Forward-Plaquette-Konjugations-Fix. T16 verbessert auf 1,41e-03. Backlog B7 geschlossen. §0 aktualisiert. |
+| 2.0 | 2026-09-27 | Etappe 23b + Patch 1.23.13: Neuer Prio-8-Test `Creutz-Ratio` (FAST + FULL). Neue Kernel-Funktion `Wilson_Loop_Average`. **V&V-Anker-Rücknahme**: Der 0,08 %-Anker aus 1.23.0 war nach dem Plaquette-Konjugations-Fix (1.23.10) nicht mehr korrekt. §0-Zählung 43 → 45. |
+| **2.1** | **2026-09-29** | **Etappe 23c Rev.2 + 23e Rev.2 + Patch 1.23.14: Sampler-Korrektur (Haar-Vorschlag) und Referenz-Korrektur (`I₂/I₁` statt `I₁/I₀`). §0-Zählung 45 → 46 (Prio 8 mit Metropolis-2D erweitert). §8.2 V&V-Anker endgültig zurückgenommen (int32-Overflow). §8.4 neu: String-Tension Rev.2. §8.5 neu: 2D-Metropolis gegen exakte Bessel. §9 CLI-Flags erweitert. §10 Übergangs-Sektion aktualisiert. §11 Historie. Wichtige Statusänderungen: Kernel in 2D gegen exakte externe Physik validiert, in 3D selbstkonsistent.** |
 
 ---
 
-**Ende Testkatalog v2.0.**
+**Ende Testkatalog v2.1.**

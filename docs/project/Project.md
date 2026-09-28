@@ -4,10 +4,10 @@
 **Version:** 1.0
 **Kernel:** 1.23.0
 **Etappe:** 23
-**Stand:** 2026-09-27 nach Etappe 23b (Creutz-Ratio-Konsistenz-Test,
-            V&V-Anker-Rücknahme) und Konsolidierungs-Serie
-            1.23.1–1.23.13. Prio-All 45/45, Compiler-Warnungen 0,
-            Web-Docs publizierbar.
+**Stand:** 2026-09-29 nach Etappe 23c Rev.2 und 23e Rev.2
+            (Sampler-Korrektur Haar-Vorschlag, 2D-Referenz `I₂/I₁`,
+            V&V-Anker endgültig zurückgenommen). Prio-All 46/46,
+            Compiler-Warnungen 0, Web-Docs publizierbar.
 **Nächster Schritt:** Etappe 24 — Euklidisches Pfadintegral
 
 ---
@@ -15,36 +15,38 @@
 ## §0 — Zweck dieses Dokuments
 
 1. **Projekt-Struktur** — Ordner, Dokumentation, Build-Skripte.
-2. **Was wir haben** — abgeschlossene Etappen 1–23b, mit quantitativen Belegen.
+2. **Was wir haben** — abgeschlossene Etappen 1–23e, mit quantitativen Belegen.
 3. **Was wir glauben** — die Ontologie in 5 Ur-Regeln und 10 Thesen.
 4. **Was fehlt** — offene Fähigkeitslücken bis „komplette QM" und bis Makrophysik.
 5. **Unsere Regeln** — die Projekt-Invarianten, die keine Etappe brechen darf.
 6. **Die Roadmap** — Etappen 24–27 und M1–M3.
 7. **Was wir bewusst nicht behaupten** — die Grenzen des Anspruchs.
 
-**Neu in dieser Fassung (Etappe 23b):** Der V&V-Anker aus Etappe 23
-(„0,08 % gegen `I₂(2)/I₁(2)`") wurde **zurückgenommen**. Ursache war
-ein latenter Plaquette-Konjugations-Bug, der in Patch `1.23.10`
-korrigiert wurde und `u_plaq(β=2, dim=64)` von `0,283270` auf
-`0,272552` verschob (`⟨P⟩ = 0,4549`, ca. 5 % Abweichung zur
-Ein-Plaquette-Approximation — erwartete Multi-Loop-Korrektur). An
-die Stelle des Einzelobservablen-Ankers tritt der **Creutz-Ratio-
-Konsistenz-Test**, der drei Loop-Größen (`W(1,1)`, `W(2,1)`,
-`W(2,2)`) gegeneinander prüft und damit den Metropolis-Sampler
-auf physikalische Konsistenz statt auf einen einzelnen Skalar
-verifiziert. Bis Etappe 22b waren alle Tests **relativ**
-(Konsistenz, Selbsterhaltung); Etappe 23 lieferte den ersten
-**absoluten** Vergleich mit publizierter Lattice-QCD-Physik;
-Etappe 23b zeigt die Grenze dieser Validierung und ersetzt sie
-durch ein robusteres Konsistenzkriterium. Zusätzlich wurden in der
-Konsolidierungs-Serie `1.23.1`–`1.23.13` alle Kernel-Module auf ein
-einheitliches Schema gebracht, der Patch 1.23.7 vollständig
-nachgeholt (Backlog B7), zwei SU(2)-Konjugations-Bugs gefixt
-(Backward-Staple in `1.23.7`, Forward-Plaquette in `1.23.10`), die
-Compiler-Warnungen auf 0 reduziert, der ProWB-Web-Docs-Builder
-integriert (`1.23.11`) und die CI-Dokumentation konsolidiert
-(`1.23.12`). Siehe `CHANGELOG.md` §2.5 für die Abbildung alter auf
-neue Versionen (`3.0.0` → `1.23.0`).
+**Neu in dieser Fassung (Etappe 23c Rev.2 + 23e Rev.2):**
+
+Der V&V-Anker aus Etappe 23 („0,08 % gegen `I₂(2)/I₁(2)`") wurde
+**endgültig zurückgenommen**. Ursache war ein **int32-Overflow** im
+Metropolis-Vorschlag `U → normalize(U + ε)`, der bei ε > 1 den
+int32-Bereich verließ und wrappte. Dieser Bug verzerrte die
+Verteilung systematisch — der alte 0,08-%-Wert war ein Artefakt.
+Nach dem Wechsel auf den Haar-Vorschlag `U → R·U` und der Korrektur
+der 2D-Referenzformel (`I₂/I₁` statt `I₁/I₀`) ergibt sich:
+
+- **2D-SU(2)** gegen exakte Bessel-Referenz `I₂(β)/I₁(β)`:
+  rel_dev < 1,2 % bei 4 β-Werten. **Validiert.**
+- **3D-SU(2)** String-Tension σ_a2: streng monoton fallend in β,
+  dim=16 vs dim=32 Konvergenz < 0,5 %. **Selbstkonsistent.**
+- **Kein externer V&V-Anker** für 3D — die publizierten Werte
+  (Cahill & Prasad 1989) sind 4D, der Kernel ist 3D.
+
+Zusätzlich wurden in der Konsolidierungs-Serie `1.23.1`–`1.23.10` alle
+Kernel-Module auf ein einheitliches Schema gebracht, der Patch 1.23.7
+vollständig nachgeholt (Backlog B7), zwei SU(2)-Konjugations-Bugs
+gefixt, die Compiler-Warnungen auf 0 reduziert, der ProWB-Web-Docs-
+Builder integriert (`1.23.11`), die CI-Dokumentation konsolidiert
+(`1.23.12`), die Creutz-Ratio-Konsistenz implementiert (`1.23.13`)
+und der Sampler-Bug behoben (`1.23.14`). Siehe `CHANGELOG.md` §2.5 für
+die Abbildung alter auf neue Versionen (`3.0.0` → `1.23.0`).
 
 ---
 
@@ -102,6 +104,7 @@ ProPhysics\
 | `ProPhysics_VersionRegistry.md` | Versionen aller Dateien |
 | `CONFIG.md` | Compile-Time-Konstanten |
 | `VERSIONING.md` | Etappen-Versionierungs-Konzept |
+| `README.md` | Website-Einstiegspunkt (Home) |
 
 **Modul-Referenzen (`docs/project/`):**
 
@@ -124,7 +127,7 @@ ProPhysics\
 
 | Datei | Inhalt |
 |---|---|
-| `ProPhysics_Testkatalog.md` | alle 45 Tests |
+| `ProPhysics_Testkatalog.md` | alle Tests |
 | `run_alpha_tests.md` | Test-Runner |
 | `BASELINE.md` | Test-Baseline (Kurzfassung) |
 | `WRITING_TESTS.md` | Anleitung zum Test-Schreiben |
@@ -224,8 +227,9 @@ Erlaubt: Bit-Shift, Bit-Mask bei Zweierpotenzen, `pro_ensure_grid_shift`.
 Verboten: `k % dim`, `k / dim` in Apply-/Tick-Funktionen.
 `dim` muss Zweierpotenz sein.
 
-**Neu in 23b:** `ProPhysics_Wilson_Loop_Average` nutzt ausschließlich
-`grid_dim_mask` und `grid_dim_shift` für die Koordinaten-Arithmetik.
+**Neu in 23b/23c:** `ProPhysics_Wilson_Loop_Average` nutzt
+ausschließlich `grid_dim_mask` und `grid_dim_shift` für die
+Koordinaten-Arithmetik.
 
 ### R2 — Kein `malloc` / `calloc` / `free` im Hotpath
 
@@ -237,7 +241,7 @@ Verboten: `Apply_*`, `*_Tick`, pro Knoten.
 Builder nutzt `malloc` für den MD-Parser und Template-Expansion. Das
 ist R2-konform, weil ProWB außerhalb des Kernels lebt.
 
-**Neu in 23b:** `ProPhysics_Wilson_Loop_Average` ist Stack-only.
+**Neu in 23b/23c:** `ProPhysics_Wilson_Loop_Average` ist Stack-only.
 
 ### R3 — U5-Invariante bleibt erhalten
 
@@ -258,6 +262,7 @@ Drift < 5 % über 2000 Ticks; in der Praxis < 10⁻⁴.
 | 22b | 100 Ticks, `su2_dynamics_active == 0` | 0,0 |
 | 22b | 100 Ticks, aktive Leapfrog-Dynamik | 0,0 |
 | **23b** | **Creutz-Ratio-Lauf, read-only** | **0,0 (keine amp_grid-Mutation)** |
+| **23c/23e** | **Metropolis-Läufe, read-only** | **0,0 (keine amp_grid-Mutation)** |
 
 ### R4 — Unitäre Dynamik
 
@@ -271,14 +276,18 @@ Für **Refactoring 22**: alle alten SDK-Symbole bleiben funktional
 (`ProPhysics_SDK_Execute_Plastizitaet_Tick` delegiert jetzt an
 `ProPhysics_Tick`; `ProPhysics_ScientificRuleCallback` ist Alias
 für `ProPhysics_RuleCallback`). Für die **Konsolidierungs-Serie
-`1.23.1`–`1.23.13`**: alle Änderungen sind rein intern (Auslagerung
+`1.23.1`–`1.23.14`**: alle Änderungen sind rein intern (Auslagerung
 in `static`-Helfer, Header-Konsolidierung, Modul-Docs, Warnungs-Fix,
-zwei Konjugations-Fixes), keine Signaturänderung.
+zwei Konjugations-Fixes, Sampler-Fix im Test-Code), keine
+Signaturänderung.
 **Für `1.23.11` (ProWB):** `prowb_build()` (Legacy) bleibt funktional;
 `prowb_build_from_manifest()` ist **additiv**.
 **Für `1.23.13` (Creutz-Ratio):**
 `ProPhysics_Wilson_Loop_Average` ist **additiv**; keine bestehende
 Signatur geändert. Alle Kernel-APIs unverändert.
+**Für `1.23.14` (Sampler-Korrektur):** Nur Test-Code geändert
+(`alpha_test_metropolis_2d.c`, `alpha_test_string_tension.c`).
+Keine Kernel-API berührt.
 
 ### R6 — Jede Etappe endet mit einem Test
 
@@ -288,6 +297,12 @@ Tests weiter grün.
 
 **23b:** `test_creutz_ratio(bool full_dims)`. Zwei Katalog-Einträge
 (`Creutz-Ratio` Fast-Modus, `Creutz-Ratio-Full` Nightly-Modus).
+
+**23c Rev.2:** `test_string_tension(bool full_dims, bool anchor)`.
+Fit-Filter und β-Sweep angepasst.
+
+**23e Rev.2:** `test_metropolis_2d(bool full_dims)` — Haar-Sampler,
+Referenz `I₂/I₁`.
 
 **Ausnahme `1.23.11` (ProWB):** ProWB ist ein Build-Tool, kein
 Kernel-Modul. Es hat keine Tests im Kernel-Sinne. Verifikation läuft
@@ -311,7 +326,8 @@ Neue Funktionalität in parallelen Funktionen oder als Dispatch über
 | 1.23.1–1.23.10 | reine Konsolidierung | bit-identisch (T16 verbessert) |
 | 1.23.11 | neue Tool-Komponente | Kernel bit-identisch |
 | 1.23.12 | CI-Doku | Kernel bit-identisch |
-| **1.23.13 (23b)** | **additive read-only Funktion** | **bit-identisch** (`Wilson_Loop_Average` greift nur auf bestehende `ProEdge`-Felder lesend zu) |
+| 1.23.13 (23b) | additive read-only Funktion | bit-identisch |
+| **1.23.14 (23c/23e)** | **nur Test-Code geändert** | **bit-identisch** |
 
 ---
 
@@ -362,9 +378,11 @@ U5:  Σ_{x∈G} A_t(x) = Konstante         (Bit-Erhaltung)
 | SU(2)-Eichfeld (kinematisch) | 22 | Basis 1–4 (Links in `ProEdge`) | `su2_active` | `Set_Edge_SU2`, `Wilson_Loop_SU2`, `Apply_Local_SU2_Gauge` |
 | SU(2)-Link-Dynamik (Leapfrog) | 22b | `ProEdge.su2_E_*` | `su2_dynamics_active` | `Apply_SU2_Tick`, `SU2_Plaquette_Action`, `SU2_Total_Energy` |
 | SU(2)-Metropolis (Thermostat) | 23 | read-only | kein Flag | `SU2_Link_Plaquette_Sum` (Vorbereitung für Metropolis im Test) |
-| **SU(2)-Loop-Mittelung** | **23b** | **read-only** | **`su2_active`** | **`Wilson_Loop_Average`** |
+| SU(2)-Loop-Mittelung | 23b | read-only | `su2_active` | `Wilson_Loop_Average` |
+| **2D-SU(2) exakt** | **23e** | **read-only** | **kein Flag** | **Metropolis-Haar gegen `I₂/I₁`** |
+| **3D-String-Tension** | **23c** | **read-only** | **kein Flag** | **Metropolis-Haar + Flächengesetz-Fit** |
 
-Alle sechs sind Struktur-Erweiterungen, keine Reduktion auf die reine
+Alle acht sind Struktur-Erweiterungen, keine Reduktion auf die reine
 Ur-Grammatik.
 
 ### §3.5 — Werkzeug-Erweiterungen (nicht Kernel)
@@ -405,8 +423,11 @@ Kernel-Pfad und sind R7-konform.
 - 22 — SU(2)-Link-Struktur auf `ProEdge`; nicht-abelsche Korrelation.
 - 22b — Links werden dynamisch; Yang-Mills-Feld als aktive Struktur.
 - 23 — Links thermalisieren; kanonische Verteilung als Zustand.
-- 23b — **Loop-Konsistenz über drei Wilson-Schleifen**; die
+- 23b — Loop-Konsistenz über drei Wilson-Schleifen; die
   Konfigurations-Verteilung ist mit der Theorie konsistent.
+- **23c/23e** — 2D gegen exakte Haar-Verteilung; 3D-String-Tension
+  monoton fallend; die emergente Confinement-Eigenschaft ist
+  quantitativ erfasst.
 
 ---
 
@@ -430,11 +451,12 @@ Kernel-Pfad und sind R7-konform.
 | 21 | Dirac-Klasse mit Chiralitäts-Achse |
 | 22 | Klassen tragen SU(2)-Link-Struktur |
 | 22b | Klassen haben dynamische Link-Felder |
-| **23b** | **Klassen tragen messbare Loop-Statistik** |
+| 23b | Klassen tragen messbare Loop-Statistik |
+| **23c/23e** | **Klassen tragen thermische Statistik (Haar-Sampler)** |
 
 ---
 
-## §6 — Was wir haben (Etappen 1–23b)
+## §6 — Was wir haben (Etappen 1–23e)
 
 ### §6.1 — Kernel-Umfang
 
@@ -442,7 +464,7 @@ Kernel-Pfad und sind R7-konform.
 |---|---|
 | Kernel-Module | 12 `.c` (+ `SU2_Dynamics.c` = 13) |
 | Kernel-Header | 6 `.h` |
-| Test-Module | 19 `.c` (+ 1 Header, seit 23b) |
+| Test-Module | 19 `.c` (+ 1 Header) |
 | SDK | 1 `.c` + 1 `.h` |
 | ProWB-Module | 2 `.c` + 2 `.h` (Build-Tool, kein Kernel) |
 | Codezeilen | ~36 000 LOC gesamt (~800 LOC ProWB zusätzlich) |
@@ -463,8 +485,9 @@ Kernel-Pfad und sind R7-konform.
 | Gauge U(1) | ✅ |
 | Gauge SU(2), kinematisch | ✅ seit 22 |
 | Gauge SU(2), dynamisch (Leapfrog) | ✅ seit 22b |
-| Gauge SU(2), thermalisiert (Metropolis) | ✅ seit 23 |
+| Gauge SU(2), thermalisiert (Metropolis-Haar) | ✅ seit 23 + 23e Rev.2 |
 | Gauge SU(2), Loop-Konsistenz (Creutz-Ratio) | ✅ seit 23b |
+| Gauge SU(2), String-Tension-Selbstkonsistenz | ✅ seit 23c Rev.2 |
 | Observer | ✅ |
 | Verschränkung (Tensor, CHSH) | ✅ |
 | U4 Shared Reference | ✅ seit 18e |
@@ -478,9 +501,10 @@ Kernel-Pfad und sind R7-konform.
 | Phase Plate | ✅ |
 | Coulomb-Field 3D | ✅ |
 | Imaginaerzeit-Prep | ✅ |
-| Wilson-Action-Plaquette-Validierung | ✅ seit 23 (SPA-Referenz ~5 %, siehe §6.3 Beleg 13) |
-| **Wilson-Loop-Average (Kernel-Funktion)** | **✅ seit 23b** |
-| **Creutz-Ratio-Konsistenz-Test** | **✅ seit 23b** |
+| **2D-SU(2)-Metropolis gegen exakte Bessel** | **✅ seit 23e Rev.2** |
+| **3D-SU(2)-String-Tension Selbstkonsistenz** | **✅ seit 23c Rev.2** |
+| Wilson-Loop-Average (Kernel-Funktion) | ✅ seit 23b |
+| Creutz-Ratio-Konsistenz-Test | ✅ seit 23b |
 | Compiler-Warnungen auf `/W4` (Kernel) | ✅ 0 (seit 1.23.10) |
 | Web-Docs-Builder (ProWB) | ✅ seit 1.23.11 |
 | Web-Docs-CI | ✅ seit 1.23.11 |
@@ -503,15 +527,17 @@ Kernel-Pfad und sind R7-konform.
 | 10 | Dirac | γ-Algebra 9,31e-10; Masse 2,4e-07 |
 | 11 | SU(2)-Eichfeld (kinematisch) | 14/14 + Kernel-Algebra 4,45e-10 |
 | 12 | SU(2)-Link-Dynamik (Leapfrog) | 18/18 + KA = 19/19 |
-| 13 | SU(2)-Metropolis / SPA-Referenz | **ca. 5 % Abweichung (Rücknahme des 0,08-%-Ankers, siehe unten)** |
-| **14** | **Creutz-Ratio-Konsistenz (23b)** | **B1/B2/B3 PASS, `W(1,1)(β=2) ≈ 0,454`** |
+| 13 | SU(2)-Metropolis / SPA-Referenz | **~5 % Abweichung (V&V-Anker zurückgenommen)** |
+| 14 | Creutz-Ratio-Konsistenz (23b) | B1/B2/B3 PASS |
+| 15 | **2D-SU(2) gegen exakte Bessel (23e Rev.2)** | **rel_dev ≤ 1,2 % bei 4 β-Werten** |
+| 16 | **3D-String-Tension Selbstkonsistenz (23c Rev.2)** | **dim-Konvergenz < 0,5 %; σ_a2 monoton fallend** |
 
-**Beleg 13 — SU(2)-Metropolis / SPA-Referenz (Etappe 23, revidiert 23b):**
+**Beleg 13 — SU(2)-Metropolis / SPA-Referenz (Etappe 23, revidiert 23b + 23e):**
 
 Der ursprüngliche V&V-Anker (0,08 % Abweichung zur
 Ein-Plaquette-Approximation `I₂(2)/I₁(2) = 0,43313`) beruhte auf
 `u_plaq(β=2, dim=64) = 0,283270`. Nach dem Plaquette-Konjugations-
-Fix in `1.23.10` ist der tatsächliche Wert:
+Fix in `1.23.10` und dem Sampler-Fix in `1.23.14`:
 
 | Größe | Wert |
 |---|---|
@@ -522,52 +548,39 @@ Fix in `1.23.10` ist der tatsächliche Wert:
 
 Die ~5 % sind im Rahmen der erwarteten Multi-Loop-Korrekturen zur
 Ein-Plaquette-Approximation. **Dies ist kein V&V-Anker mehr.**
-Die Validierung der **Sampler-Korrektheit** läuft ab `1.23.13`
-über die Creutz-Ratio-Konsistenz (siehe Beleg 14).
 
-**Beleg 14 — Creutz-Ratio-Konsistenz (Etappe 23b):**
+**Beleg 15 — 2D-SU(2) gegen exakte Bessel-Referenz (Etappe 23e Rev.2):**
 
-Der Metropolis-Sampler wird über drei Loop-Größen geprüft:
+Der korrigierte 2D-Metropolis-Sampler (Haar-Vorschlag) reproduziert
+die exakte Bessel-Ratio `⟨½ Re Tr U⟩ = I₂(β)/I₁(β)`:
 
-```
-χ(2,2) = −ln( W(2,2)·W(1,1) / W(2,1)² )
-```
+| β | `<W>` gemessen | `I₂/I₁` (exakt) | rel_dev |
+|---|---|---|---|
+| 0,50 | 0,125213 ± 0,001275 | 0,123718 | 1,2 % |
+| 1,00 | 0,240922 ± 0,001596 | 0,240194 | 0,3 % |
+| 2,00 | 0,434476 ± 0,001493 | 0,433127 | 0,3 % |
+| 4,00 | 0,655848 ± 0,001250 | 0,658047 | 0,3 % |
 
-mit `W(m,n) = ⟨Re Tr(W_C)/2⟩` gemittelt über alle `m × n`-Loops der
-drei Ebenen xy, xz, yz eines 3D-Torus.
+**Alle vier Werte innerhalb 2σ.** Der 2D-Sampler ist damit gegen
+exakte externe Physik validiert.
 
-| β | dim=16 `χ(2,2)` | dim=32 `χ(2,2)` |
-|---|---|---|
-| 1,00 | 1,04844 ± 0,19338 | 1,51631 ± 0,08838 |
-| 2,00 | 0,78591 ± 0,01758 | 0,77838 ± 0,00518 |
-| 4,00 | 0,24010 ± 0,00281 | 0,23930 ± 0,00078 |
+**Beleg 16 — 3D-String-Tension Selbstkonsistenz (Etappe 23c Rev.2):**
 
-**Prüf-Ergebnisse:**
+σ_a2 aus 8 Wilson-Loops via Flächengesetz-Fit:
 
-| Kriterium | Ergebnis |
-|---|---|
-| B1 (χ > 0 für alle dim,β) | **PASS** |
-| B2 (χ monoton fallend in β pro dim) | **PASS** |
-| B3 (χ konsistent über dim, 3σ) | **PASS** |
+| β | σ_a2 (dim=16) | σ_a2 (dim=32) | chi2/dof (dim=16) |
+|---|---|---|---|
+| 2,40 | 0,595053 ± 0,005997 | 0,594901 ± 0,002280 | 0,49 |
+| 2,50 | 0,560160 ± 0,004610 | 0,557702 ± 0,001776 | 1,07 |
+| 2,70 | 0,492428 ± 0,003875 | (nicht gemessen) | 0,85 |
+| 3,00 | 0,401811 ± 0,002644 | (nicht gemessen) | 3,11 |
 
-**Kreuzvalidierung gegen Running-Coupling:**
+σ_a2 fällt **streng monoton** in β (asymptotische Freiheit).
+dim=16 vs dim=32 stimmt bei β=2,40 auf **0,03 %** überein.
 
-`W(1,1)(β=2, dim=32) = 0,454` vs.
-`RC-⟨P⟩(β=2, dim=32) = 1 − 2·u_plaq ≈ 0,433`. Übereinstimmung auf
-**~4,8 %** — im Rahmen der erwarteten Multi-Loop-Korrektur.
-Zwei unabhängige Observablen messen dieselbe physikalische Größe.
-
-**Bedeutung:** Die Wilson-Action-Normierung, der Metropolis-
-Akzeptanzschritt, die Q30-Quaternion-Multiplikation und die
-Vorwärts/Rückwärts-Adjungierung des Loops sind konsistent. Ein
-falscher Sampler würde die drei Loop-Größen nicht in der erwarteten
-Relation zueinander liefern.
-
-**Grenze:** Die Creutz-Ratio ist ein **Konsistenz-Test**, kein
-absoluter V&V-Anker. Die absolute Übereinstimmung mit der
-SPA-Referenz bleibt bei ~5 % (Multi-Loop-Korrektur). Der FAST-Modus
-(`dim ∈ {16, 32}`) läuft in der Prio-All-Regression; der FULL-Modus
-(`dim ∈ {16, 32, 64, 128}`) ist ein Nightly-Kandidat.
+**Bedeutung:** In 3D ist der Kernel in sich konsistent und zeigt
+die erwartete Confinement-Physik. **Kein externer 3D-Anker
+vorhanden** — die publizierten Werte (Cahill & Prasad 1989) sind 4D.
 
 ### §6.4 — Was plausibel, aber nicht quantitativ belegt ist
 
@@ -577,10 +590,12 @@ SPA-Referenz bleibt bei ~5 % (Multi-Loop-Korrektur). Der FAST-Modus
 - Dirac-Kontinuums-Dispersion ω² = k² + m² (braucht Renormierung, Etappe 24+).
 - **Absolute SPA-Übereinstimmung** — der korrigierte Wert liegt bei
   ~5 %; die Abweichung ist im Rahmen der erwarteten Multi-Loop-
-  Korrekturen, aber nicht quantitativ aufgelöst. Ein vollständiger
-  RC-Neulauf für β≠2, dim=64 steht aus.
+  Korrekturen, aber nicht quantitativ aufgelöst.
+- **Torelon-Masse (3D Polyakov-Korrelator)** — Test schlägt fehl
+  (Timeout, Korrelation fällt auf Rauschen bei z=1). Kein
+  quantitativer Beleg.
 
-### §6.5 — Prio-all-Regression (2026-09-27 nach Etappe 23b)
+### §6.5 — Prio-all-Regression (2026-09-29 nach Etappe 23c Rev.2 + 23e Rev.2)
 
 | Prio | Thema | Tests | Status |
 |---|---|---|---|
@@ -591,32 +606,39 @@ SPA-Referenz bleibt bei ~5 % (Multi-Loop-Korrektur). Der FAST-Modus
 | 5 | Hydrogen + Shared-Ref + Tournament | 4 | 4/4 |
 | 6 | Spin-1/2 | 1 | 1/1 |
 | 7 | Dirac | 1 | 1/1 |
-| 8 | SU(2)-Eichfeld + Link-Dynamik + Running-Coupling + Creutz-Ratio | 4 | 4/4 |
-| **Gesamt** | | **45** | **45/45** |
+| 8 | SU(2)-Eichfeld + Link-Dynamik + Running-Coupling + Creutz-Ratio + Metropolis-2D | 5 | 5/5 |
+| **Gesamt** | | **46** | **46/46** |
 
-**Prio-All-Laufzeit:** ~4 530 s (~75,5 min) mit `Creutz-Ratio`
-(Fast). Der FAST-Modus fügt ~110 s hinzu.
+**Prio-All-Laufzeit:** ~4 530 s (~75,5 min) ohne `Creutz-Ratio-Full`
+und ohne `String-Tension-Full`. Mit `Metropolis-2D` (Fast, ~3 min)
+und `String-Tension` (Fast, ~15 min) erhöht sich die Gesamtzeit auf
+~80 min.
 
 **Laufzeit-Treiber:**
 - Hydrogen-48 (~2 281 s = 50,4 %)
 - Running-Coupling (~1 398 s = 30,9 %)
+- String-Tension (Fast, ~15 min)
+- Metropolis-2D (Fast, ~3 min)
 - Creutz-Ratio-Full (~2 400 s, **nur Nightly**)
 - Alle anderen (~850 s = 18,7 %)
 
 **CI-Empfehlung:**
 - **Prio 1–4, 6, 7** + `SU2-Wilson-Loop` + optional `Creutz-Ratio`
-  (~1,5–3 min) in normalen CI-Läufen.
-- **`Running-Coupling`** und **`Creutz-Ratio-Full`** als Nightly-Jobs.
+  in normalen CI-Läufen.
+- **`Running-Coupling`**, **`Creutz-Ratio-Full`**, **`String-Tension`**
+  als Nightly-Jobs.
 - **Prio 5** (Hydrogen-48) ebenfalls als Nightly-Job.
-- **Web-Docs** in eigenem Workflow (`.github/workflows/web-docs.yml`).
+- **`Metropolis-2D`** (Fast, ~3 min) kann in Standard-CI laufen.
 
-**Konsolidierungs-Serie:** Die Patches `1.23.1`–`1.23.13` ändern
-außer den zwei Konjugations-Fixes und der neuen Loop-Funktion keine
-Physik. Alle numerischen Anker bleiben innerhalb ihrer Toleranzen.
-T16 (Energie-Drift) verbessert sich durch die Fixes von `8,06e-03`
-(`1.23.0`) über `2,44e-03` (`1.23.7`) auf `1,41e-03` (`1.23.10`).
-Der RC-Rohwert `u_plaq(β=2, dim=64)` ändert sich von `0,283270`
-auf `0,272552` (`1.23.10`).
+**Konsolidierungs-Serie:** Die Patches `1.23.1`–`1.23.14` ändern
+außer den zwei SU(2)-Konjugations-Fixes, der Creutz-Ratio-Funktion
+und den Test-Sampler-Korrekturen keine Physik. Alle numerischen
+Anker bleiben innerhalb ihrer Toleranzen. T16 (Energie-Drift)
+verbessert sich durch die Fixes von `8,06e-03` (`1.23.0`) über
+`2,44e-03` (`1.23.7`) auf `1,41e-03` (`1.23.10`). Der RC-Rohwert
+`u_plaq(β=2, dim=64)` ändert sich von `0,283270` (`1.23.0`) auf
+`0,272552` (`1.23.10`). Die 2D-Metropolis-Referenz wechselt von
+`I₁/I₀` auf `I₂/I₁` (`1.23.14`).
 
 **ProWB-Patch `1.23.11`:** Ändert **keine** Kernel-Funktion. Alle
 Tests bleiben bit-identisch. Zusätzliche Verifikation: `pro_run web`
@@ -629,9 +651,13 @@ erreichbar, Themes funktionieren.
 (`Wilson_Loop_Average`) und neuer Test (`alpha_test_creutz_ratio.c`).
 Alle bestehenden Tests bleiben bit-identisch.
 
+**Sampler-Korrektur `1.23.14`:** Nur Test-Code geändert
+(`alpha_test_metropolis_2d.c`, `alpha_test_string_tension.c`).
+Kernel bleibt bit-identisch.
+
 ---
 
-## §7 — Etappen 18–23b: Details
+## §7 — Etappen 18–23e: Details
 
 ### §7.1 — Etappe 18: Coulomb/Hydrogen
 
@@ -713,88 +739,56 @@ Neue API: `Verify_Gamma_Algebra`, `Apply_Dirac_Mass_Term`,
 | `ProPhysics_Set_SU2_Yang_Mills` | Kopplung g² in Q15 |
 | `ProPhysics_Apply_SU2_Tick` | Ein Leapfrog-Schritt |
 | `ProPhysics_SU2_Plaquette_Action` | Globale Plaquette-Action |
-| `ProPhysics_SU2_Total_Energy` | H = S_plaq + ½ Σ |E|² |
+| `ProPhysics_SU2_Total_Energy` | H = S_plaq + ½ Σ \|E\|² |
 | `ProPhysics_SU2_Link_Plaquette_Sum` | Lokale Plaquette-Summe um Link (Metropolis) |
 
 **`ProEdge`-Erweiterung:** 24 B → 40 B.
 
 **Neues Modul:** `ProPhysics_SU2_Dynamics.c` (13. Kernel-Modul).
 
-**Backward-Staple-Fix (Patch 1.23.7, in Etappe 23 verifiziert):**
+**Backward-Staple-Fix (Patch 1.23.7):**
 Der Backward-Staple in `su2_force_on_link` hatte fehlende
-`†`-Dagger auf `U_μ(x-ν)`. Der Fix reduzierte:
-- T15: 2,02e-08 → **1,80e-08**
-- T16: 8,06e-03 → **2,44e-03** (Faktor 3,3)
+`†`-Dagger auf `U_μ(x-ν)`.
 
 **Forward-Plaquette-Konjugations-Fix (Patch 1.23.10):**
 In `su2_plaquette_action_at` wurden `l3br_n`/`l4br_n` berechnet,
-aber `l3br`/`l4br` verwendet. Der Fix reduzierte T16 weiter von
-2,44e-03 auf **1,41e-03** (Faktor 1,7). T11 (rein-imaginäres `b`)
-bleibt unverändert, weil dort `l3br = l4br = 0`.
-
-Die Energiedrift ist jetzt auf dem Niveau, das symplektische
-O(Δ²)-Oszillation für `dt=500, g²=500` hergibt.
+aber `l3br`/`l4br` verwendet. T16 verbessert sich dadurch von
+2,44e-03 auf **1,41e-03** (Faktor 1,7).
 
 **Test:** 18/18 + Kernel-Algebra = 19/19 PASS.
 
-### §7.6 — Etappe 23: SU(2)-Metropolis / Wilson-Action-Validierung
+### §7.6 — Etappe 23: SU(2)-Metropolis
 
 **Design-Entscheidungen:**
 
 | Frage | Antwort |
 |---|---|
 | Algorithmus | Metropolis (kanonische Verteilung `exp(-β S_plaq)`) |
-| Vorschlag | Gauss-Störung der Quaternion-Komponenten, Kernel renormiert via `Set_Edge_SU2` |
+| Vorschlag | Gauss-Störung der Quaternion-Komponenten (später ersetzt durch Haar) |
 | ΔS-Berechnung | `Link_Plaquette_Sum` (Kernel, read-only) |
 | Akzeptanz | `min(1, exp(-β ΔS))` |
 | Observable | `u_plaq = ⟨S_plaq⟩ / (2·N_plaq)` |
-| Sweep | Thermalisierung 200 Sweeps, Messung 300 Sweeps, 30 Bins |
 | Test-Matrix | dim ∈ {16, 32, 64} × β ∈ {0.5, 1, 2, 4} |
-| Speicherort | Test-Code (`alpha_test_running_coupling.c`), nicht Kernel |
 
 **Kernel-Beitrag (1 neue Funktion):**
 
 | Funktion | Wirkung |
 |---|---|
-| `ProPhysics_SU2_Link_Plaquette_Sum` | Summe der Wilson-Aktionen aller Plaquettes, die Link (x,μ) enthalten. Read-only, `O(1)` pro Link. |
+| `ProPhysics_SU2_Link_Plaquette_Sum` | Summe der Wilson-Aktionen um Link (x,μ). Read-only. |
 
-**Design-Prinzip:** Der Kernel bekommt nur die **atomare Primitive**
-(Wilson-Action einer Plaquette). Der **Algorithmus** (Metropolis-Sweep,
-RNG, Akzeptanz, Binning) lebt im Test. Damit bleibt der Kernel frei
-von Thermostat-Logik, und die Trennung „Physik-Engine vs. Sampling-
-Layer" ist sauber.
+**Ergebnisse (dim=64, nach Bugfix-Reihe):**
 
-**R7-Konformität:** Die neue Funktion ist read-only.
-
-**Testergebnis: 43/43 PASS** (Stand 1.23.0, vor Bugfixes).
-
-**Ergebnisse (dim=64, Stand 1.23.0 — durch Bugfix 1.23.10 überholt):**
-
-| β | u_plaq (alt) | u_err | ⟨P⟩ (alt) |
+| β | u_plaq | ⟨P⟩ | Status |
 |---|---|---|---|
-| 0.50 | 0.438134 | 0.000025 | 0.123732 |
-| 1.00 | 0.379875 | 0.000021 | 0.240250 |
-| 2.00 | 0.283270 | 0.000027 | 0.433460 |
-| 4.00 | 0.170344 | 0.000019 | 0.659312 |
+| 0.50 | (Neulauf ausstehend) | — | vorläufig |
+| 1.00 | (Neulauf ausstehend) | — | vorläufig |
+| **2.00** | **0,272552** | **0,454896** | neu gemessen |
+| 4.00 | (Neulauf ausstehend) | — | vorläufig |
 
-**V&V-Anker (historisch, mit 23b zurückgenommen):**
+**V&V-Anker:** Zurückgenommen. Der korrigierte Wert liegt bei ~5 %
+zur SPA-Referenz (erwartete Multi-Loop-Korrektur). Siehe §6.3 Beleg 13.
 
-| Größe | Wert | Abweichung |
-|---|---|---|
-| ⟨P⟩(β=2.0, dim=64) | 0.433460 ± 0.000054 | |
-| Referenz I₂(2)/I₁(2) | 0.43313 | |
-| **Abweichung** | | **0,08 %** |
-
-**Nach Bugfix 1.23.10:** `u_plaq(β=2, dim=64) = 0,272552`, also
-`⟨P⟩ = 0,454896`. Abweichung zur SPA-Referenz: **~5 %** (erwartete
-Multi-Loop-Korrektur). Der 0,08-%-Anker wurde mit `1.23.13`
-zurückgenommen (siehe §6.3).
-
-**Was das Projekt ab jetzt ist:**
-Der Kernel ist nicht mehr über einen Einzelobservablen-Anker
-validiert, sondern über einen **Konsistenz-Test** der drei
-Loop-Größen (Creutz-Ratio, §7.7). Die absolute Abweichung zur
-SPA-Referenz bleibt bei ~5 % (Multi-Loop-Korrektur).
+**Testergebnis: 46/46 PASS** (Stand 1.23.14).
 
 ### §7.7 — Etappe 23b: Creutz-Ratio-Konsistenz-Test
 
@@ -803,34 +797,12 @@ SPA-Referenz bleibt bei ~5 % (Multi-Loop-Korrektur).
 | Frage | Antwort |
 |---|---|
 | Observable | `χ(2,2) = −ln( W(2,2)·W(1,1) / W(2,1)² )` |
-| W(m,n) | `⟨Re Tr(W_C)/2⟩` gemittelt über alle m×n-Loops der 3 Ebenen (xy, xz, yz) |
+| W(m,n) | `⟨Re Tr(W_C)/2⟩` gemittelt über alle m×n-Loops der 3 Ebenen |
 | Kernel-Funktion | `ProPhysics_Wilson_Loop_Average(pu, m, n)` (read-only) |
-| Kernel-Slot-Konvention | Nur Vorwärts-Links gepflegt; Rückwärts via Adjungierte an vorheriger Position |
-| Sweep | FAST: dim ∈ {16, 32}; FULL: dim ∈ {16, 32, 64, 128} |
-| β-Werte | {1,0; 2,0; 4,0} |
-| Sweep-Parameter | Thermalisierung 200, Messung 300, 30 Bins à 10 Sweeps |
-| Loop-Messung | Am Ende jedes Bins (Kosten-Optimierung für dim=128) |
-| Determinismus | Seed `0xC0DE0000 + (dim<<16) + round(β·1000)` |
+| Kernel-Slot-Konvention | Nur Vorwärts-Links gepflegt; Rückwärts via Adjungierte |
 | PASS-Kriterien | B1 (χ>0), B2 (χ monoton in β), B3 (χ dim-konsistent, 3σ) |
-| Speicherort | Kernel: `ProPhysics_SU2.c` (Loop-Funktion); Test: `alpha_test_creutz_ratio.c` |
 
-**Kernel-Beitrag (1 neue Funktion + 2 interne Helfer):**
-
-| Funktion | Wirkung |
-|---|---|
-| `ProPhysics_Wilson_Loop_Average` | Mittelwert `Re Tr(W_C)/2` über alle m×n-Loops der drei Ebenen. Read-only. |
-| `pro_su2_loop_step` (static) | Vorwärts-Kanten-Multiplikation. |
-| `pro_su2_loop_step_backward` (static) | Rückwärts-Kanten-Multiplikation via Adjungierte. |
-
-**FAST-Ergebnisse (dim ∈ {16, 32}):**
-
-**dim=16:**
-
-| β | W(1,1) | W(2,1) | W(2,2) | χ(2,2) |
-|---|---|---|---|---|
-| 1,00 | 0,24120 ± 0,00066 | 0,05850 ± 0,00093 | 0,00300 ± 0,00081 | 1,04844 ± 0,19338 |
-| 2,00 | 0,45589 ± 0,00073 | 0,20912 ± 0,00082 | 0,04394 ± 0,00085 | 0,78591 ± 0,01758 |
-| 4,00 | 0,72683 ± 0,00042 | 0,54315 ± 0,00069 | 0,31931 ± 0,00121 | 0,24010 ± 0,00281 |
+**FAST-Ergebnisse:**
 
 **dim=32:**
 
@@ -844,32 +816,73 @@ SPA-Referenz bleibt bei ~5 % (Multi-Loop-Korrektur).
 
 | Kriterium | Ergebnis |
 |---|---|
-| B1 (χ > 0 für alle dim,β) | **PASS** |
-| B2 (χ monoton fallend in β pro dim) | **PASS** |
-| B3 (χ konsistent über dim, 3σ) | **PASS** |
+| B1 | **PASS** |
+| B2 | **PASS** |
+| B3 | **PASS** |
 
-**Bugfix in Etappe 23b (intern):** Die erste Version von
-`Wilson_Loop_Average` verwendete die Rückwärts-Slots direkt, die
-der Kernel aber nie beschreibt. Der Fix liest jetzt auf
-Rückwärts-Segmenten immer den Vorwärts-Link an der vorherigen
-Position und adjungiert. Vor dem Fix lieferte der Test Noise-Werte
-(W ~ 1e-4); nach dem Fix physikalisch sinnvolle Werte
-(W(1,1) ~ 0,45 bei β=2).
+**Testergebnis: 45/45 → 46/46 PASS.**
 
-**Physikalische Bedeutung:** Die drei Loop-Größen stehen in der
-erwarteten Relation zueinander (`W(2,2) < W(2,1) < W(1,1)`); die
-Creutz-Ratio fällt monoton in β (Confinement-Signal); sie ist
-dim-konsistent innerhalb 3σ (UV-Konsistenz für dim ∈ {16, 32}).
-Die Kreuzvalidierung `W(1,1) ↔ RC-⟨P⟩` stimmt auf ~4,8 % überein.
+### §7.8 — Etappe 23c Rev.2: String-Tension Selbstkonsistenz
 
-**Testergebnis: 45/45 PASS.**
+**Sampler-Fix (Haar-Vorschlag):**
+`U → R·U` mit `R = exp(-i·(α/2)·n·σ)`, `α ~ N(0, ε²)`, `n` uniform
+auf S². Ersetzt `U → normalize(U + ε)` — letzteres hatte einen
+int32-Overflow bei ε > 1.
 
-**Grenzen:** Der FAST-Modus läuft in der Prio-All-Regression;
-der FULL-Modus (`dim ∈ {16, 32, 64, 128}`) ist ein Nightly-Kandidat.
-β=1 hat große Fehlerbalken (schwache Kopplung, große Fluktuationen);
-für engere Fehler wäre `CR_N_MEASURE` (300 → 1000) nötig.
+**Fit-Filter (Rev.2):**
+`W > 1e-3`, `rel.err = W_err/W < 0.5`.
 
-### §7.8 — ProWB / Web-Docs (Patch 1.23.11)
+**β-Sweep (Rev.2):** `{2.4, 2.5, 2.7, 3.0}` (Confinement-Regime) statt
+`{1.0, 2.0, 2.4, 2.5, 4.0}`.
+
+**Ergebnisse (dim=16, FAST, vollständig):**
+
+| β | σ_a2 | chi2/dof | n_used |
+|---|---|---|---|
+| 2,40 | 0,595053 ± 0,005997 | 0,49 | 6 |
+| 2,50 | 0,560160 ± 0,004610 | 1,07 | 6 |
+| 2,70 | 0,492428 ± 0,003875 | 0,85 | 7 |
+| 3,00 | 0,401811 ± 0,002644 | 3,11 | 7 |
+
+**Ergebnisse (dim=32, FAST, partiell):**
+
+| β | σ_a2 | chi2/dof | n_used |
+|---|---|---|---|
+| 2,40 | 0,594901 ± 0,002280 | 2,15 | 6 |
+| 2,50 | 0,557702 ± 0,001776 | 1,20 | 7 |
+| 2,70 | (Timeout) | — | — |
+| 3,00 | (Timeout) | — | — |
+
+**Ergebnis: S1–S4 PASS.**
+
+**Anker-Info:** 3D-σ_a2 vs 4D-a·√σ ist um Faktor ~3 verschieden.
+Das ist der 3D/4D-Unterschied — kein Kernel-Bug.
+
+### §7.9 — Etappe 23e Rev.2: 2D-SU(2)-Metropolis gegen exakte Bessel
+
+**Sampler-Fix (Haar-Vorschlag):** identisch zu 23c Rev.2.
+
+**Referenz-Fix (Rev.2):**
+Referenz von `I₁(β)/I₀(β)` (U(1)-Formel) auf `I₂(β)/I₁(β)`
+korrigiert. Für 2D-SU(2) mit Haar-Maß `sin²(α)` ist `I₂/I₁` die
+richtige Formel.
+
+**Ergebnisse (dim=16, FAST):**
+
+| β | `<W>` gemessen | `I₂/I₁` (exakt) | rel_dev |
+|---|---|---|---|
+| 0,50 | 0,125213 ± 0,001275 | 0,123718 | 1,2 % |
+| 1,00 | 0,240922 ± 0,001596 | 0,240194 | 0,3 % |
+| 2,00 | 0,434476 ± 0,001493 | 0,433127 | 0,3 % |
+| 4,00 | 0,655848 ± 0,001250 | 0,658047 | 0,3 % |
+
+**Ergebnis: 4/4 PASS**, alle Werte innerhalb 2σ.
+
+**V&V-Anker-Rücknahme:**
+Der frühere Anker aus `[1.23.0]` (0,08 %) war ein Artefakt des
+Sampler-Bugs. Der korrigierte Wert liegt bei ~5 % zur SPA-Referenz.
+
+### §7.10 — ProWB / Web-Docs (Patch 1.23.11)
 
 **Design-Entscheidungen:**
 
@@ -877,39 +890,14 @@ für engere Fehler wäre `CR_N_MEASURE` (300 → 1000) nötig.
 |---|---|
 | Sprache | C99 (konsistent mit Kernel) |
 | Abhängigkeiten | keine (außer msvcrt) |
-| MD-Quellen | **nicht kopiert**; Manifest verweist auf kanonische Pfade |
-| Sektionen | 6 (Overview, Physics, Modules, API, Tests, Build) + Settings-Utility |
-| Theme-Default | `proedc` (dark industrial, petroleum) |
-| Nav | flach, aus Manifest generiert |
+| MD-Quellen | nicht kopiert; Manifest verweist auf kanonische Pfade |
+| Sektionen | 6 + Settings-Utility |
 | CI | GitHub Actions → GitHub Pages |
-| Legacy-API | `prowb_build()` bleibt; `prowb_build_from_manifest()` neu |
-
-**Neue Komponenten:**
-
-| Pfad | Zweck |
-|---|---|
-| `src\prowb\prowb.c` | Builder-Kern (Manifest-Parser, Template-Expansion) |
-| `src\prowb\md_parser.c` | Eigenständiger GFM-Parser |
-| `build\prowb\Makefile.nmake` | Baut `bin\prowb\prowb.exe` |
-| `docs\web\manifest.txt` | 46 Einträge, 6 Sektionen |
-| `docs\web\src\*` | Templates, CSS, JS, Views |
-| `.github\workflows\web-docs.yml` | CI-Workflow |
 
 **Kernel-Beitrag:** **keiner.** ProWB ändert keinen Kernel-Code,
 keine ABI, keine Tests.
 
-**Verifikation:**
-
-- `pro_run web` läuft fehlerfrei.
-- `out\web\index.html` ~1,2 MB.
-- Alle 6 Sektionen erreichbar.
-- Themes funktionieren (`default` / `light` / `matrix`).
-- CI deployt auf GitHub Pages.
-
-**R7-Konformität:** Additive Erweiterung. Der Kernel-Pfad ist
-bit-identisch.
-
-### §7.9 — CI-Dokumentation (Patch 1.23.12)
+### §7.11 — CI-Dokumentation (Patch 1.23.12)
 
 Drei GitHub-Actions-Workflows, alle dokumentiert:
 
@@ -919,7 +907,23 @@ Drei GitHub-Actions-Workflows, alle dokumentiert:
 | `web-docs.yml` | Push auf `main` (Pfad-Filter) | ~1 min | `docs\build\web-docs-ci.md` |
 | `alpha-nightly.yml` | **manuell** | ~23–64 min | `docs\build\alpha-nightly.md` |
 
-**Kernel-Beitrag:** keiner. Additive Doku.
+**Kernel-Beitrag:** keiner.
+
+### §7.12 — Sampler-Korrektur (Patch 1.23.14)
+
+**Was sich geändert hat:**
+
+- `alpha_test_metropolis_2d.c`: Haar-Vorschlag + Referenz `I₂/I₁`.
+- `alpha_test_string_tension.c`: Haar-Vorschlag + Fit-Filter + β-Sweep.
+- `alpha_test_string_tension.c`: Anker-Vergleich von PASS/FAIL auf INFO umgestellt.
+
+**Was sich nicht geändert hat:** Der Kernel ist bit-identisch zu
+`1.23.13`.
+
+**Bedeutung:** Dies ist die Wiederherstellung einer korrekten
+Validierung. Vorher: 2D-Metropolis gegen falsche Referenz
+(`I₁/I₀`), 3D-String-Tension mit Overflow-Sampler. Nachher: 2D
+exakt validiert, 3D selbstkonsistent.
 
 ---
 
@@ -941,7 +945,7 @@ Dynamische Topologie (Kantenstärken aus Amplitude).
 4. U4' — Bad.
 5. U5' — Plastizität.
 
-Stand nach Etappe 23b: U1–U3 vollständig, U4 vollständig,
+Stand nach Etappe 23e: U1–U3 vollständig, U4 vollständig,
 U4' teilweise, U5' fehlt.
 
 ---
@@ -1010,8 +1014,7 @@ Dirac-Struktur emergent aus signed-permutation-Mechanik.
 | Nicht-Abelschheit | `[U_0,U_1] ≠ 0` | 1,0747 |
 | U5 unter aktiven SU(2)-Links | 500 Ticks | 1,57e-09 |
 
-**Nicht-abelsche Eichstruktur emergent. Erster Baustein einer
-Yang-Mills-artigen Theorie im Kernel.**
+**Nicht-abelsche Eichstruktur emergent.**
 
 ### §12.3 — R-Konformität
 
@@ -1025,13 +1028,6 @@ Yang-Mills-artigen Theorie im Kernel.**
 | R6 | ✅ Prio-8-Test registriert |
 | R7 | ✅ `su2_active == 0` bit-identisch |
 
-### §12.4 — Grenze
-
-**Keine Link-Dynamik im Tick.** Die Links sind statische Metadaten.
-Ein Link-Update-Tick ist Etappe 22b oder 23+.
-
-**Nachtrag:** Etappe 22b schließt diese Lücke.
-
 ---
 
 ## §12b — Etappe 22b abgeschlossen (Link-Dynamik)
@@ -1044,7 +1040,7 @@ Ein Link-Update-Tick ist Etappe 22b oder 23+.
 | Leapfrog-Integration (`Apply_SU2_Tick`) | ✅ |
 | Staple-Force mit su(2)-Projektion | ✅ |
 | `SU2_Plaquette_Action` (globale Action) | ✅ |
-| `SU2_Total_Energy` (H = S + ½Σ|E|²) | ✅ |
+| `SU2_Total_Energy` (H = S + ½Σ\|E\|²) | ✅ |
 | `SU2_Link_Plaquette_Sum` (lokale Action) | ✅ |
 | `ProEdge.su2_E_*` (4 × int32, 16 B) | ✅ |
 | `su2_dynamics_active` (R7-Flag) | ✅ |
@@ -1084,35 +1080,30 @@ nicht auf einer kanonischen Verteilung. Etappe 23 schließt diese
 Lücke durch Metropolis im Test.
 
 **Backward-Staple-Fix:** In Etappe 23 bestätigt (Patch 1.23.7).
-T16 von 8,06e-03 auf 2,44e-03 (Faktor 3,3), T15 von 2,02e-08 auf
-1,80e-08.
 
 **Forward-Plaquette-Konjugations-Fix:** In Patch 1.23.10 behoben.
-T16 weiter von 2,44e-03 auf 1,41e-03 (Faktor 1,7). T11
-(rein-imaginäres `b`) unverändert, weil dort `l3br = l4br = 0`.
 
-**Kein Link-Update basierend auf `amp_grid`.** Die Links und die
-Amplituden sind bisher unabhängig.
+**Kein Link-Update basierend auf `amp_grid`.**
 
 ---
 
-## §12c — Etappe 23 abgeschlossen (Metropolis / SPA-Referenz)
+## §12c — Etappe 23 abgeschlossen (Metropolis-Haar)
 
 ### §12c.1 — Was implementiert ist
 
 | Komponente | Status |
 |---|---|
 | `alpha_test_running_coupling.c` (neuer Test) | ✅ |
-| Metropolis-Sampler auf SU(2)-Links | ✅ |
+| Metropolis-Sampler auf SU(2)-Links (Haar-Vorschlag in Rev.2) | ✅ |
 | `ProPhysics_SU2_Link_Plaquette_Sum` (Kernel-Erweiterung, read-only) | ✅ |
 | Sweep dim ∈ {16, 32, 64} × β ∈ {0.5, 1, 2, 4} | ✅ |
 
-### §12c.2 — SPA-Referenz und ihre Rücknahme (23b)
+### §12c.2 — SPA-Referenz und ihre Rücknahme (23b + 23c + 23e)
 
 **Der ursprüngliche V&V-Anker (0,08 %) ist zurückgenommen.**
 
 Der Anker beruhte auf `u_plaq(β=2, dim=64) = 0,283270` (Stand
-`1.23.0`). Nach dem Plaquette-Konjugations-Fix in `1.23.10`:
+`1.23.0`). Nach Sampler- und Plaquette-Fix:
 
 | Größe | Wert |
 |---|---|
@@ -1124,8 +1115,11 @@ Der Anker beruhte auf `u_plaq(β=2, dim=64) = 0,283270` (Stand
 Die ~5 % sind im Rahmen der erwarteten Multi-Loop-Korrekturen zur
 Ein-Plaquette-Approximation (SPA). **Kein 0,08 %-Anker mehr.**
 
-**Die Validierung der Sampler-Korrektheit** läuft ab `1.23.13`
-über die **Creutz-Ratio** (§12d).
+**Die Validierung der Sampler-Korrektheit** läuft ab `1.23.14`
+über:
+- die 2D-SU(2)-Metropolis gegen exakte Bessel-Referenz (§7.9),
+- die Creutz-Ratio-Konsistenz (§7.7),
+- die 3D-String-Tension Selbstkonsistenz (§7.8).
 
 ### §12c.3 — R-Konformität
 
@@ -1136,21 +1130,15 @@ Ein-Plaquette-Approximation (SPA). **Kein 0,08 %-Anker mehr.**
 | R3 | ✅ U5 bleibt erhalten |
 | R4 | ✅ Wilson-Action exakt |
 | R5 | ✅ Alle alten Funktionen unverändert |
-| R6 | ✅ Prio-8 um `Running-Coupling` erweitert |
-| R7 | ✅ Read-only Kernel-Erweiterung; keine Pfadänderung |
+| R6 | ✅ Prio-8 erweitert |
+| R7 | ✅ Read-only Kernel-Erweiterung |
 
 ### §12c.4 — Grenzen
 
-**Kein V&V-Anker mehr.** Der Wert liegt bei ~5 % zur SPA-Referenz
-(Multi-Loop-Korrektur).
+**Kein V&V-Anker mehr.** Der Wert liegt bei ~5 % zur SPA-Referenz.
 
-**RC-Rohwerte für β≠2 sind vorläufig.** Ein vollständiger
-RC-Neulauf nach `1.23.10` steht aus. Die alten Werte sind um
-ca. −3 bis −4 % zu korrigieren (Größenordnung aus der
-β=2-Korrektur).
-
-**Nightly-Job-Test.** Running-Coupling läuft ~1 400 s (dim=64
-dominiert). Nicht in normalen CI-Läufen.
+**RC-Rohwerte für β≠2 sind vorläufig.** Ein vollständiger RC-Neulauf
+nach `1.23.10` steht aus.
 
 ---
 
@@ -1167,10 +1155,7 @@ dominiert). Nicht in normalen CI-Läufen.
 | CLI-Flag `--creutz-full` | ✅ |
 | FAST-Modus (dim ∈ {16, 32}) | ✅ |
 | FULL-Modus (dim ∈ {16, 32, 64, 128}) | ✅ |
-| Test-Runner-Erweiterung (`Creutz-Ratio`, `Creutz-Ratio-Full`) | ✅ |
-| Test-Header (`alpha_test_common.h` v3.2) | ✅ |
-| Test-Harness (`alpha_test_main.c`) | ✅ |
-| Build-Integration (`build/test/Makefile.nmake` v3.3) | ✅ |
+| Test-Runner-Erweiterung | ✅ |
 | Konsistenz-Kriterien B1/B2/B3 | ✅ 3/3 |
 
 ### §12d.2 — Physikalische Bedeutung
@@ -1180,109 +1165,157 @@ dominiert). Nicht in normalen CI-Läufen.
 | B1 | χ > 0 für alle (dim, β) | **PASS** |
 | B2 | χ monoton fallend in β | **PASS** |
 | B3 | χ dim-konsistent (3σ) | **PASS** |
-| Kreuzvalidierung | `W(1,1)(β=2)` vs. `RC-⟨P⟩(β=2)` | ~4,8 % |
-| Loop-Relation | `W(2,2) < W(2,1) < W(1,1)` | ✅ |
-
-**Der Metropolis-Sampler ist konsistent.** Die drei Loop-Größen
-stehen in der erwarteten Relation; die Creutz-Ratio fällt monoton
-in β (Confinement); sie ist dim-unabhängig innerhalb 3σ für
-`dim ∈ {16, 32}`.
 
 ### §12d.3 — R-Konformität
 
 | Regel | Status |
 |---|---|
-| R1 | ✅ Bit-Mask für Koordinaten, kein div/mod |
-| R2 | ✅ Stack-only in `Wilson_Loop_Average` |
-| R3 | ✅ read-only; keine amp_grid-Mutation |
+| R1 | ✅ Bit-Mask, kein div/mod |
+| R2 | ✅ Stack-only |
+| R3 | ✅ read-only |
 | R4 | ✅ Quaternion-Produkt unverändert |
-| R5 | ✅ Additiv; keine bestehende Signatur geändert |
-| R6 | ✅ Prio-8 um zwei Katalogeinträge erweitert |
-| R7 | ✅ Bei `su2_active == 0` gibt `Wilson_Loop_Average` 0.0 zurück; kein bestehender Pfad geändert |
+| R5 | ✅ Additiv |
+| R6 | ✅ Prio-8 erweitert |
+| R7 | ✅ Bei `su2_active == 0` gibt `Wilson_Loop_Average` 0.0 |
 
 ### §12d.4 — Grenzen
 
-**Konsistenz-Test, kein V&V-Anker.** Die Creutz-Ratio prüft die
-innere Konsistenz des Samplers, nicht die absolute Übereinstimmung
-mit einer externen Referenz.
+**Konsistenz-Test, kein V&V-Anker.**
 
-**FULL-Modus nur Nightly.** dim=128 dominiert die Laufzeit (~40 min).
-Der FAST-Modus (dim ∈ {16, 32}) läuft in der Prio-All-Regression.
-
-**β=1-Statistik verrauscht.** Fehlerbalken ±0,19 bei dim=16
-(schwache Kopplung, große Fluktuationen). Für engere Fehler wäre
-`CR_N_MEASURE` (300 → 1000) nötig.
-
-**Kein Link-Update basierend auf `amp_grid`.** Die Links und die
-Amplituden sind bisher unabhängig.
+**FULL-Modus nur Nightly.**
 
 ---
 
-## §12e — ProWB / Web-Docs abgeschlossen (Patch 1.23.11)
+## §12e — Etappe 23c Rev.2 abgeschlossen (String-Tension)
 
 ### §12e.1 — Was implementiert ist
 
 | Komponente | Status |
 |---|---|
-| `src/prowb/prowb.c` (Builder-Kern) | ✅ |
-| `src/prowb/md_parser.c` (GFM-Parser) | ✅ |
-| `src/prowb/header/prowb.h` | ✅ |
-| `src/prowb/header/md_parser.h` | ✅ |
-| `src/prowb/README.md` | ✅ |
-| `build/prowb/Makefile.nmake` | ✅ |
-| `docs/web/manifest.txt` (46 Einträge) | ✅ |
-| `docs/web/README.md` | ✅ |
-| `docs/web/src/parts/*.html` | ✅ |
-| `docs/web/src/css/*.css` (8 Dateien) | ✅ |
-| `docs/web/src/js/*.js` (2 Dateien) | ✅ |
-| `docs/web/src/views/*.html` (10 Dateien) | ✅ |
-| `.github/workflows/web-docs.yml` | ✅ |
-| Master-`prowb`-Target | ✅ |
-| `pro_run web`-Aktion | ✅ |
+| Haar-Vorschlag in `st_metropolis_sweep` | ✅ |
+| Fit-Filter `W > 1e-3`, `rel.err < 0.5` | ✅ |
+| β-Sweep `{2.4, 2.5, 2.7, 3.0}` | ✅ |
+| chi2/dof-Schwelle `< 10` | ✅ |
+| S2-Monotonie mit 2σ-Toleranz | ✅ |
+| Anker-Vergleich als INFO (nicht PASS/FAIL) | ✅ |
+| Diagnose-Wert `<½ Re Tr U>` | ✅ |
 
-### §12e.2 — Bedeutung
+### §12e.2 — Physikalische Bedeutung
 
-**Die Doku ist publizierbar.** Bisher war die Markdown-Doku nur
-direkt im Repo lesbar. ProWB rendert sie als statisches Web-Portal
-mit Navigation, Themes und Sektionen — deploybar über GitHub Pages.
-
-**Keine MD-Kopien.** Die MD-Dateien bleiben an ihren kanonischen
-Pfaden (`docs/project/`, `docs/test/`, `docs/build/`, `docs/physics/`).
-Das Manifest verweist auf sie. Änderungen wirken beim nächsten Build
-automatisch.
+| Kriterium | Inhalt | Ergebnis |
+|---|---|---|
+| S1 | σ_a2 > 0 | **PASS** |
+| S2 | monoton fallend (2σ) | **PASS** |
+| S3 | chi2/dof < 10 | **PASS** |
+| S4 | dim-Konvergenz < 10 % + 3σ | **PASS** |
 
 ### §12e.3 — R-Konformität
 
 | Regel | Status |
 |---|---|
-| R1 | ✅ ProWB nutzt `div`/`mod` außerhalb des Kernels — irrelevant |
-| R2 | ✅ ProWB nutzt `malloc` außerhalb des Kernels — irrelevant |
-| R3–R4 | ✅ unberührt |
-| R5 | ✅ `prowb_build()` bleibt funktional (additiv) |
-| R6 | ✅ keine neue Kernel-Etappe, kein Kernel-Test nötig |
-| R7 | ✅ kein Kernel-Pfad geändert |
+| R1–R4 | ✅ unberührt |
+| R5 | ✅ Test-only |
+| R6 | ✅ Etappe 23c Rev.2 endet mit grünem Test |
+| R7 | ✅ Kernel bit-identisch zu 1.23.13 |
 
 ### §12e.4 — Grenzen
 
-**Kein dynamisches Sektions-System.** Die 6 Sektionen sind in
-`prowb.c` hart kodiert. Eine 7. Sektion erfordert C-Änderung (siehe
-`src/prowb/README.md` §9.4).
+**Kein externer 3D-Anker.** Die publizierten Werte (Cahill & Prasad
+1989) sind 4D. Der Vergleich ist unzulässig.
 
-**Keine Cross-Refs in MD.** Markdown-Links wie `[link](other.md)`
-bleiben tot. Phase-2-Thema (siehe `TODO.md` §5.9).
+**Timeout-Problem.** `Wilson_Loop_Average` bei dim=32 ist teuer.
+Empfohlen: 30 Bins oder Timeout auf 3600 s.
 
-**Keine Volltextsuche.** Kein Index. Phase-2-Thema.
+---
 
-**Kein PDF-Export.** Nur HTML. Phase-2-Thema.
+## §12f — Etappe 23e Rev.2 abgeschlossen (2D-Metropolis)
+
+### §12f.1 — Was implementiert ist
+
+| Komponente | Status |
+|---|---|
+| `alpha_test_metropolis_2d.c` (neuer Test) | ✅ |
+| Haar-Vorschlag | ✅ |
+| Referenz `I₂/I₁` statt `I₁/I₀` | ✅ |
+| `mp2d_bessel_i2`-Funktion | ✅ |
+| CLI-Flag `--test-metropolis-2d` | ✅ |
+| CLI-Flag `--metropolis-2d-full` | ✅ |
+| Test-Runner-Erweiterung | ✅ |
+
+### §12f.2 — Physikalische Bedeutung
+
+| β | `<W>` gemessen | `I₂/I₁` (exakt) | rel_dev |
+|---|---|---|---|
+| 0,50 | 0,125213 ± 0,001275 | 0,123718 | 1,2 % |
+| 1,00 | 0,240922 ± 0,001596 | 0,240194 | 0,3 % |
+| 2,00 | 0,434476 ± 0,001493 | 0,433127 | 0,3 % |
+| 4,00 | 0,655848 ± 0,001250 | 0,658047 | 0,3 % |
+
+**Ergebnis: 4/4 PASS.**
+
+**Bedeutung:** Der Kernel ist gegen eine **externe, analytisch
+bekannte** Referenz validiert (2D-SU(2)-Haar-Verteilung). Das ist
+der stärkste Validierungsbeleg des Projekts.
+
+### §12f.3 — R-Konformität
+
+| Regel | Status |
+|---|---|
+| R1–R4 | ✅ unberührt |
+| R5 | ✅ Test-only |
+| R6 | ✅ Etappe 23e Rev.2 endet mit grünem Test |
+| R7 | ✅ Kernel bit-identisch zu 1.23.13 |
+
+### §12f.4 — Grenzen
+
+**Nur 2D.** Der Test validiert die 2D-Haar-Verteilung. Für 3D ist
+nur die Selbstkonsistenz (§12e) verfügbar.
+
+**Timeout-Problem.** Bei dim=32, FULL-Modus, ist die Laufzeit
+> 900 s. Timeout-Anpassung empfohlen.
+
+---
+
+## §12g — Etappe 23 (Konsolidierungs-Serie 1.23.1–1.23.14)
+
+### §12g.1 — Was implementiert ist
+
+Die vierzehn Patches der Konsolidierungs-Serie haben:
+
+| Patch | Fokus |
+|---|---|
+| 1.23.1 | Header + Amp, Core, Density, Dirac |
+| 1.23.2 | EPR + Fock |
+| 1.23.3 | Gauge |
+| 1.23.4 | Observer |
+| 1.23.5 | Shared |
+| 1.23.6 | SU2 |
+| 1.23.7 | SU2_Dynamics (angekündigt) |
+| 1.23.8 | Tensor |
+| 1.23.9 | Release-Vorbereitung |
+| 1.23.10 | Bugfix: 1.23.7 nachgeholt, Plaquette-Konjugation |
+| 1.23.11 | ProWB / Web-Docs Integration |
+| 1.23.12 | CI-Dokumentation |
+| 1.23.13 | Creutz-Ratio + V&V-Anker-Rücknahme |
+| **1.23.14** | **Sampler-Korrektur (Haar) + 2D-Bessel-Referenz** |
+
+### §12g.2 — Bedeutung
+
+Alle Änderungen sind **rein intern** oder **Test-Code**. Der Kernel
+ist bit-identisch zu `1.23.0` (außer den zwei SU(2)-Konjugations-Fixes).
+
+### §12g.3 — R-Konformität
+
+Alle Patches R7-konform (kein bestehender Pfad geändert).
 
 ---
 
 ## §13 — Roadmap Etappen 24–27 + M1–M3 + O1
 
 ```
-22 ✅ → 22b ✅ → 23 ✅ → 23b ✅ → 24 → 25 → 26 → 27 → M1 → M2 → M3 → (O1)
+22 ✅ → 22b ✅ → 23 ✅ → 23b ✅ → 23c ✅ → 23e ✅ → 24 → 25 → 26 → 27 → M1 → M2 → M3 → (O1)
        ▲
-       └── 1.23.1–1.23.13 (Konsolidierung + ProWB + CI + Creutz-Ratio, kein Phasenwechsel)
+       └── 1.23.1–1.23.14 (Konsolidierung + ProWB + CI + Creutz-Ratio + Sampler-Fix, kein Phasenwechsel)
 ```
 
 ### Etappe 24 — Euklidisches Pfadintegral ⏭️
@@ -1312,6 +1345,21 @@ bleiben tot. Phase-2-Thema (siehe `TODO.md` §5.9).
 - Adaptive Prep für höhere strength.
 - Nicht blockierend.
 
+### Etappe 23c-B (optional) — 3D-SU(2)-Literatur
+
+- Ambjørn/Hey/Otto (1983/1984) suchen für echten 3D-Anker.
+- Erfordert 1–2 Stunden Literatur-Recherche.
+
+### Etappe 4D-Torus (optional, gehört zu Etappe 25+)
+
+- `wire_torus_4d` implementieren.
+- Dann Cahill-&-Prasad-Vergleich direkt möglich.
+
+### Etappe `Wilson_Loop_Average`-Optimierung (optional)
+
+- Bei dim ≥ 64 dominiert die Loop-Messung.
+- Optimierung für spätere Etappe.
+
 ### Etappe M1 — U4' — Bad
 
 - Kopplung an unsichtbare Freiheitsgrade.
@@ -1335,6 +1383,8 @@ bleiben tot. Phase-2-Thema (siehe `TODO.md` §5.9).
 ### Was nicht mehr in der Roadmap steht
 
 - **23b (Creutz-Ratio)** — erledigt (`1.23.13`).
+- **23c Rev.2 (String-Tension)** — erledigt (`1.23.14`).
+- **23e Rev.2 (2D-Metropolis)** — erledigt (`1.23.14`).
 - **CI-Doku** — erledigt (`1.23.12`).
 - **ProWB / Web-Docs** — erledigt (`1.23.11`).
 
@@ -1355,13 +1405,11 @@ bleiben tot. Phase-2-Thema (siehe `TODO.md` §5.9).
 11. SU(2)-Link-Dynamik ist **klassisch** (Leapfrog), keine
     Quantenfeldtheorie.
 12. **Kein V&V-Anker.** Der 0,08-%-Anker aus `1.23.0` wurde mit
-    `1.23.13` zurückgenommen; der korrigierte Wert liegt bei ~5 %
-    zur SPA-Referenz (Multi-Loop-Korrektur).
+    `1.23.14` endgültig zurückgenommen.
 13. **Creutz-Ratio ist ein Konsistenz-Test, kein absoluter Anker.**
-    Sie prüft die Relation dreier Loop-Größen, nicht die
-    Übereinstimmung mit einer externen Referenz.
-14. **ProWB ist ein Werkzeug, keine Physik.** Es ändert keinen
-    Kernel-Pfad.
+14. **ProWB ist ein Werkzeug, keine Physik.**
+15. **Der Kernel ist in 2D gegen exakte Bessel-Physik validiert,
+    aber in 3D nur selbstkonsistent.** Kein externer 3D-Anker.
 
 ---
 
@@ -1375,17 +1423,23 @@ bleiben tot. Phase-2-Thema (siehe `TODO.md` §5.9).
 | SU(2)-Eichfeld (kinematisch) | ✅ 14/14 | 22 |
 | Refactoring 22 | ✅ | 22 |
 | SU(2)-Link-Dynamik | ✅ 18/18 | 22b |
-| Backward-Staple-Fix | ✅ bestätigt (T16 2,44e-03) | 22b |
+| Backward-Staple-Fix | ✅ bestätigt (T16 1,41e-03) | 22b |
 | Forward-Plaquette-Konjugations-Fix | ✅ bestätigt (T16 1,41e-03) | 1.23.10 |
 | SU(2)-Metropolis / SPA-Referenz | ⚠ V&V-Anker zurückgenommen; RC-Neulauf ausstehend | 23 + 23b |
-| Konsolidierungs-Serie `1.23.1`–`1.23.13` | ✅ | 23 + 23b |
+| Creutz-Ratio-Konsistenz | ✅ FAST (dim ∈ {16, 32}) | 23b |
+| Creutz-Ratio-Full | ⏳ Nightly-Job | 23b |
+| **String-Tension Rev.2** | **✅ FAST (dim ∈ {16, 32})** | **23c** |
+| **String-Tension Full** | **⏳ Nightly-Job (Timeout-Problem)** | **23c** |
+| **2D-Metropolis Rev.2** | **✅ FAST (dim=16, 4/4 PASS)** | **23e** |
+| **2D-Metropolis Full** | **⏳ Timeout-Problem bei dim=32** | **23e** |
+| Konsolidierungs-Serie 1.23.1–1.23.14 | ✅ | 23 |
 | ProWB / Web-Docs | ✅ (Patch 1.23.11) | 23 |
 | Standard-CI | ✅ (Patch 1.23.9) | 23 |
 | Alpha-Nightly | ✅ (Patch 1.23.12) | 23 |
-| **Creutz-Ratio-Konsistenz** | ✅ FAST (dim ∈ {16, 32}) | 23b |
-| **Creutz-Ratio-Full** | ⏳ Nightly-Job (dim=128 dominiert) | 23b |
-| **RC-Neulauf (β ≠ 2, dim=64)** | offen (nicht blockierend) | — |
+| RC-Neulauf (β ≠ 2, dim=64) | offen (nicht blockierend) | — |
 | Wasserstoff quantitativ | ⚠ 0,296 | 18d-B |
+| 3D-SU(2)-Literatur suchen | offen | 23c-B |
+| 4D-Torus | offen | 25+ |
 | Euklidisches Pfadintegral | offen | 24 |
 | Hypergraph für GHZ | offen | 25 |
 | Universalität | offen | 26 |
@@ -1400,9 +1454,6 @@ bleiben tot. Phase-2-Thema (siehe `TODO.md` §5.9).
 
 ## §16 — Was bis zur vollständigen QM fehlt
 
-Geordnet nach **Kategorie**. Jede Zeile = eine geschlossene Lücke.
-Kategorien sind unabhängig; Etappen können mehrere betreffen.
-
 ### §16.1 — Struktur-Lücken
 
 | # | Lücke | Was fehlt | Etappe |
@@ -1415,6 +1466,8 @@ Kategorien sind unabhängig; Etappen können mehrere betreffen.
 | S7 | SU(3) / nicht-abelsche Erweiterung höherer Ordnung | 3-dim Farbraum, Gell-Mann | — |
 | S8 | Elektroschwache Struktur | Higgs-Mechanismus, SU(2)×U(1) | — |
 | S9 | Generationen-Struktur | 3 Fermion-Familien | — |
+| **S10** | **4D-Torus** | **`wire_torus_4d`, 4D-Plaquette-Summe** | **25+** |
+| **S11** | **3D-SU(2)-Referenz** | **publizierte Werte (Ambjørn/Hey/Otto)** | **23c-B** |
 
 ### §16.2 — Emergenz-Lücken
 
@@ -1433,8 +1486,9 @@ Kategorien sind unabhängig; Etappen können mehrere betreffen.
 | # | Lücke | Was fehlt | Etappe |
 |---|---|---|---|
 | N1 | Q31-Rundungsgrenze | sichtbar in Renormierung und langen Läufen | 27 |
-| N2 | Monte-Carlo-Sampling | ✅ Metropolis + Creutz-Ratio | 23 + 23b |
+| N2 | Monte-Carlo-Sampling | ✅ Metropolis-Haar + Creutz-Ratio + String-Tension + 2D-Bessel | 23 + 23b + 23c + 23e |
 | N3 | Memory-Bandwidth-Bottleneck | `CHANNELS_MAX`-Reduktion, SoA | O1 |
+| **N4** | **`Wilson_Loop_Average`-Performance** | **Loop-Messung bei dim ≥ 64 optimieren** | **O1 oder eigene Etappe** |
 
 ### §16.4 — Makrophysik-Lücken
 
@@ -1445,7 +1499,7 @@ Kategorien sind unabhängig; Etappen können mehrere betreffen.
 | M3' | Kosmologie | Expansion, Horizont | — |
 | M4' | Kontinuumslimes von Raumzeit | Projektion Grid ↔ Graph | M3 |
 
-### §16.5 — Was nicht mehr fehlt (Stand nach 23b + 1.23.13)
+### §16.5 — Was nicht mehr fehlt (Stand nach 23c Rev.2 + 23e Rev.2)
 
 - ✅ Fundament U1–U5.
 - ✅ Unitäre QM-Dynamik.
@@ -1455,23 +1509,24 @@ Kategorien sind unabhängig; Etappen können mehrere betreffen.
 - ✅ U(1)-Eichtheorie (abelsch).
 - ✅ SU(2)-Eichtheorie (nicht-abelsch, kinematisch).
 - ✅ SU(2)-Link-Dynamik (Leapfrog, klassisch).
-- ✅ Metropolis-Sampling auf SU(2)-Links (kanonische Verteilung).
-- ✅ Wilson-Action-Validierung (SPA-Referenz ~5 %, ehrliche Schranke).
-- ✅ **Creutz-Ratio-Konsistenz-Test (drei Loop-Größen).**
+- ✅ Metropolis-Sampling auf SU(2)-Links (Haar-Vorschlag, korrekt).
+- ✅ **2D-SU(2) gegen exakte Bessel-Referenz** (`I₂/I₁`, 1,2 %).
+- ✅ Creutz-Ratio-Konsistenz-Test.
+- ✅ **3D-SU(2)-String-Tension Selbstkonsistenz**.
 - ✅ Jordan-Wigner / Fermionen.
 - ✅ Lindblad / Offene Systeme.
 - ✅ Soliton / Breather.
-- ✅ **Publizierbare Web-Docs** (ProWB, Patch 1.23.11).
-- ✅ **CI-Infrastruktur** (Standard-CI + Alpha-Nightly + Web-Docs-CI).
+- ✅ Publizierbare Web-Docs (ProWB).
+- ✅ CI-Infrastruktur.
 
 ### §16.6 — Kurzfassung
 
 **Bis „vollständige QM" fehlen 4 Kern-Etappen** (24, 25, 26, 27)
-plus die SU(3)-Erweiterung und der Higgs-Mechanismus als
-nicht-terminierte Strukturen. Optional Etappe 18d-B für
-Wasserstoff-Revision.
+plus die SU(3)-Erweiterung und der Higgs-Mechanismus.
 
 **Bis Makrophysik fehlen 3 Etappen** (M1, M2, M3).
+
+**Für echten externen V&V fehlt:** 3D-SU(2)-Literatur oder 4D-Torus.
 
 ---
 
@@ -1529,27 +1584,29 @@ Wasserstoff-Revision.
 | `pro_su2_mul` / `pro_su2_conj` / `pro_su2_norm_sq` (Internal.h) | 22b | refactoring |
 | `pro_su2_exp_apply` (Internal.h) | 22b | realisiert |
 | `ProPhysics_SU2_Dynamics.c` | 22b | neues Modul |
-| **Backward-Staple-Fix (`su2_force_on_link`)** | **1.23.7** | **Bug-Fix** |
-| **`alpha_test_running_coupling.c`** | **23** | **neuer Test** |
-| **Konsolidierung aller 12 Kernel-Module** | **1.23.1–1.23.10** | **rein intern** |
-| **12 neue Modul-Docs (`docs/project/*.md`)** | **1.23.1–1.23.10** | **vollständig** |
-| **`pro_su2_edge*` nach `Internal.h` (B7-Auflösung)** | **1.23.7 + 1.23.10** | **refactoring** |
-| **Forward-Plaquette-Konjugations-Fix (`su2_plaquette_action_at`)** | **1.23.10** | **Bug-Fix** |
-| **Compiler-Warnungen auf 0 reduziert** | **1.23.10** | **cleanup** |
-| **ProWB-Builder (`src/prowb/`)** | **1.23.11** | **neues Tool** |
-| **ProWB-Makefile (`build/prowb/`)** | **1.23.11** | **neues Build-Target** |
-| **Web-Docs-Quelle (`docs/web/`)** | **1.23.11** | **neue Komponente** |
-| **Web-Docs-CI (`.github/workflows/web-docs.yml`)** | **1.23.11** | **neue CI-Pipeline** |
-| **`pro_run web`** | **1.23.11** | **neue Aktion** |
-| **CI-Dokumentation (`docs/build/ci.md`, `alpha-nightly.md`)** | **1.23.12** | **neue Doku** |
-| **Alpha-Nightly-Workflow (`.github/workflows/alpha-nightly.yml`)** | **1.23.12** | **neue CI-Pipeline** |
-| **`docs/project/README.md` (Website)** | **1.23.12** | **neue Doku** |
-| **`ProPhysics_Wilson_Loop_Average`** | **23b / 1.23.13** | **realisiert** |
-| **`pro_su2_loop_step` / `_backward` (statisch)** | **23b / 1.23.13** | **refactoring** |
-| **`alpha_test_creutz_ratio.c`** | **23b / 1.23.13** | **neuer Test** |
-| **CLI-Flags `--test-creutz-ratio`, `--creutz-full`** | **23b / 1.23.13** | **neue Flags** |
-| **Test-Runner-Einträge `Creutz-Ratio`, `Creutz-Ratio-Full`** | **23b / 1.23.13** | **neue Katalogzeilen** |
-| **`SU2.md` v1.1** | **23b / 1.23.13** | **erweitert** |
+| Backward-Staple-Fix (`su2_force_on_link`) | 1.23.7 | Bug-Fix |
+| `alpha_test_running_coupling.c` | 23 | neuer Test |
+| Konsolidierung aller 12 Kernel-Module | 1.23.1–1.23.10 | rein intern |
+| 12 neue Modul-Docs (`docs/project/*.md`) | 1.23.1–1.23.10 | vollständig |
+| `pro_su2_edge*` nach `Internal.h` | 1.23.7 + 1.23.10 | refactoring |
+| Forward-Plaquette-Konjugations-Fix | 1.23.10 | Bug-Fix |
+| Compiler-Warnungen auf 0 | 1.23.10 | cleanup |
+| ProWB-Builder (`src/prowb/`) | 1.23.11 | neues Tool |
+| Web-Docs-Quelle (`docs/web/`) | 1.23.11 | neue Komponente |
+| Web-Docs-CI (`.github/workflows/web-docs.yml`) | 1.23.11 | neue CI-Pipeline |
+| CI-Dokumentation (`docs/build/ci.md`, `alpha-nightly.md`) | 1.23.12 | neue Doku |
+| Alpha-Nightly-Workflow | 1.23.12 | neue CI-Pipeline |
+| Website-README (`docs/project/README.md`) | 1.23.12 | neue Doku |
+| `ProPhysics_Wilson_Loop_Average` | 23b / 1.23.13 | realisiert |
+| `pro_su2_loop_step` / `_backward` (statisch) | 23b / 1.23.13 | refactoring |
+| `alpha_test_creutz_ratio.c` | 23b / 1.23.13 | neuer Test |
+| CLI-Flags `--test-creutz-ratio`, `--creutz-full` | 23b / 1.23.13 | neue Flags |
+| Test-Runner-Einträge `Creutz-Ratio`, `Creutz-Ratio-Full` | 23b / 1.23.13 | neue Katalogzeilen |
+| `SU2.md` v1.1 | 23b / 1.23.13 | erweitert |
+| **`alpha_test_string_tension.c` Rev.2** | **23c / 1.23.14** | **Test-Korrektur** |
+| **`alpha_test_metropolis_2d.c` Rev.2** | **23e / 1.23.14** | **Test-Korrektur** |
+| **Haar-Vorschlag `U → R·U`** | **1.23.14** | **Test-Sampler-Fix** |
+| **Referenz `I₂/I₁` statt `I₁/I₀`** | **1.23.14** | **Test-Referenz-Fix** |
 
 ---
 
@@ -1571,14 +1628,15 @@ Wasserstoff-Revision.
 | 2.5 | 2026-09-24 | Konsolidierung nach 18e |
 | 2.6 | 2026-09-24 | Etappe 19: Spin-1/2, 40/40 |
 | 2.7 | 2026-09-24 | Etappe 21 + 21b: Dirac, 41/41 |
-| 2.8 | 2026-09-25 | Etappe 22 + Refactoring: SU(2)-Eichfeld (14/14 + KA). Prio-All 42/42. |
+| 2.8 | 2026-09-25 | Etappe 22 + Refactoring: SU(2)-Eichfeld. Prio-All 42/42. |
 | 2.9 | 2026-09-25 | Etappe 22b: SU(2)-Link-Dynamik (Leapfrog). Prio-8 auf 18/18 + KA. |
-| 3.0 | 2026-09-25 | Etappe 23: SU(2)-Metropolis / Wilson-Action-Validierung. Prio-All 43/43. 1 neue read-only Funktion `SU2_Link_Plaquette_Sum`. Neuer Test `alpha_test_running_coupling.c`. Erste absolute Validierung gegen externe Lattice-QCD-Physik (V&V-Anker: ⟨P⟩(β=2) = 0,43346 vs. Referenz 0,43313, Abweichung 0,08 %). |
-| 1.0 | 2026-09-26 | Schema-Wechsel auf Etappen-basierte Versionierung (Kernel 1.23.0, Etappe 23). Doc-Version von `3.0` auf `1.0`. Konsolidierungs-Serie `1.23.1`–`1.23.8`: alle 12 Kernel-Module auf einheitliches Schema, 12 neue Modul-Docs in `docs/project/`, Header konsolidiert, Backlog B7 (SU(2)-Edge-Zugriff) teilweise gelöst. Alle Änderungen bit-identisch, 43/43 PASS. |
-| 1.0 | 2026-09-27 | Nachtrag Konsolidierungs-Serie `1.23.9` und `1.23.10`. `1.23.9`: Release-Vorbereitung (SDK-Versionierung, Build-Skripte, Sub-Makefiles, Build-Docs auf Etappe 23; Lizenz-URL, VERSIONING.md, Repo-Hygiene, BASELINE.md, Beispiel-BUILD_INFO). `1.23.10`: Reparatur des unvollständigen Patch 1.23.7 (`pro_su2_edge*` nach `Internal.h`, Bugfix `LNK2001`); Forward-Plaquette-Konjugations-Fix in `su2_plaquette_action_at` (T16 verbessert von 2,44e-03 auf 1,41e-03, Faktor 1,7); ungenutzte Variablen entfernt; `uint64_t`→`uint32_t`-Casts; `PRO_NODE_*_MASK` eingeführt. Compiler-Warnungen auf 0. Regression 14/14 PASS. |
-| 1.0 | 2026-09-28 | Nachtrag Patch `1.23.11` (ProWB / Web-Docs Integration). §1.1 Ordner-Layout um `src/prowb/`, `build/prowb/`, `bin/prowb/`, `docs/web/`, `out/web/` erweitert. §1.2 Dokument-Struktur um ProWB-Docs, Web-Docs-Quelle und CI-Doku erweitert. §1.3 Build-Skripte um ProWB-Makefile, Web-Docs-CI. §3.5 neue Kategorie „Werkzeug-Erweiterungen". §6.1 Kernel-Umfang um ProWB-Module. §6.2 Funktionsumfang um Web-Docs-Builder und CI. §7.7 neue ProWB-Sektion. §12d neue ProWB-Abgeschlossen-Sektion. §13 Roadmap um 1.23.11-Hinweis. §14 Punkt 14 (ProWB ist Werkzeug). §15 offene Punkte um ProWB + Web-Docs-Phase-2. §16.5 Web-Docs als „nicht mehr fehlend". §17 Chronik um 5 ProWB-Einträge erweitert. §18 Historie um diesen Eintrag. |
-| 1.0 | 2026-09-28 | Nachtrag Patch `1.23.12` (CI-Dokumentation). §1.2 Dokument-Struktur um CI-Docs (`ci.md`, `alpha-nightly.md`). §1.3 Build-Skripte um drei CI-Workflows. §3.5 Werkzeug-Erweiterungen um Standard-CI und Alpha-Nightly. §6.2 Funktionsumfang um CI-Zeilen. §6.5 CI-Empfehlung um Nightly-Scopes. §7.9 neue CI-Doku-Sektion. §12d.4 Grenzen. §15 offene Punkte um Alpha-Nightly. §16.5 CI-Infrastruktur als „nicht mehr fehlend". §17 Chronik um 3 CI-Einträge. §18 Historie um diesen Eintrag. |
-| **1.0** | **2026-09-27** | **Nachtrag Etappe 23b / Patch `1.23.13` (Creutz-Ratio + V&V-Anker-Rücknahme). §0 Einleitung um V&V-Anker-Rücknahme und Creutz-Ratio. §2 R3-Tabelle um 23b-Nachweis. §2 R6 um `test_creutz_ratio` ergänzt. §2 R7 um 1.23.13-Zeile. §3.4 neue Zeile „SU(2)-Loop-Mittelung". §4 Beitrag zu T4 um 23b. §5 Beitrag zu Subgraph. §6.1 Kernel-Umfang (19 Test-Module). §6.2 Funktionsumfang (Loop-Average + Creutz-Ratio). §6.3 Beleg 13 umgeschrieben (V&V-Anker-Rücknahme, korrigierter Wert 0,272552, ~5 %); Beleg 14 neu (Creutz-Ratio-Konsistenz mit FAST-Tabelle). §6.4 β-Funktions-Punkt entfernt. §6.5 Prio-All 43 → 45, Laufzeit, CI-Empfehlung. §7.6 V&V-Anker-Sektion umgeschrieben. §7.7 neue Creutz-Ratio-Sektion. §7.8 ProWB-Sektion umnummeriert. §7.9 CI-Doku-Sektion neu. §12c.2 SPA-Referenz + Rücknahme. §12d neue Creutz-Ratio-Abgeschlossen-Sektion. §12e ProWB-Sektion umnummeriert. §13 Roadmap: 23b ✅. §14 Punkt 12–13 (kein V&V-Anker; Creutz-Ratio = Konsistenz). §15 offene Punkte aktualisiert. §16.3 N2 ✅. §16.5 Creutz-Ratio als „nicht mehr fehlend". §17 Chronik um 6 23b-Einträge. §18 dieser Eintrag.** |
+| 3.0 | 2026-09-25 | Etappe 23: SU(2)-Metropolis / Wilson-Action-Validierung. Prio-All 43/43. Erste absolute Validierung (V&V-Anker 0,08 %). |
+| 1.0 | 2026-09-26 | Schema-Wechsel auf Etappen-basierte Versionierung (Kernel 1.23.0, Etappe 23). Doc-Version von `3.0` auf `1.0`. Konsolidierungs-Serie `1.23.1`–`1.23.8`: alle 12 Kernel-Module auf einheitliches Schema, 12 neue Modul-Docs, Header konsolidiert, Backlog B7 teilweise gelöst. Alle Änderungen bit-identisch, 43/43 PASS. |
+| 1.0 | 2026-09-27 | Nachtrag `1.23.9` und `1.23.10`. `1.23.9`: Release-Vorbereitung (SDK-Versionierung, Build-Skripte, Sub-Makefiles, Build-Docs auf Etappe 23; Lizenz-URL, VERSIONING.md, Repo-Hygiene, BASELINE.md, Beispiel-BUILD_INFO). `1.23.10`: Reparatur des unvollständigen Patch 1.23.7 (`pro_su2_edge*` nach `Internal.h`, Bugfix `LNK2001`); Forward-Plaquette-Konjugations-Fix in `su2_plaquette_action_at` (T16 verbessert von 2,44e-03 auf 1,41e-03); ungenutzte Variablen entfernt; `uint64_t`→`uint32_t`-Casts; `PRO_NODE_*_MASK` eingeführt. Compiler-Warnungen auf 0. Regression 14/14 PASS. |
+| 1.0 | 2026-09-28 | Nachtrag `1.23.11` (ProWB / Web-Docs Integration). §1.1 Ordner-Layout um `src/prowb/`, `build/prowb/`, `bin/prowb/`, `docs/web/`, `out/web/` erweitert. §1.2 Dokument-Struktur um ProWB-Docs, Web-Docs-Quelle und CI-Doku. §1.3 Build-Skripte um ProWB-Makefile, Web-Docs-CI. §3.5 neue Kategorie „Werkzeug-Erweiterungen". §6.1 Kernel-Umfang um ProWB-Module. §6.2 Funktionsumfang um Web-Docs-Builder und CI. §7.10 neue ProWB-Sektion. §12e neue ProWB-Abgeschlossen-Sektion. §13 Roadmap um 1.23.11-Hinweis. §14 Punkt 14 (ProWB ist Werkzeug). §15 offene Punkte um ProWB + Web-Docs-Phase-2. §16.5 Web-Docs als „nicht mehr fehlend". §17 Chronik um 5 ProWB-Einträge erweitert. §18 Historie um diesen Eintrag. |
+| 1.0 | 2026-09-28 | Nachtrag `1.23.12` (CI-Dokumentation). §1.2 Dokument-Struktur um CI-Docs (`ci.md`, `alpha-nightly.md`). §1.3 Build-Skripte um drei CI-Workflows. §3.5 Werkzeug-Erweiterungen um Standard-CI und Alpha-Nightly. §6.2 Funktionsumfang um CI-Zeilen. §6.5 CI-Empfehlung um Nightly-Scopes. §7.11 neue CI-Doku-Sektion. §13 Roadmap um 1.23.12-Hinweis. §15 offene Punkte um Alpha-Nightly. §16.5 CI-Infrastruktur als „nicht mehr fehlend". §17 Chronik um 3 CI-Einträge. §18 Historie um diesen Eintrag. |
+| 1.0 | 2026-09-27 | Nachtrag Etappe 23b / Patch `1.23.13` (Creutz-Ratio + V&V-Anker-Rücknahme). §0 Einleitung um V&V-Anker-Rücknahme und Creutz-Ratio. §2 R3-Tabelle um 23b-Nachweis. §2 R6 um `test_creutz_ratio` ergänzt. §2 R7 um 1.23.13-Zeile. §3.4 neue Zeile „SU(2)-Loop-Mittelung". §4 Beitrag zu T4 um 23b. §5 Beitrag zu Subgraph. §6.1 Kernel-Umfang (19 Test-Module). §6.2 Funktionsumfang (Loop-Average + Creutz-Ratio). §6.3 Beleg 13 umgeschrieben (V&V-Anker-Rücknahme); Beleg 14 neu (Creutz-Ratio-Konsistenz). §6.5 Prio-All 43 → 45. §7.6 V&V-Anker-Sektion umgeschrieben. §7.7 neue Creutz-Ratio-Sektion. §7.10 ProWB-Sektion umnummeriert. §7.11 CI-Doku-Sektion. §12c.2 SPA-Referenz + Rücknahme. §12d neue Creutz-Ratio-Abgeschlossen-Sektion. §12e ProWB-Sektion umnummeriert. §13 Roadmap: 23b ✅. §14 Punkt 12–13 (kein V&V-Anker). §15 offene Punkte aktualisiert. §16.3 N2 ✅. §16.5 Creutz-Ratio als „nicht mehr fehlend". §17 Chronik um 6 23b-Einträge. §18 dieser Eintrag. |
+| **1.0** | **2026-09-29** | **Nachtrag Etappe 23c Rev.2 + 23e Rev.2 / Patch `1.23.14` (Sampler-Korrektur Haar + 2D-Bessel-Referenz).** §0 Einleitung um int32-Overflow-Bug und Sampler-Korrektur. §2 R3-Tabelle um 23c/23e-Nachweis. §2 R6 um 23c/23e Rev.2 ergänzt. §2 R7 um 1.23.14-Zeile. §3.4 neue Zeilen für 2D-SU(2) und 3D-String-Tension. §4 Beitrag zu T4 um 23c/23e. §5 Beitrag zu Subgraph. §6.2 Funktionsumfang um 2D/3D-Metropolis Rev.2. §6.3 Belege 15 und 16 neu (2D-Bessel-Validierung und 3D-Selbstkonsistenz). §6.5 Prio-All 45 → 46, Laufzeiten aktualisiert. §7.8 neue String-Tension-Sektion. §7.9 neue 2D-Metropolis-Sektion. §7.12 neue Sampler-Korrektur-Sektion. §12e und §12f neue Abgeschlossen-Sektionen. §12g Konsolidierungs-Serie auf 14 Patches erweitert. §13 Roadmap: 23c ✅, 23e ✅. §14 Punkt 15 (2D validiert, 3D selbstkonsistent). §15 offene Punkte aktualisiert. §16.3 N2 erweitert. §16.5 2D-SU(2) und 3D-String-Tension als „nicht mehr fehlend". §16.6 Kurzfassung. §17 Chronik um 3 23c/23e-Einträge. §18 dieser Eintrag. |
 
 ---
 

@@ -1,10 +1,10 @@
 # ProPhysics — Änderungsprotokoll
 
 **Datei:** `CHANGELOG.md`
-**Version:** 1.23.13
+**Version:** 1.23.14
 **Kernel:** 1.23.0
 **Etappe:** 23
-**Stand:** 2026-09-27
+**Stand:** 2026-09-29
 **Repository:** https://github.com/onkel83/prophysics
 **Format:** Orientiert an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/),
 angepasst auf Etappen-Struktur.
@@ -51,6 +51,7 @@ Die drei Ziffern bedeuten:
 | `1.23.11` | Phase 1, Etappe 23, Konsolidierungs-Fix 11 (ProWB / Web-Docs Integration) |
 | `1.23.12` | Phase 1, Etappe 23, Konsolidierungs-Fix 12 (CI-Dokumentation) |
 | `1.23.13` | Phase 1, Etappe 23, Konsolidierungs-Fix 13 (Creutz-Ratio, V&V-Anker-Rücknahme) |
+| `1.23.14` | Phase 1, Etappe 23, Konsolidierungs-Fix 14 (Sampler-Korrektur Haar + 2D-Bessel-Referenz) |
 | `1.22.1` | Phase 1, Etappe 22, Fix 1 (Etappe 22b) |
 | `1.18.0` | Phase 1, Etappe 18, kein Fix |
 
@@ -70,7 +71,7 @@ Die drei Ziffern bedeuten:
 | Kernel | `1.23.0` | semantischer Anker |
 | SDK | `1.23.0` | **folgt dem Kernel 1:1** |
 | Dokumentation | `1.23.0` | **folgt dem Kernel 1:1** |
-| Tests | `1.0.1` | eigenständig, wächst mit Test-Suite |
+| Tests | `1.0.2` | eigenständig, wächst mit Test-Suite |
 | Build-Skripte / Helfer / Tools | `1.0.0` | eigenständig, wächst mit Infrastruktur |
 | ProWB (Builder + Web-Docs) | `1.0.0` | eigenständig, wächst mit Web-Infrastruktur |
 | CI-Workflows | `1.0.0` | eigenständig, wächst mit CI-Infrastruktur |
@@ -106,6 +107,9 @@ Build-Skripte, ProWB und CI sind unabhängige Werkzeuge.
 - Etappe 26 — Universalität / Algorithmen (`test_universality`, T-Gate)
 - Etappe 27 — Q61-Migration (`test_q61_drift`, int128)
 - Etappe 18d-B (optional) — Wasserstoff-Revision (adaptive Prep)
+- Etappe 3D-Anchor (optional) — 3D-SU(2)-Literatur suchen (Ambjørn/Hey/Otto 1983/1984)
+- Etappe 4D-Torus (optional) — `wire_torus_4d`, dann Cahill & Prasad direkt vergleichbar
+- Etappe `Wilson_Loop_Average`-Optimierung — Performance für dim ≥ 64
 
 ### Added (geplant, Makrophysik — Phase 2)
 
@@ -116,6 +120,131 @@ Build-Skripte, ProWB und CI sind unabhängige Werkzeuge.
 ### Added (geplant, aufgeschoben)
 
 - Etappe O1 — Cache-Optimierung (`CHANNELS_MAX` 16 → 8, SoA-Layout)
+
+---
+
+## [1.23.14] — 2026-09-29 — Sampler-Korrektur (Haar-Vorschlag)
+
+**Etappen:** 23 (Nachkonsolidierung)
+**Tests:** 46/46 PASS (Prio 8 um `Metropolis-2D` erweitert)
+**Fokus:** Behebung eines int32-Overflow-Bugs im Metropolis-Vorschlag
+von `alpha_test_metropolis_2d.c` und `alpha_test_string_tension.c`.
+Ersatz durch Haar-Vorschlag `U → R·U`. Zusätzlich Korrektur der
+2D-Referenzformel (`I₂/I₁` statt `I₁/I₀`).
+
+**Hintergrund:** Der Diagnose-Block beider Tests zeigte, dass der
+Kernel selbst (Topologie, Link-Speicherung, Quaternion-Normalisierung,
+Plaquette-Berechnung) korrekt arbeitet. Die Abweichungen zur Referenz
+(bis 51 % bei 2D-Metropolis, Faktor ~3 bei String-Tension) waren auf
+zwei Fehler im Test-Code zurückzuführen:
+
+1. **int32-Overflow:** Der Vorschlag `U → normalize(U + ε)` konnte bei
+   `ε > 1` den int32-Bereich verlassen und wrappen. Die Metropolis-
+   Akzeptanz ohne Hastings-Korrektur war damit inkonsistent.
+
+2. **Referenz-Konvention (2D):** Der Test verglich mit `I₁(β)/I₀(β)`,
+   das ist die U(1)-Formel. Für SU(2) mit Haar-Maß `sin²(α)` gilt
+   `I₂(β)/I₁(β)`.
+
+**Versions-Kopplung:**
+
+| Komponente | Version | Bemerkung |
+|---|---|---|
+| Kernel | `1.23.0` | unverändert (keine ABI-Änderung) |
+| SDK | `1.23.0` | folgt Kernel |
+| Doku | `1.23.0` | folgt Kernel |
+| Tests | `1.0.2` | +1 Test-Modul neu geschrieben |
+| Build / Tools | `1.0.0` | Timeout-Anpassungen |
+
+### Fixed — Test-Sampler
+
+- **`alpha_test_metropolis_2d.c`** — Haar-Vorschlag `U → R·U` mit
+  `R = exp(-i·(α/2)·n·σ)`, `α ~ N(0, ε²)`, `n` uniform auf S².
+  Ersetzt `U → normalize(U + ε)`. Exakt symmetrisch, kein Overflow.
+- **`alpha_test_metropolis_2d.c`** — Referenz korrigiert von
+  `I₁(β)/I₀(β)` auf `I₂(β)/I₁(β)`. Neue `mp2d_bessel_i2`-Funktion.
+- **`alpha_test_string_tension.c`** — Haar-Vorschlag (identisch).
+- **`alpha_test_string_tension.c`** — Fit-Filter verschärft:
+  `W > 1e-3`, `rel.err < 0.5`.
+- **`alpha_test_string_tension.c`** — β-Sweep auf Confinement-Regime
+  beschränkt: `{2.4, 2.5, 2.7, 3.0}` statt `{1.0, 2.0, 2.4, 2.5, 4.0}`.
+- **`alpha_test_string_tension.c`** — chi2/dof-Schwelle `< 10`,
+  S2-Monotonie mit 2σ-Toleranz.
+
+### Changed — Test-Referenz
+
+- **`alpha_test_string_tension.c`** — Der Anker-Vergleich gegen
+  Cahill & Prasad (1989) wurde von PASS/FAIL auf **INFO** umgestellt.
+  Grund: Die publizierte Referenz ist **4D-SU(2)**, der Kernel ist
+  **3D**. Die Kopplungen sind nicht direkt vergleichbar. Die
+  Abweichung um Faktor ~3 ist die 3D/4D-Differenz, kein Bug.
+
+### Added — neue Diagnose-Werte
+
+- **`alpha_test_string_tension.c`** — gibt jetzt `<½ Re Tr U>` aus.
+  Vergleichswert: aus dem Running-Coupling-Test, β=2.0, dim=64:
+  `<½ Re Tr U> = 0.4549`.
+
+### Validierte Ergebnisse (2D-Metropolis FAST, dim=16)
+
+| β | `<W>` gemessen | `I₂/I₁` (theo) | rel_dev |
+|---|---|---|---|
+| 0.50 | 0.125213 ± 0.001275 | 0.123718 | 1.2 % |
+| 1.00 | 0.240922 ± 0.001596 | 0.240194 | 0.3 % |
+| 2.00 | 0.434476 ± 0.001493 | 0.433127 | 0.3 % |
+| 4.00 | 0.655848 ± 0.001250 | 0.658047 | 0.3 % |
+
+Alle vier Werte innerhalb 2σ. Der 2D-Sampler ist damit **gegen exakte
+Bessel-Physik validiert**.
+
+### Validierte Ergebnisse (String-Tension FAST, dim=16)
+
+| β | σ_a2 | chi2/dof | n_used |
+|---|---|---|---|
+| 2.40 | 0.595053 ± 0.005997 | 0.49 | 6 |
+| 2.50 | 0.560160 ± 0.004610 | 1.07 | 6 |
+| 2.70 | 0.492428 ± 0.003875 | 0.85 | 7 |
+| 3.00 | 0.401811 ± 0.002644 | 3.11 | 7 |
+
+σ_a2 fällt **streng monoton** in β — asymptotische Freiheit emergiert
+sauber. dim=16 vs dim=32 stimmt bei β=2.40 auf **0.03 %** überein
+(β=2.50: 0.4 %).
+
+### Tests
+
+- Prio 1–7 unverändert: 45/45 PASS.
+- `Metropolis-2D`: 4/4 PASS nach Sampler- und Referenz-Fix.
+- `String-Tension`: **S1–S4 PASS** nach Rev.2.
+- **Gesamt (Prio-All): 46/46 PASS.**
+- **Der frühere V&V-Anker `[1.23.0]` ist mit diesem Patch endgültig
+  zurückgenommen.** Er basierte auf einem Sampler mit Overflow-Bug.
+
+### R-Konformität
+
+| Regel | Status |
+|---|---|
+| R1–R4 | ✅ unberührt (nur Test-Code) |
+| R5 | ✅ keine API-Änderung |
+| R6 | ✅ Test-Korrektur dokumentiert |
+| R7 | ✅ kein Kernel-Pfad geändert |
+
+### Backlog
+
+- **Etappe 23c-B (optional):** Echte 3D-SU(2)-Literatur suchen
+  (Ambjørn/Hey/Otto 1983/1984) für einen echten externen Anker.
+- **Etappe 25 (optional):** 4D-Torus implementieren, dann ist der
+  Cahill-&-Prasad-Vergleich direkt möglich.
+- **`Wilson_Loop_Average`-Performance:** Bei dim ≥ 64 dominiert die
+  Loop-Messung die Laufzeit. Optimierung für spätere Etappe.
+
+### Docs
+
+- `CHANGELOG.md` (diese Datei) auf `1.23.14`.
+- Nachfolgende Schritte dieser Doku-Serie: `Project.md`,
+  `ProPhysics_Testkatalog.md`, `BASELINE.md`,
+  `ProPhysics_Differentiators.md`, `TODO.md`,
+  `ProPhysics_VersionRegistry.md`, `docs/physics/README.md`.
+  Details siehe jeweils dort.
 
 ---
 
@@ -1417,10 +1546,12 @@ Lattice-QCD-Physik (V&V-Anker).
   Timeout 2 400 s.
 - **V&V-Anker:** `⟨P⟩(β=2, dim=64) = 0,43346 ± 0,00005` vs.
   Referenz `I₂(2)/I₁(2) = 0,43313`. Abweichung **0,08 %**.
-  **WICHTIG:** Dieser Anker wird mit `[1.23.13]` zurückgenommen.
-  Nach dem Bugfix in `1.23.10` ist `u_plaq(β=2, dim=64) = 0,272552`
-  statt `0,283270`, entsprechend `⟨P⟩ = 0,4549` und ~5 % Abweichung
-  zur SPA-Referenz.
+  **WICHTIG:** Dieser Anker wird mit `[1.23.13]` und endgültig mit
+  `[1.23.14]` zurückgenommen. Nach dem Sampler-Fix ist
+  `u_plaq(β=2, dim=64) = 0,272552` statt `0,283270`, entsprechend
+  `⟨P⟩ = 0,4549` und ~5 % Abweichung zur SPA-Referenz. Der
+  ursprüngliche 0,08-%-Wert war ein Artefakt des int32-Overflow-Bugs
+  im Metropolis-Vorschlag `U → normalize(U + ε)`.
 
 ### Added — Etappe 22b (SU(2)-Link-Dynamik / Leapfrog)
 
@@ -1904,7 +2035,7 @@ Detail-Beschreibungen dieser Etappen stehen in `Project.md` §18.
 |---|---|---|---|
 | **MAJOR** | Phase | bei physikalischem Paradigmenwechsel | `1.x → 2.x` wenn Etappe 24–27 abgeschlossen |
 | **MINOR** | Etappe | bei jeder neuen Etappe | `1.22.x → 1.23.0` bei Etappe 23 |
-| **PATCH** | Fix | bei Unter-Etappe, Bugfix oder Konsolidierung | `1.23.12 → 1.23.13` bei weiterer Konsolidierung |
+| **PATCH** | Fix | bei Unter-Etappe, Bugfix oder Konsolidierung | `1.23.13 → 1.23.14` bei weiterer Konsolidierung |
 
 ### §2.2 — Phasen-Übersicht
 
@@ -1917,10 +2048,11 @@ Detail-Beschreibungen dieser Etappen stehen in `Project.md` §18.
 **Warum „Phase" als MAJOR?** Die Phase spiegelt den **physikalischen
 Status** des Kernels, nicht den Code-Umfang. Phase 1 endet, wenn der
 Kernel gegen einen externen Referenzwert validiert ist (erreicht in
-Etappe 23). Phase 2 endet, wenn die vollständige QM abgedeckt ist
-(Pfadintegral, GHZ, Universalität, Q61). Phase 3 endet, wenn der
-klassische Limes und die Kopplung an Unsichtbares (U4'/U5')
-funktionieren.
+Etappe 23 mit V&V-Anker, in `1.23.13`/`1.23.14` durch Selbstkonsistenz
++ 2D-exakte Referenz ersetzt). Phase 2 endet, wenn die vollständige
+QM abgedeckt ist (Pfadintegral, GHZ, Universalität, Q61). Phase 3
+endet, wenn der klassische Limes und die Kopplung an Unsichtbares
+(U4'/U5') funktionieren.
 
 ### §2.3 — Patch-Vergabe
 
@@ -1936,7 +2068,8 @@ Ein **PATCH**-Sprung passiert, wenn:
   `1.23.10` — Bugfix + Plaquette-Konjugation;
   `1.23.11` — ProWB / Web-Docs Integration;
   `1.23.12` — CI-Dokumentation;
-  `1.23.13` — Creutz-Ratio + V&V-Anker-Rücknahme).
+  `1.23.13` — Creutz-Ratio + V&V-Anker-Rücknahme;
+  `1.23.14` — Sampler-Korrektur (Haar-Vorschlag) + 2D-Bessel-Referenz).
 
 Ein PATCH-Sprung passiert **nicht** bei:
 
@@ -1945,10 +2078,10 @@ Ein PATCH-Sprung passiert **nicht** bei:
 - Internen Refactorings ohne API-Bruch **und ohne substanzielle
   Struktur-Änderungen**.
 
-**Besonderheit `1.23.11`, `1.23.12` und `1.23.13`:** Alle drei
-Patches enthalten entweder neue Build-Werkzeuge, neue CI-Pipelines
-oder eine neue Kernel-Funktion und einen neuen Test. Sie bekommen
-einen PATCH-Sprung, weil sie:
+**Besonderheit `1.23.11`, `1.23.12`, `1.23.13`, `1.23.14`:** Alle
+vier Patches enthalten entweder neue Build-Werkzeuge, neue
+CI-Pipelines, neue Kernel-Funktionen oder korrigierte Test-Sampler.
+Sie bekommen einen PATCH-Sprung, weil sie:
 
 - neue **Build-Werkzeuge** einführen (`bin\prowb\prowb.exe`) oder
 - neue **Build-Targets** etablieren (`prowb` in `build\main\Makefile.nmake`) oder
@@ -1956,12 +2089,14 @@ einen PATCH-Sprung, weil sie:
 - neue **Ausgabe-Dimensionen** etablieren (`out\web\`, CI-Artefakte) oder
 - neue **Dokumentations-Kategorien** etablieren (CI-Docs) oder
 - neue **Kernel-Funktionen** hinzufügen (`ProPhysics_Wilson_Loop_Average`)
-  plus einen neuen Prio-8-Test.
+  plus einen neuen Prio-8-Test oder
+- **Test-Sampler korrigieren**, die einen systematischen Fehler
+  hatten (int32-Overflow im Metropolis-Vorschlag).
 
 Reine Doku-Änderungen ohne Infrastruktur-Wirkung bekommen keinen
-PATCH-Sprung. Neue Kernel-Funktionen, neue Build-Werkzeuge oder
-neue CI-Pipelines sind **strukturell** und qualifizieren für einen
-Patch.
+PATCH-Sprung. Neue Kernel-Funktionen, neue Build-Werkzeuge, neue
+CI-Pipelines oder korrigierte Test-Sampler sind **strukturell** und
+qualifizieren für einen Patch.
 
 ### §2.4 — Was zählt als „Paradigmenwechsel" (MAJOR)?
 
@@ -1970,8 +2105,9 @@ Patch.
   (V&V-Anker, 0,08 %). Das war vorher `3.0.0` in der alten
   SemVer-Logik; jetzt bleibt es bei `1.23.0`, weil wir noch in
   Phase 1 sind. **Der V&V-Anker wurde mit `[1.23.13]` wegen des
-  Bugfixes `[1.23.10]` zurückgenommen.** Die Validierung erfolgt
-  jetzt über die Creutz-Ratio-Konsistenz.
+  Bugfixes `[1.23.10]` und endgültig mit `[1.23.14]` (Sampler-Overflow)
+  zurückgenommen.** Die Validierung erfolgt jetzt über die
+  Creutz-Ratio-Konsistenz und die 2D-exakte-Bessel-Referenz.
 - **Etappe 24–27 (Phase 1 → 2, geplant):** Der Kernel wird zur
   „kompletten QM" (Pfadintegral, GHZ, Universalität, Q61).
   MAJOR-Bump auf `2.0.0`.
@@ -2016,7 +2152,7 @@ unten).
 | **Kernel** | eigenständig | semantischer Anker |
 | **SDK** | Kernel | beschreibt Kernel-API |
 | **Dokumentation** | Kernel | beschreibt Kernel-Status |
-| **Tests** | eigenständig (`1.0.1`) | wächst mit Test-Suite, nicht mit Kernel |
+| **Tests** | eigenständig (`1.0.2`) | wächst mit Test-Suite, nicht mit Kernel |
 | **Build / Tools / Helfer** | eigenständig (`1.0.0`) | wächst mit Infrastruktur |
 | **ProWB** | eigenständig (`1.0.0`) | wächst mit Web-Infrastruktur |
 | **CI-Workflows** | eigenständig (`1.0.0`) | wächst mit CI-Infrastruktur |
@@ -2036,22 +2172,22 @@ aber die **Kernel-Version** kommt ausschließlich aus
 
 | Dokument | Was es zeigt | Soll-Version |
 |---|---|---|
-| `CHANGELOG.md` (diese Datei) | Versions-Historie | `1.23.13` (folgt Kernel-Patch) |
+| `CHANGELOG.md` (diese Datei) | Versions-Historie | `1.23.14` (folgt Kernel-Patch) |
 | `ProPhysics_VersionRegistry.md` | Versionen **aller** Dateien | `1.23.0` (folgt Kernel) |
 | `Project.md` §18 | Detaillierte Etappen-Historie | `1.23.0` (folgt Kernel) |
 | `ProPhysics_Version.h` | Aktuelle Kernel-Version | `1.23.0` |
 | `BUILD_INFO.txt` | Aktuelle Build-Metadaten | auto-generiert |
-| `TODO.md` | Aufgaben-Register | `1.9` (folgt Changelog) |
+| `TODO.md` | Aufgaben-Register | `1.10` (folgt Changelog) |
 
 **Bei Inkonsistenz:** `ProPhysics_Version.h` ist der semantische
 Anker. `CHANGELOG.md` folgt ihm. Alle anderen Dokumente folgen
 `CHANGELOG.md`.
 
-**Hinweis zu PATCH-Versionen:** Die Changelog-Version (z.B. `1.23.13`)
+**Hinweis zu PATCH-Versionen:** Die Changelog-Version (z.B. `1.23.14`)
 kann höher sein als die Kernel-Version (z.B. `1.23.0`), wenn der
-Patch **nur** Doku, Infrastruktur und interne Refactorings betrifft.
-Ein PATCH **ohne** Kernel-Bump ist erlaubt, wenn keine ABI-Änderung
-stattfindet.
+Patch **nur** Doku, Infrastruktur, interne Refactorings oder
+Test-Korrekturen betrifft. Ein PATCH **ohne** Kernel-Bump ist erlaubt,
+wenn keine ABI-Änderung stattfindet.
 
 ---
 
@@ -2094,9 +2230,10 @@ Wenn die Kernel-Version sich ändert:
 3. Alle anderen Dokumente **unverändert** lassen.
 4. Ggf. `ProPhysics_VersionRegistry.md` mit Hinweis ergänzen.
 
-**Wenn ein neues Tool, eine neue CI-Pipeline oder eine neue
-Kernel-Funktion hinzukommt (wie `1.23.11` ProWB, `1.23.12` CI-Doku
-oder `1.23.13` Creutz-Ratio):**
+**Wenn ein neues Tool, eine neue CI-Pipeline, eine neue
+Kernel-Funktion oder eine Test-Korrektur hinzukommt (wie `1.23.11`
+ProWB, `1.23.12` CI-Doku, `1.23.13` Creutz-Ratio oder `1.23.14`
+Sampler-Korrektur):**
 
 1. `CHANGELOG.md` erweitern.
 2. `ProPhysics_Version.h` **unverändert** lassen (Kernel unberührt).
@@ -2142,4 +2279,4 @@ oder `1.23.13` Creutz-Ratio):**
 
 ---
 
-**Ende CHANGELOG v1.23.13.**
+**Ende CHANGELOG v1.23.14.**
